@@ -169,8 +169,30 @@ class _ResultPane extends StatelessWidget {
             key: ValueKey(identityHashCode(r)),
             columns: columns,
             rows: rows,
-            configuration: const PlutoGridConfiguration.dark(),
-            onLoaded: (e) => e.stateManager.setShowColumnFilter(false),
+            configuration: const PlutoGridConfiguration.dark(
+              style: PlutoGridStyleConfig.dark(
+                rowHeight: 28,
+                columnHeight: 32,
+                columnFilterHeight: 32,
+                enableCellBorderHorizontal: false,
+                defaultCellPadding: EdgeInsets.symmetric(horizontal: 10),
+                defaultColumnTitlePadding: EdgeInsets.symmetric(horizontal: 10),
+                cellTextStyle: TextStyle(
+                    fontFamily: 'monospace', fontSize: 12.5, color: Color(0xFFE6E8EC)),
+                columnTextStyle: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w600, color: _textMid),
+                gridBackgroundColor: _panel,
+                rowColor: _panel,
+                activatedColor: Color(0xFF1E2A30),
+                borderColor: _hair,
+              ),
+            ),
+            onLoaded: (e) {
+              e.stateManager.setShowColumnFilter(false);
+              // Cell selection + arrow-key / Tab navigation + Ctrl+C copy
+              // (built into pluto_grid; grid focuses on click).
+              e.stateManager.setSelectingMode(PlutoGridSelectingMode.cell);
+            },
           ),
         ),
         Container(
