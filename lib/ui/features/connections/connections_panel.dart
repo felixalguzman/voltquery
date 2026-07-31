@@ -1,12 +1,15 @@
+import 'package:cryptography/cryptography.dart' show SecretBoxAuthenticationError;
 import 'package:file_selector/file_selector.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../data/services/secret_store.dart';
 import '../../../domain/models/connection.dart';
 import '../../../domain/models/engine.dart';
 import '../query_workspace/worksheet_providers.dart';
 import 'connection_providers.dart';
+import 'master_password_dialog.dart';
 import 'postgres_form.dart';
 
 // TODO(theming #7): unify tokens into ui/core/theme.
@@ -31,13 +34,14 @@ class ConnectionsPanel extends ConsumerWidget {
     final saved = ref.watch(savedConnectionsProvider).valueOrNull ??
         const <Connection>[];
     final activeId = ref.watch(currentConnectionProvider).id;
+    final unlocked = ref.watch(vaultLockProvider);
 
     return Container(
       decoration: const BoxDecoration(color: _panel),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _header(context, ref),
+          _header(context, ref, unlocked),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 4),
@@ -52,7 +56,8 @@ class ConnectionsPanel extends ConsumerWidget {
     );
   }
 
-  Widget _header(BuildContext context, WidgetRef ref) => Container(
+  Widget _header(BuildContext context, WidgetRef ref, bool unlocked) =>
+      Container(
         height: 30,
         padding: const EdgeInsets.only(left: 12, right: 6),
         decoration: const BoxDecoration(
@@ -67,10 +72,56 @@ class ConnectionsPanel extends ConsumerWidget {
                   fontWeight: FontWeight.w600)),
           const Spacer(),
           IconButton(
+            icon: Icon(unlocked ? FluentIcons.unlock : FluentIcons.lock,
+                size: 12, color: unlocked ? _accent : _textMid),
+            onPressed: () => _toggleLock(context, ref, unlocked),
+          ),
+          IconButton(
             icon: const Icon(FluentIcons.add, size: 12, color: _textMid),
             onPressed: () => _addMenu(context, ref),
           ),
         ]),
+      );
+
+  Future<void> _toggleLock(
+      BuildContext context, WidgetRef ref, bool unlocked) async {
+    final store = await ref.read(secretStoreProvider.future);
+    if (unlocked) {
+      store.lock();
+      ref.read(vaultLockProvider.notifier).set(false);
+      return;
+    }
+    if (!context.mounted) return;
+    await _unlockVault(context, ref, store);
+  }
+
+  /// Ensures the vault is unlocked (creating it on first run). Returns true on
+  /// success.
+  Future<bool> _unlockVault(
+      BuildContext context, WidgetRef ref, SecretStore store) async {
+    if (!store.isLocked) return true;
+    final pw = await showMasterPasswordDialog(context, isNew: !store.exists);
+    if (pw == null) return false;
+    try {
+      await store.unlock(pw);
+      ref.read(vaultLockProvider.notifier).set(true);
+      return true;
+    } on SecretBoxAuthenticationError {
+      if (context.mounted) await _error(context, 'Wrong master password.');
+      return false;
+    }
+  }
+
+  Future<void> _error(BuildContext context, String message) => showDialog(
+        context: context,
+        builder: (ctx) => ContentDialog(
+          content: Text(message),
+          actions: [
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('OK')),
+          ],
+        ),
       );
 
   Future<void> _addMenu(BuildContext context, WidgetRef ref) async {
@@ -95,11 +146,12 @@ class ConnectionsPanel extends ConsumerWidget {
 
   Future<void> _addPostgres(BuildContext context, WidgetRef ref) async {
     final result = await showPostgresConnectionDialog(context);
-    if (result == null) return;
+    if (result == null || !context.mounted) return;
+    final store = await ref.read(secretStoreProvider.future);
+    if (!context.mounted) return;
+    if (!await _unlockVault(context, ref, store)) return;
+    await store.write(result.connection.credentialRef!, result.password);
     await ref.read(connectionRepositoryProvider).save(result.connection);
-    ref
-        .read(sessionSecretsProvider.notifier)
-        .put(result.connection.id, result.password);
     ref.read(currentConnectionProvider.notifier).set(result.connection);
   }
 

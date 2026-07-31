@@ -44,25 +44,43 @@ final savedConnectionsProvider =
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef SavedConnectionsRef = AutoDisposeStreamProviderRef<List<Connection>>;
-String _$sessionSecretsHash() => r'84efcd0b51a13a32fbf61f0fe1a5457e74d13aae';
+String _$secretStoreHash() => r'f64f2669b369366a7738c9788089e3843d4fefef';
 
-/// In-memory session secrets keyed by connection id. **PLACEHOLDER** for the
-/// credentials vault (ADR-0006) — held in memory only, never persisted, lost on
-/// quit. Replace with the SecretStore (keychain / encrypted vault).
+/// The credentials vault (ADR-0006). Encrypted file in the app-support dir; the
+/// derived key lives in memory only, so it starts **locked** each launch.
 ///
-/// Copied from [SessionSecrets].
-@ProviderFor(SessionSecrets)
-final sessionSecretsProvider =
-    NotifierProvider<SessionSecrets, Map<String, String>>.internal(
-      SessionSecrets.new,
-      name: r'sessionSecretsProvider',
-      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-          ? null
-          : _$sessionSecretsHash,
-      dependencies: null,
-      allTransitiveDependencies: null,
-    );
+/// Copied from [secretStore].
+@ProviderFor(secretStore)
+final secretStoreProvider = FutureProvider<SecretStore>.internal(
+  secretStore,
+  name: r'secretStoreProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$secretStoreHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
 
-typedef _$SessionSecrets = Notifier<Map<String, String>>;
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef SecretStoreRef = FutureProviderRef<SecretStore>;
+String _$vaultLockHash() => r'c08f880268e103a02c98eb6b62d22c6c30b0a364';
+
+/// Reactive vault lock state (unlocked?), updated by unlock/lock actions so the
+/// UI can show the padlock. Session-scoped.
+///
+/// Copied from [VaultLock].
+@ProviderFor(VaultLock)
+final vaultLockProvider = AutoDisposeNotifierProvider<VaultLock, bool>.internal(
+  VaultLock.new,
+  name: r'vaultLockProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$vaultLockHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$VaultLock = AutoDisposeNotifier<bool>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package
