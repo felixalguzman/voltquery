@@ -179,18 +179,21 @@ class _PostgresIntrospector implements SchemaIntrospector {
         TableInfo(
           name: row[0] as String,
           kind: (row[1] as String) == 'VIEW' ? ObjectKind.view : ObjectKind.table,
+          schema: schemaName,
         ),
     ];
   }
 
   @override
   Future<List<ColumnInfo>> columns(TableInfo table) async {
+    // Qualify by schema — same table name can exist in many schemas.
+    final schemaName = table.schema.isEmpty ? 'public' : table.schema;
     final r = await _conn.execute(
       pg.Sql.named(
           'SELECT column_name, data_type, is_nullable, ordinal_position, column_default '
-          'FROM information_schema.columns WHERE table_name = @t '
+          'FROM information_schema.columns WHERE table_schema = @s AND table_name = @t '
           'ORDER BY ordinal_position'),
-      parameters: {'t': table.name},
+      parameters: {'s': schemaName, 't': table.name},
     );
     return [
       for (final row in r)

@@ -20,9 +20,14 @@ class SchemaInfo {
 enum ObjectKind { table, view }
 
 class TableInfo {
-  const TableInfo({required this.name, required this.kind});
+  const TableInfo({required this.name, required this.kind, this.schema = ''});
   final String name;
   final ObjectKind kind;
+
+  /// The owning schema's name (Postgres). Empty where the engine has no schema
+  /// level (SQLite / MySQL). Carried so [SchemaIntrospector.columns] can qualify
+  /// the lookup — two schemas may hold same-named tables.
+  final String schema;
 }
 
 /// Durable schema metadata for a Table/View column — distinct from a
