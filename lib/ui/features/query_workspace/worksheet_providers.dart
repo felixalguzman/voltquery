@@ -7,35 +7,55 @@ import '../../../domain/models/engine.dart';
 import 'worksheet_runner.dart';
 import 'worksheet_state.dart';
 
-// TODO(ADR-0004): migrate to @riverpod codegen; replace demoSessionProvider with
+// TODO(ADR-0004): migrate to @riverpod codegen; generalize to a
 // sessionProvider.autoDispose.family<Session, WorksheetId> resolving a real
-// Connection + SecretStore. This slice uses a seeded in-memory demo session so
-// connect → query → grid is visible on launch.
+// Connection + SecretStore once Postgres/MySQL land.
 
-/// A seeded in-memory SQLite session — the app's first end-to-end path.
-final demoSessionProvider = FutureProvider<Session>((ref) async {
-  final session = await SqliteDriver().connect(
-    const Connection(
-      id: 'demo',
-      name: 'demo',
-      engine: Engine.sqlite,
-      sqlitePath: ':memory:',
-    ),
-  );
-  await session.execute(
-    'CREATE TABLE customers ('
-    'id INTEGER PRIMARY KEY, name TEXT, email TEXT, total REAL)',
-  );
-  await session.execute(
-    "INSERT INTO customers (name, email, total) VALUES "
-    "('Ada Lovelace','ada@analytical.io',2940.0),"
-    "('Grace Hopper',NULL,2731.5),"
-    "('Alan Turing','a.turing@bletchley.example',1998.99),"
-    "('Katherine Johnson','kj@nasa.gov',1640.0)",
-  );
+/// The seeded in-memory demo connection — the default until a file is opened.
+const demoConnection = Connection(
+  id: 'demo',
+  name: 'demo',
+  engine: Engine.sqlite,
+  sqlitePath: ':memory:',
+);
+
+/// The connection the workspace currently targets. Opening a `.sqlite` file
+/// swaps this, which rebuilds [sessionProvider].
+final currentConnectionProvider =
+    StateProvider<Connection>((ref) => demoConnection);
+
+/// The live [Session] for [currentConnectionProvider]. In-memory demo gets
+/// seeded; a file connection opens that database directly.
+final sessionProvider = FutureProvider<Session>((ref) async {
+  final connection = ref.watch(currentConnectionProvider);
+  final session = await SqliteDriver().connect(connection);
+  if (connection.sqlitePath == ':memory:') {
+    await _seedDemo(session);
+  }
   ref.onDispose(session.close);
   return session;
 });
+
+Future<void> _seedDemo(Session s) async {
+  await s.execute('CREATE TABLE customers ('
+      'id INTEGER PRIMARY KEY, name TEXT, email TEXT, total REAL)');
+  await s.execute("INSERT INTO customers (name, email, total) VALUES "
+      "('Ada Lovelace','ada@analytical.io',2940.0),"
+      "('Grace Hopper',NULL,2731.5),"
+      "('Alan Turing','a.turing@bletchley.example',1998.99),"
+      "('Katherine Johnson','kj@nasa.gov',1640.0)");
+}
+
+/// Opens a SQLite file as the active connection (name = its file name).
+void openSqliteFile(WidgetRef ref, String path) {
+  ref.read(currentConnectionProvider.notifier).state = Connection(
+    id: path,
+    name: path.split(RegExp(r'[/\\]')).last,
+    engine: Engine.sqlite,
+    sqlitePath: path,
+  );
+  ref.read(worksheetProvider.notifier).reset();
+}
 
 final worksheetRunnerProvider =
     Provider<WorksheetRunner>((ref) => const WorksheetRunner());
@@ -45,8 +65,10 @@ class WorksheetNotifier extends Notifier<WorksheetResult> {
   @override
   WorksheetResult build() => const WorksheetIdle();
 
+  void reset() => state = const WorksheetIdle();
+
   Future<void> run(String sql) async {
-    final session = ref.read(demoSessionProvider).valueOrNull;
+    final session = ref.read(sessionProvider).valueOrNull;
     if (session == null || sql.trim().isEmpty) return;
     state = const WorksheetRunning();
     state = await ref.read(worksheetRunnerProvider).run(session, sql.trim());

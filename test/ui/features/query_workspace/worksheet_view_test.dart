@@ -22,14 +22,14 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [demoSessionProvider.overrideWith((ref) async => session)],
+        overrides: [sessionProvider.overrideWith((ref) async => session)],
         child: FluentApp(
           debugShowCheckedModeBanner: false,
           home: ScaffoldPage(
             padding: EdgeInsets.zero,
             // Mirror _Home: watch the session so it resolves before Run.
             content: Consumer(builder: (context, ref, _) {
-              return ref.watch(demoSessionProvider).when(
+              return ref.watch(sessionProvider).when(
                     loading: () => const ProgressRing(),
                     error: (e, _) => Text('$e'),
                     data: (_) => const WorksheetView(),

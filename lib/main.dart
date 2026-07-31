@@ -39,8 +39,8 @@ class _Home extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Pre-warm the demo session so the workspace is usable immediately.
-    final session = ref.watch(demoSessionProvider);
+    // Pre-warm the active session so the workspace is usable immediately.
+    final session = ref.watch(sessionProvider);
     return ScaffoldPage(
       padding: EdgeInsets.zero,
       content: session.when(
