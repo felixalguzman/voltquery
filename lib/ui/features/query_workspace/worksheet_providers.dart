@@ -46,13 +46,8 @@ class CurrentConnection extends _$CurrentConnection {
 @Riverpod(keepAlive: true)
 Future<Session> introspectionSession(Ref ref) async {
   final conn = ref.watch(currentConnectionProvider);
-  final secret = conn.credentialRef == null
-      ? null
-      : await (await ref.read(secretStoreProvider.future))
-          .read(conn.credentialRef!);
-  final session = await driverFor(conn.engine).connect(conn, secret: secret);
+  final session = await _openSession(ref, conn);
   if (conn.id == 'demo') await _seedDemoIfEmpty(session);
-  ref.onDispose(session.close);
   return session;
 }
 
@@ -61,12 +56,27 @@ Future<Session> introspectionSession(Ref ref) async {
 @riverpod
 Future<Session> worksheetSession(Ref ref, String worksheetId) async {
   final conn = ref.watch(currentConnectionProvider);
+  final session = await _openSession(ref, conn);
+  if (conn.id == 'demo') await _seedDemoIfEmpty(session);
+  return session;
+}
+
+/// Opens a Session, resolving the secret from the vault. Disposal-safe: if the
+/// provider is disposed while `connect` is in flight (connection switched, tab
+/// closed, slow network), the session is closed instead of leaking / throwing
+/// `onDispose after dispose`.
+Future<Session> _openSession(Ref ref, Connection conn) async {
+  var disposed = false;
+  ref.onDispose(() => disposed = true);
   final secret = conn.credentialRef == null
       ? null
       : await (await ref.read(secretStoreProvider.future))
           .read(conn.credentialRef!);
   final session = await driverFor(conn.engine).connect(conn, secret: secret);
-  if (conn.id == 'demo') await _seedDemoIfEmpty(session);
+  if (disposed) {
+    await session.close();
+    throw StateError('session disposed before connect completed');
+  }
   ref.onDispose(session.close);
   return session;
 }
