@@ -175,6 +175,40 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
     );
   }
 
+  /// Manual-commit toggle + (when on) Commit / Rollback. Commit/Rollback enable
+  /// only while a transaction is open.
+  List<Widget> _txControls() {
+    final manual = ref.watch(manualCommitProvider(widget.worksheetId));
+    final txOpen = ref.watch(worksheetTxProvider(widget.worksheetId));
+    final notifier = ref.read(worksheetProvider(widget.worksheetId).notifier);
+    return [
+      Tooltip(
+        message: manual
+            ? 'Manual commit: ON (Run opens a transaction)'
+            : 'Autocommit (click for manual commit)',
+        child: ToggleButton(
+          checked: manual,
+          onChanged: (_) =>
+              ref.read(manualCommitProvider(widget.worksheetId).notifier).toggle(),
+          child: const Icon(FluentIcons.database_sync, size: 14),
+        ),
+      ),
+      if (manual) ...[
+        const SizedBox(width: 6),
+        Button(
+          onPressed: txOpen ? notifier.commit : null,
+          child: const Text('Commit'),
+        ),
+        const SizedBox(width: 4),
+        Button(
+          onPressed: txOpen ? notifier.rollback : null,
+          child: const Text('Rollback'),
+        ),
+      ],
+      const SizedBox(width: 10),
+    ];
+  }
+
   Widget _continueOnErrorToggle() {
     final on = ref.watch(continueOnErrorProvider);
     return Tooltip(
@@ -211,6 +245,7 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
           const SizedBox(width: 12),
           Button(onPressed: _openFile, child: const Text('Open…')),
           const Spacer(),
+          ..._txControls(),
           _continueOnErrorToggle(),
           const SizedBox(width: 10),
           FilledButton(onPressed: _run, child: const Text('▶ Run')),
