@@ -10,7 +10,7 @@ import '../../../domain/models/engine.dart';
 import '../query_workspace/worksheet_providers.dart';
 import 'connection_providers.dart';
 import 'master_password_dialog.dart';
-import 'postgres_form.dart';
+import 'server_form.dart';
 
 // TODO(theming #7): unify tokens into ui/core/theme.
 const _panel = Color(0xFF16181D);
@@ -22,6 +22,7 @@ const _textMid = Color(0xFF9BA1AD);
 const _textLo = Color(0xFF5A6069);
 const _sqliteBadge = Color(0xFF8A93A3);
 const _pgBadge = Color(0xFF4E9BF0);
+const _myBadge = Color(0xFFE9A44B);
 
 /// Saved connections + the built-in demo. Click to switch (rebuilds the
 /// sessions); "+" adds a SQLite file; hover a saved one to delete. Wires the
@@ -147,6 +148,9 @@ class ConnectionsPanel extends ConsumerWidget {
           Button(
               child: const Text('SQLite file…'),
               onPressed: () => Navigator.pop(ctx, 'sqlite')),
+          Button(
+              child: const Text('MySQL…'),
+              onPressed: () => Navigator.pop(ctx, 'mysql')),
           FilledButton(
               child: const Text('PostgreSQL…'),
               onPressed: () => Navigator.pop(ctx, 'pg')),
@@ -155,11 +159,17 @@ class ConnectionsPanel extends ConsumerWidget {
       ),
     );
     if (choice == 'sqlite') await _addSqlite(ref);
-    if (choice == 'pg' && context.mounted) await _addPostgres(context, ref);
+    if (choice == 'pg' && context.mounted) {
+      await _addServer(context, ref, Engine.postgres);
+    }
+    if (choice == 'mysql' && context.mounted) {
+      await _addServer(context, ref, Engine.mysql);
+    }
   }
 
-  Future<void> _addPostgres(BuildContext context, WidgetRef ref) async {
-    final result = await showPostgresConnectionDialog(context);
+  Future<void> _addServer(
+      BuildContext context, WidgetRef ref, Engine engine) async {
+    final result = await showServerConnectionDialog(context, engine: engine);
     if (result == null || !context.mounted) return;
     final store = await ref.read(secretStoreProvider.future);
     if (!context.mounted) return;
@@ -172,7 +182,11 @@ class ConnectionsPanel extends ConsumerWidget {
   Widget _row(BuildContext context, WidgetRef ref, Connection c, String activeId,
       {bool builtIn = false}) {
     final active = c.id == activeId;
-    final isPg = c.engine == Engine.postgres;
+    final (Color badgeColor, String badgeText) = switch (c.engine) {
+      Engine.postgres => (_pgBadge, 'P'),
+      Engine.mysql => (_myBadge, 'M'),
+      Engine.sqlite => (_sqliteBadge, 'S'),
+    };
     return HoverButton(
       onPressed: () => _select(context, ref, c),
       builder: (context, states) => Container(
@@ -185,9 +199,9 @@ class ConnectionsPanel extends ConsumerWidget {
             height: 16,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-                color: isPg ? _pgBadge : _sqliteBadge,
+                color: badgeColor,
                 borderRadius: BorderRadius.circular(3)),
-            child: Text(isPg ? 'P' : 'S',
+            child: Text(badgeText,
                 style: const TextStyle(
                     color: Color(0xFF08121C),
                     fontSize: 9,
