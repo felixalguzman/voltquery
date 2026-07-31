@@ -55,6 +55,7 @@ dependencies:
   freezed_annotation: ^2.4.4
   path_provider: ^2.1.4
   uuid: ^4.5.0
+  panes: ^1.3.0
   # deferred to their build slices:
   #   drift (persistence #10) · cryptography + flutter_secure_storage (credentials #11)
   #   base_menu (needs Flutter >= 3.44.4 — bump first)

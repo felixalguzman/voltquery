@@ -4,9 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:voltquery/main.dart';
 
 void main() {
-  testWidgets('VoltQuery scaffold builds', (tester) async {
+  testWidgets('VoltQuery boots to the query workspace', (tester) async {
     await tester.pumpWidget(const ProviderScope(child: VoltQueryApp()));
-    expect(find.text('VoltQuery — scaffold. Build the SQLite slice next.'),
-        findsOneWidget);
+    await tester.pumpAndSettle();
+    // Demo session seeds an in-memory DB, then the worksheet renders.
+    expect(find.text('▶ Run'), findsOneWidget);
   });
 }
