@@ -36,6 +36,7 @@ class WorksheetView extends ConsumerStatefulWidget {
 
 class _WorksheetViewState extends ConsumerState<WorksheetView> {
   late final CodeLineEditingController _code;
+  final _editorFocus = FocusNode();
   final _panes = PaneController(
     entries: [
       PaneEntry(id: 'editor', initialSize: PaneSize.fraction(0.42)),
@@ -62,11 +63,19 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
   @override
   void dispose() {
     _code.dispose();
+    _editorFocus.dispose();
     super.dispose();
   }
 
-  void _runSql(String sql) =>
-      ref.read(worksheetProvider(widget.worksheetId).notifier).run(sql);
+  Future<void> _runSql(String sql) async {
+    await ref.read(worksheetProvider(widget.worksheetId).notifier).run(sql);
+    // Return focus to the editor so runs can be chained (⌃⏎ again) — the result
+    // grid grabs focus as it builds, so re-request after the run settles.
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _editorFocus.requestFocus();
+    });
+  }
 
   /// Run the whole editor buffer (▶ Run). Also the sidebar's request path.
   void _run() => _runSql(_code.text);
@@ -156,6 +165,8 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
             },
             child: CodeEditor(
               controller: _code,
+              focusNode: _editorFocus,
+              autofocus: true,
               shortcutsActivatorsBuilder: const _SqlEditorShortcuts(),
               style: CodeEditorStyle(
                 fontSize: 13.5,
