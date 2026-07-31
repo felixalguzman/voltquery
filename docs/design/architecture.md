@@ -79,7 +79,7 @@ Session lifetime = tab lifetime, no manual SessionManager to leak. → **ADR-000
 | Repository | Wraps | Returns |
 |------------|-------|---------|
 | `ConnectionRepository` | `LocalStore` + `SecureStorageService` | saved `Connection`s (secret by ref) |
-| `SchemaRepository` | a `Session`'s `SchemaIntrospector` (+ cache) | canonical hierarchy objects (schema-tree ticket #13) |
+| `SchemaRepository` | a **per-Connection** introspection `Session`'s `SchemaIntrospector` (+ cache), keyed by `ConnectionId` | canonical hierarchy objects (schema-tree ticket #13, ADR-0008) |
 | `HistoryRepository` | `LocalStore` | `HistoryEntry`s |
 | `SettingsRepository` | `LocalStore` | app settings |
 
@@ -93,4 +93,7 @@ Running SQL is not a repository: a Worksheet's view-model calls
 - **Credentials (#11)** decides `SecureStorageService`.
 - **Theming (#7)** fills `ui/core/theme` (mix tokens).
 - **Query execution (#12)** governs `query_workspace` view-models.
-- **Schema tree (#13)** governs `schema_browser` + `SchemaRepository` caching.
+- **Schema tree (#13, ADR-0008)** governs `schema_browser` + `SchemaRepository`
+  caching. Note: the tree runs on a **dedicated per-Connection introspection
+  Session** (keyed by `ConnectionId`), *distinct* from the per-Worksheet Sessions
+  below — catalog reads must not ride a user's transaction.

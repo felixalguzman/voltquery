@@ -23,3 +23,10 @@ reader expecting a service-with-a-map will find surprising — hence this record
 "for visibility" — it re-opens the leak-and-shared-state problems both this and
 ADR-0002 exist to prevent. A future "share a Session across tabs" feature is an
 explicit opt-in override of the family, not the default.
+
+**Refined by ADR-0008 (schema tree):** the `autoDispose.family<Session,
+WorksheetId>` here covers **Worksheet (query) Sessions only**. The schema browser
+runs on a *separate* **per-Connection** introspection Session (keyed by
+`ConnectionId`, lazy on first root-expand) so catalog reads never ride a user's
+open transaction. The two Session kinds are distinct — do not collapse them into
+one per-Worksheet family.
