@@ -34,7 +34,7 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  fluent_ui: ^1.2.3
+  fluent_ui: ^4.16.0
   re_editor: ^0.10.0
   re_highlight: ^0.0.3
   pluto_grid: ^8.1.0
@@ -44,6 +44,20 @@ dependencies:
   hotkey_manager: ^0.2.3
   window_manager: ^0.5.2
   graphic: ^2.7.0
+  # DB drivers (spec: ADR-0003). SQLite driver = raw sqlite3 (not drift).
+  postgres: ^3.5.0
+  mysql_client: ^0.0.27
+  sqlite3: ^2.4.5
+  sqlite3_flutter_libs: ^0.5.24
+  # State (Riverpod, ADR-0004) + immutable models. 2.x line for stable codegen.
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+  freezed_annotation: ^2.4.4
+  path_provider: ^2.1.4
+  uuid: ^4.5.0
+  # deferred to their build slices:
+  #   drift (persistence #10) · cryptography + flutter_secure_storage (credentials #11)
+  #   base_menu (needs Flutter >= 3.44.4 — bump first)
 
 dev_dependencies:
   flutter_test:
@@ -55,6 +69,10 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  # codegen (ADR-0004): @riverpod providers + freezed models. Run: dart run build_runner build
+  build_runner: ^2.4.13
+  riverpod_generator: ^2.6.1
+  freezed: ^2.5.7
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
