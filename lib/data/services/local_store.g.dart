@@ -664,15 +664,635 @@ class HistoryRowsCompanion extends UpdateCompanion<HistoryRow> {
   }
 }
 
+class $ConnectionRowsTable extends ConnectionRows
+    with TableInfo<$ConnectionRowsTable, ConnectionRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ConnectionRowsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _engineMeta = const VerificationMeta('engine');
+  @override
+  late final GeneratedColumn<String> engine = GeneratedColumn<String>(
+    'engine',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _hostMeta = const VerificationMeta('host');
+  @override
+  late final GeneratedColumn<String> host = GeneratedColumn<String>(
+    'host',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _portMeta = const VerificationMeta('port');
+  @override
+  late final GeneratedColumn<int> port = GeneratedColumn<int>(
+    'port',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _usernameMeta = const VerificationMeta(
+    'username',
+  );
+  @override
+  late final GeneratedColumn<String> username = GeneratedColumn<String>(
+    'username',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _credentialRefMeta = const VerificationMeta(
+    'credentialRef',
+  );
+  @override
+  late final GeneratedColumn<String> credentialRef = GeneratedColumn<String>(
+    'credential_ref',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sqlitePathMeta = const VerificationMeta(
+    'sqlitePath',
+  );
+  @override
+  late final GeneratedColumn<String> sqlitePath = GeneratedColumn<String>(
+    'sqlite_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _defaultDatabaseMeta = const VerificationMeta(
+    'defaultDatabase',
+  );
+  @override
+  late final GeneratedColumn<String> defaultDatabase = GeneratedColumn<String>(
+    'default_database',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    engine,
+    host,
+    port,
+    username,
+    credentialRef,
+    sqlitePath,
+    defaultDatabase,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'connection_rows';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ConnectionRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('engine')) {
+      context.handle(
+        _engineMeta,
+        engine.isAcceptableOrUnknown(data['engine']!, _engineMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_engineMeta);
+    }
+    if (data.containsKey('host')) {
+      context.handle(
+        _hostMeta,
+        host.isAcceptableOrUnknown(data['host']!, _hostMeta),
+      );
+    }
+    if (data.containsKey('port')) {
+      context.handle(
+        _portMeta,
+        port.isAcceptableOrUnknown(data['port']!, _portMeta),
+      );
+    }
+    if (data.containsKey('username')) {
+      context.handle(
+        _usernameMeta,
+        username.isAcceptableOrUnknown(data['username']!, _usernameMeta),
+      );
+    }
+    if (data.containsKey('credential_ref')) {
+      context.handle(
+        _credentialRefMeta,
+        credentialRef.isAcceptableOrUnknown(
+          data['credential_ref']!,
+          _credentialRefMeta,
+        ),
+      );
+    }
+    if (data.containsKey('sqlite_path')) {
+      context.handle(
+        _sqlitePathMeta,
+        sqlitePath.isAcceptableOrUnknown(data['sqlite_path']!, _sqlitePathMeta),
+      );
+    }
+    if (data.containsKey('default_database')) {
+      context.handle(
+        _defaultDatabaseMeta,
+        defaultDatabase.isAcceptableOrUnknown(
+          data['default_database']!,
+          _defaultDatabaseMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ConnectionRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ConnectionRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      engine: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}engine'],
+      )!,
+      host: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}host'],
+      ),
+      port: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}port'],
+      ),
+      username: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}username'],
+      ),
+      credentialRef: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}credential_ref'],
+      ),
+      sqlitePath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sqlite_path'],
+      ),
+      defaultDatabase: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}default_database'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ConnectionRowsTable createAlias(String alias) {
+    return $ConnectionRowsTable(attachedDatabase, alias);
+  }
+}
+
+class ConnectionRow extends DataClass implements Insertable<ConnectionRow> {
+  final String id;
+  final String name;
+  final String engine;
+  final String? host;
+  final int? port;
+  final String? username;
+  final String? credentialRef;
+  final String? sqlitePath;
+  final String? defaultDatabase;
+  final DateTime createdAt;
+  const ConnectionRow({
+    required this.id,
+    required this.name,
+    required this.engine,
+    this.host,
+    this.port,
+    this.username,
+    this.credentialRef,
+    this.sqlitePath,
+    this.defaultDatabase,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['engine'] = Variable<String>(engine);
+    if (!nullToAbsent || host != null) {
+      map['host'] = Variable<String>(host);
+    }
+    if (!nullToAbsent || port != null) {
+      map['port'] = Variable<int>(port);
+    }
+    if (!nullToAbsent || username != null) {
+      map['username'] = Variable<String>(username);
+    }
+    if (!nullToAbsent || credentialRef != null) {
+      map['credential_ref'] = Variable<String>(credentialRef);
+    }
+    if (!nullToAbsent || sqlitePath != null) {
+      map['sqlite_path'] = Variable<String>(sqlitePath);
+    }
+    if (!nullToAbsent || defaultDatabase != null) {
+      map['default_database'] = Variable<String>(defaultDatabase);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  ConnectionRowsCompanion toCompanion(bool nullToAbsent) {
+    return ConnectionRowsCompanion(
+      id: Value(id),
+      name: Value(name),
+      engine: Value(engine),
+      host: host == null && nullToAbsent ? const Value.absent() : Value(host),
+      port: port == null && nullToAbsent ? const Value.absent() : Value(port),
+      username: username == null && nullToAbsent
+          ? const Value.absent()
+          : Value(username),
+      credentialRef: credentialRef == null && nullToAbsent
+          ? const Value.absent()
+          : Value(credentialRef),
+      sqlitePath: sqlitePath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sqlitePath),
+      defaultDatabase: defaultDatabase == null && nullToAbsent
+          ? const Value.absent()
+          : Value(defaultDatabase),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory ConnectionRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ConnectionRow(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      engine: serializer.fromJson<String>(json['engine']),
+      host: serializer.fromJson<String?>(json['host']),
+      port: serializer.fromJson<int?>(json['port']),
+      username: serializer.fromJson<String?>(json['username']),
+      credentialRef: serializer.fromJson<String?>(json['credentialRef']),
+      sqlitePath: serializer.fromJson<String?>(json['sqlitePath']),
+      defaultDatabase: serializer.fromJson<String?>(json['defaultDatabase']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'engine': serializer.toJson<String>(engine),
+      'host': serializer.toJson<String?>(host),
+      'port': serializer.toJson<int?>(port),
+      'username': serializer.toJson<String?>(username),
+      'credentialRef': serializer.toJson<String?>(credentialRef),
+      'sqlitePath': serializer.toJson<String?>(sqlitePath),
+      'defaultDatabase': serializer.toJson<String?>(defaultDatabase),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  ConnectionRow copyWith({
+    String? id,
+    String? name,
+    String? engine,
+    Value<String?> host = const Value.absent(),
+    Value<int?> port = const Value.absent(),
+    Value<String?> username = const Value.absent(),
+    Value<String?> credentialRef = const Value.absent(),
+    Value<String?> sqlitePath = const Value.absent(),
+    Value<String?> defaultDatabase = const Value.absent(),
+    DateTime? createdAt,
+  }) => ConnectionRow(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    engine: engine ?? this.engine,
+    host: host.present ? host.value : this.host,
+    port: port.present ? port.value : this.port,
+    username: username.present ? username.value : this.username,
+    credentialRef: credentialRef.present
+        ? credentialRef.value
+        : this.credentialRef,
+    sqlitePath: sqlitePath.present ? sqlitePath.value : this.sqlitePath,
+    defaultDatabase: defaultDatabase.present
+        ? defaultDatabase.value
+        : this.defaultDatabase,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  ConnectionRow copyWithCompanion(ConnectionRowsCompanion data) {
+    return ConnectionRow(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      engine: data.engine.present ? data.engine.value : this.engine,
+      host: data.host.present ? data.host.value : this.host,
+      port: data.port.present ? data.port.value : this.port,
+      username: data.username.present ? data.username.value : this.username,
+      credentialRef: data.credentialRef.present
+          ? data.credentialRef.value
+          : this.credentialRef,
+      sqlitePath: data.sqlitePath.present
+          ? data.sqlitePath.value
+          : this.sqlitePath,
+      defaultDatabase: data.defaultDatabase.present
+          ? data.defaultDatabase.value
+          : this.defaultDatabase,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ConnectionRow(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('engine: $engine, ')
+          ..write('host: $host, ')
+          ..write('port: $port, ')
+          ..write('username: $username, ')
+          ..write('credentialRef: $credentialRef, ')
+          ..write('sqlitePath: $sqlitePath, ')
+          ..write('defaultDatabase: $defaultDatabase, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    name,
+    engine,
+    host,
+    port,
+    username,
+    credentialRef,
+    sqlitePath,
+    defaultDatabase,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ConnectionRow &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.engine == this.engine &&
+          other.host == this.host &&
+          other.port == this.port &&
+          other.username == this.username &&
+          other.credentialRef == this.credentialRef &&
+          other.sqlitePath == this.sqlitePath &&
+          other.defaultDatabase == this.defaultDatabase &&
+          other.createdAt == this.createdAt);
+}
+
+class ConnectionRowsCompanion extends UpdateCompanion<ConnectionRow> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> engine;
+  final Value<String?> host;
+  final Value<int?> port;
+  final Value<String?> username;
+  final Value<String?> credentialRef;
+  final Value<String?> sqlitePath;
+  final Value<String?> defaultDatabase;
+  final Value<DateTime> createdAt;
+  final Value<int> rowid;
+  const ConnectionRowsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.engine = const Value.absent(),
+    this.host = const Value.absent(),
+    this.port = const Value.absent(),
+    this.username = const Value.absent(),
+    this.credentialRef = const Value.absent(),
+    this.sqlitePath = const Value.absent(),
+    this.defaultDatabase = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ConnectionRowsCompanion.insert({
+    required String id,
+    required String name,
+    required String engine,
+    this.host = const Value.absent(),
+    this.port = const Value.absent(),
+    this.username = const Value.absent(),
+    this.credentialRef = const Value.absent(),
+    this.sqlitePath = const Value.absent(),
+    this.defaultDatabase = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       engine = Value(engine);
+  static Insertable<ConnectionRow> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? engine,
+    Expression<String>? host,
+    Expression<int>? port,
+    Expression<String>? username,
+    Expression<String>? credentialRef,
+    Expression<String>? sqlitePath,
+    Expression<String>? defaultDatabase,
+    Expression<DateTime>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (engine != null) 'engine': engine,
+      if (host != null) 'host': host,
+      if (port != null) 'port': port,
+      if (username != null) 'username': username,
+      if (credentialRef != null) 'credential_ref': credentialRef,
+      if (sqlitePath != null) 'sqlite_path': sqlitePath,
+      if (defaultDatabase != null) 'default_database': defaultDatabase,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ConnectionRowsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<String>? engine,
+    Value<String?>? host,
+    Value<int?>? port,
+    Value<String?>? username,
+    Value<String?>? credentialRef,
+    Value<String?>? sqlitePath,
+    Value<String?>? defaultDatabase,
+    Value<DateTime>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return ConnectionRowsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      engine: engine ?? this.engine,
+      host: host ?? this.host,
+      port: port ?? this.port,
+      username: username ?? this.username,
+      credentialRef: credentialRef ?? this.credentialRef,
+      sqlitePath: sqlitePath ?? this.sqlitePath,
+      defaultDatabase: defaultDatabase ?? this.defaultDatabase,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (engine.present) {
+      map['engine'] = Variable<String>(engine.value);
+    }
+    if (host.present) {
+      map['host'] = Variable<String>(host.value);
+    }
+    if (port.present) {
+      map['port'] = Variable<int>(port.value);
+    }
+    if (username.present) {
+      map['username'] = Variable<String>(username.value);
+    }
+    if (credentialRef.present) {
+      map['credential_ref'] = Variable<String>(credentialRef.value);
+    }
+    if (sqlitePath.present) {
+      map['sqlite_path'] = Variable<String>(sqlitePath.value);
+    }
+    if (defaultDatabase.present) {
+      map['default_database'] = Variable<String>(defaultDatabase.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ConnectionRowsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('engine: $engine, ')
+          ..write('host: $host, ')
+          ..write('port: $port, ')
+          ..write('username: $username, ')
+          ..write('credentialRef: $credentialRef, ')
+          ..write('sqlitePath: $sqlitePath, ')
+          ..write('defaultDatabase: $defaultDatabase, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$LocalStore extends GeneratedDatabase {
   _$LocalStore(QueryExecutor e) : super(e);
   $LocalStoreManager get managers => $LocalStoreManager(this);
   late final $HistoryRowsTable historyRows = $HistoryRowsTable(this);
+  late final $ConnectionRowsTable connectionRows = $ConnectionRowsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
-  List<DatabaseSchemaEntity> get allSchemaEntities => [historyRows];
+  List<DatabaseSchemaEntity> get allSchemaEntities => [
+    historyRows,
+    connectionRows,
+  ];
 }
 
 typedef $$HistoryRowsTableCreateCompanionBuilder =
@@ -988,10 +1608,313 @@ typedef $$HistoryRowsTableProcessedTableManager =
       HistoryRow,
       PrefetchHooks Function()
     >;
+typedef $$ConnectionRowsTableCreateCompanionBuilder =
+    ConnectionRowsCompanion Function({
+      required String id,
+      required String name,
+      required String engine,
+      Value<String?> host,
+      Value<int?> port,
+      Value<String?> username,
+      Value<String?> credentialRef,
+      Value<String?> sqlitePath,
+      Value<String?> defaultDatabase,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+typedef $$ConnectionRowsTableUpdateCompanionBuilder =
+    ConnectionRowsCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<String> engine,
+      Value<String?> host,
+      Value<int?> port,
+      Value<String?> username,
+      Value<String?> credentialRef,
+      Value<String?> sqlitePath,
+      Value<String?> defaultDatabase,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+
+class $$ConnectionRowsTableFilterComposer
+    extends Composer<_$LocalStore, $ConnectionRowsTable> {
+  $$ConnectionRowsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get engine => $composableBuilder(
+    column: $table.engine,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get host => $composableBuilder(
+    column: $table.host,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get port => $composableBuilder(
+    column: $table.port,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get username => $composableBuilder(
+    column: $table.username,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get credentialRef => $composableBuilder(
+    column: $table.credentialRef,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sqlitePath => $composableBuilder(
+    column: $table.sqlitePath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get defaultDatabase => $composableBuilder(
+    column: $table.defaultDatabase,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ConnectionRowsTableOrderingComposer
+    extends Composer<_$LocalStore, $ConnectionRowsTable> {
+  $$ConnectionRowsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get engine => $composableBuilder(
+    column: $table.engine,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get host => $composableBuilder(
+    column: $table.host,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get port => $composableBuilder(
+    column: $table.port,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get username => $composableBuilder(
+    column: $table.username,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get credentialRef => $composableBuilder(
+    column: $table.credentialRef,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sqlitePath => $composableBuilder(
+    column: $table.sqlitePath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get defaultDatabase => $composableBuilder(
+    column: $table.defaultDatabase,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ConnectionRowsTableAnnotationComposer
+    extends Composer<_$LocalStore, $ConnectionRowsTable> {
+  $$ConnectionRowsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get engine =>
+      $composableBuilder(column: $table.engine, builder: (column) => column);
+
+  GeneratedColumn<String> get host =>
+      $composableBuilder(column: $table.host, builder: (column) => column);
+
+  GeneratedColumn<int> get port =>
+      $composableBuilder(column: $table.port, builder: (column) => column);
+
+  GeneratedColumn<String> get username =>
+      $composableBuilder(column: $table.username, builder: (column) => column);
+
+  GeneratedColumn<String> get credentialRef => $composableBuilder(
+    column: $table.credentialRef,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sqlitePath => $composableBuilder(
+    column: $table.sqlitePath,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get defaultDatabase => $composableBuilder(
+    column: $table.defaultDatabase,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$ConnectionRowsTableTableManager
+    extends
+        RootTableManager<
+          _$LocalStore,
+          $ConnectionRowsTable,
+          ConnectionRow,
+          $$ConnectionRowsTableFilterComposer,
+          $$ConnectionRowsTableOrderingComposer,
+          $$ConnectionRowsTableAnnotationComposer,
+          $$ConnectionRowsTableCreateCompanionBuilder,
+          $$ConnectionRowsTableUpdateCompanionBuilder,
+          (
+            ConnectionRow,
+            BaseReferences<_$LocalStore, $ConnectionRowsTable, ConnectionRow>,
+          ),
+          ConnectionRow,
+          PrefetchHooks Function()
+        > {
+  $$ConnectionRowsTableTableManager(_$LocalStore db, $ConnectionRowsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ConnectionRowsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ConnectionRowsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ConnectionRowsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> engine = const Value.absent(),
+                Value<String?> host = const Value.absent(),
+                Value<int?> port = const Value.absent(),
+                Value<String?> username = const Value.absent(),
+                Value<String?> credentialRef = const Value.absent(),
+                Value<String?> sqlitePath = const Value.absent(),
+                Value<String?> defaultDatabase = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ConnectionRowsCompanion(
+                id: id,
+                name: name,
+                engine: engine,
+                host: host,
+                port: port,
+                username: username,
+                credentialRef: credentialRef,
+                sqlitePath: sqlitePath,
+                defaultDatabase: defaultDatabase,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                required String engine,
+                Value<String?> host = const Value.absent(),
+                Value<int?> port = const Value.absent(),
+                Value<String?> username = const Value.absent(),
+                Value<String?> credentialRef = const Value.absent(),
+                Value<String?> sqlitePath = const Value.absent(),
+                Value<String?> defaultDatabase = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ConnectionRowsCompanion.insert(
+                id: id,
+                name: name,
+                engine: engine,
+                host: host,
+                port: port,
+                username: username,
+                credentialRef: credentialRef,
+                sqlitePath: sqlitePath,
+                defaultDatabase: defaultDatabase,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ConnectionRowsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$LocalStore,
+      $ConnectionRowsTable,
+      ConnectionRow,
+      $$ConnectionRowsTableFilterComposer,
+      $$ConnectionRowsTableOrderingComposer,
+      $$ConnectionRowsTableAnnotationComposer,
+      $$ConnectionRowsTableCreateCompanionBuilder,
+      $$ConnectionRowsTableUpdateCompanionBuilder,
+      (
+        ConnectionRow,
+        BaseReferences<_$LocalStore, $ConnectionRowsTable, ConnectionRow>,
+      ),
+      ConnectionRow,
+      PrefetchHooks Function()
+    >;
 
 class $LocalStoreManager {
   final _$LocalStore _db;
   $LocalStoreManager(this._db);
   $$HistoryRowsTableTableManager get historyRows =>
       $$HistoryRowsTableTableManager(_db, _db.historyRows);
+  $$ConnectionRowsTableTableManager get connectionRows =>
+      $$ConnectionRowsTableTableManager(_db, _db.connectionRows);
 }

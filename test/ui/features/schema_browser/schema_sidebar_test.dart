@@ -2,8 +2,10 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:voltquery/data/services/local_store.dart';
+import 'package:voltquery/domain/models/connection.dart';
 import 'package:voltquery/domain/models/history_entry.dart';
 import 'package:voltquery/ui/core/shell/app_shell.dart';
+import 'package:voltquery/ui/features/connections/connection_providers.dart';
 import 'package:voltquery/ui/features/history/history_providers.dart';
 import 'package:voltquery/ui/features/query_workspace/worksheet_providers.dart';
 
@@ -19,9 +21,11 @@ void main() {
             ref.onDispose(store.close);
             return store;
           }),
-          // Avoid the drift .watch() stream's pending timer under FakeAsync.
+          // Avoid the drift .watch() streams' pending timers under FakeAsync.
           recentHistoryProvider
               .overrideWith((ref) => Stream.value(const <HistoryEntry>[])),
+          savedConnectionsProvider
+              .overrideWith((ref) => Stream.value(const <Connection>[])),
         ],
         child: FluentApp(
           debugShowCheckedModeBanner: false,

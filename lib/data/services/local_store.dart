@@ -23,10 +23,30 @@ class HistoryRows extends Table {
   TextColumn get errorMessage => text().nullable()();
 }
 
+/// Saved connections (ADR-0005). **Secret-free** — [credentialRef] is an opaque
+/// key into the credentials layer, never a secret. Schema-ready columns exist
+/// even where the SQLite-only UI doesn't use them yet.
+class ConnectionRows extends Table {
+  TextColumn get id => text()(); // uuid
+  TextColumn get name => text()();
+  TextColumn get engine => text()();
+  TextColumn get host => text().nullable()();
+  IntColumn get port => integer().nullable()();
+  TextColumn get username => text().nullable()();
+  TextColumn get credentialRef => text().nullable()();
+  TextColumn get sqlitePath => text().nullable()();
+  TextColumn get defaultDatabase => text().nullable()();
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 /// The app's own **drift** store — `voltquery.db` in the app-support dir.
 /// Secret-free (ADR-0005). Uses drift here (fixed compile-time schema), not the
 /// raw `sqlite3` we use for arbitrary *user* databases (ADR-0003).
-@DriftDatabase(tables: [HistoryRows])
+@DriftDatabase(tables: [HistoryRows, ConnectionRows])
 class LocalStore extends _$LocalStore {
   LocalStore() : super(_openFile());
 
@@ -34,7 +54,15 @@ class LocalStore extends _$LocalStore {
   LocalStore.memory() : super(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) => m.createAll(),
+        onUpgrade: (m, from, to) async {
+          if (from < 2) await m.createTable(connectionRows);
+        },
+      );
 }
 
 LazyDatabase _openFile() {
