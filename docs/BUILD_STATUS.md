@@ -41,7 +41,9 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 - **Persistence** (drift `voltquery.db`, ADR-0005): query **history** panel +
   saved connections (schema v2 + migration). Secret-free.
 - **App shell** (`ui/core/shell/app_shell.dart`): a **menu bar** (File / Query /
-  View) over the sidebar | workspace split, plus **app-wide shortcuts** (⌃⏎ Run,
+  View) built on **base_menu** (headless menus, WAI-ARIA keyboard nav — also the
+  base for #53 node context menus; needs Flutter ≥3.44.4, repo on 3.44.8) over the
+  sidebar | workspace split, plus **app-wide shortcuts** (⌃⏎ Run,
   F5 Run-script, Ctrl+N new tab, Ctrl+O open) routed to the active Worksheet via a
   `WorksheetCommands` bus — so Run works regardless of focus (⌃⏎ chains after a
   run). NavigationView rail is still TODO (#21).
