@@ -46,8 +46,8 @@ class ConnectionsPanel extends ConsumerWidget {
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 4),
               children: [
-                _row(ref, demoConnection, activeId, builtIn: true),
-                for (final c in saved) _row(ref, c, activeId),
+                _row(context, ref, demoConnection, activeId, builtIn: true),
+                for (final c in saved) _row(context, ref, c, activeId),
               ],
             ),
           ),
@@ -124,6 +124,20 @@ class ConnectionsPanel extends ConsumerWidget {
         ),
       );
 
+  /// Switches to [c]; if it needs a vault secret and the vault is locked,
+  /// unlock first so the connection doesn't fail auth with a null password.
+  Future<void> _select(
+      BuildContext context, WidgetRef ref, Connection c) async {
+    if (c.credentialRef != null) {
+      final store = await ref.read(secretStoreProvider.future);
+      if (store.isLocked) {
+        if (!context.mounted) return;
+        if (!await _unlockVault(context, ref, store)) return;
+      }
+    }
+    ref.read(currentConnectionProvider.notifier).set(c);
+  }
+
   Future<void> _addMenu(BuildContext context, WidgetRef ref) async {
     final choice = await showDialog<String>(
       context: context,
@@ -155,12 +169,12 @@ class ConnectionsPanel extends ConsumerWidget {
     ref.read(currentConnectionProvider.notifier).set(result.connection);
   }
 
-  Widget _row(WidgetRef ref, Connection c, String activeId,
+  Widget _row(BuildContext context, WidgetRef ref, Connection c, String activeId,
       {bool builtIn = false}) {
     final active = c.id == activeId;
     final isPg = c.engine == Engine.postgres;
     return HoverButton(
-      onPressed: () => ref.read(currentConnectionProvider.notifier).set(c),
+      onPressed: () => _select(context, ref, c),
       builder: (context, states) => Container(
         color: active ? _accentDim : (states.isHovered ? const Color(0x14FFFFFF) : null),
         padding: const EdgeInsets.only(left: 12, right: 6),

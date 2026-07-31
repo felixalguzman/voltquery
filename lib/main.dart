@@ -2,7 +2,6 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'ui/core/shell/app_shell.dart';
-import 'ui/features/query_workspace/worksheet_providers.dart';
 
 /// VoltQuery — futuristic cross-platform SQL database manager (DBeaver alt).
 ///
@@ -34,21 +33,13 @@ class VoltQueryApp extends StatelessWidget {
   }
 }
 
-class _Home extends ConsumerWidget {
+class _Home extends StatelessWidget {
   const _Home();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // Gate on the introspection session (seeds + keeps the shared demo alive)
-    // so worksheet sessions open against a ready database.
-    final ready = ref.watch(introspectionSessionProvider);
-    return ScaffoldPage(
-      padding: EdgeInsets.zero,
-      content: ready.when(
-        loading: () => const Center(child: ProgressRing()),
-        error: (e, _) => Center(child: Text('Failed to open database: $e')),
-        data: (_) => const AppShell(),
-      ),
-    );
-  }
+  // The shell always renders — a connection failure must never brick the app.
+  // Session errors surface inline (schema sidebar / worksheet result), and the
+  // Connections panel stays reachable to unlock the vault or switch connections.
+  Widget build(BuildContext context) =>
+      const ScaffoldPage(padding: EdgeInsets.zero, content: AppShell());
 }
