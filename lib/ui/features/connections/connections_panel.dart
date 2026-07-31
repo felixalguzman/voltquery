@@ -143,17 +143,21 @@ class ConnectionsPanel extends ConsumerWidget {
     final choice = await showDialog<String>(
       context: context,
       builder: (ctx) => ContentDialog(
+        constraints: const BoxConstraints(maxWidth: 360),
         title: const Text('New connection'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 4),
+            _choice(ctx, 'sqlite', FluentIcons.document, 'SQLite file…'),
+            const SizedBox(height: 8),
+            _choice(ctx, 'pg', FluentIcons.database, 'PostgreSQL…'),
+            const SizedBox(height: 8),
+            _choice(ctx, 'mysql', FluentIcons.database, 'MySQL / MariaDB…'),
+          ],
+        ),
         actions: [
-          Button(
-              child: const Text('SQLite file…'),
-              onPressed: () => Navigator.pop(ctx, 'sqlite')),
-          Button(
-              child: const Text('MySQL…'),
-              onPressed: () => Navigator.pop(ctx, 'mysql')),
-          FilledButton(
-              child: const Text('PostgreSQL…'),
-              onPressed: () => Navigator.pop(ctx, 'pg')),
           Button(child: const Text('Cancel'), onPressed: () => Navigator.pop(ctx)),
         ],
       ),
@@ -165,6 +169,22 @@ class ConnectionsPanel extends ConsumerWidget {
     if (choice == 'mysql' && context.mounted) {
       await _addServer(context, ref, Engine.mysql);
     }
+  }
+
+  /// A full-width engine choice for the New-connection dialog — stacked (not
+  /// crammed into the actions Row) so long labels never wrap.
+  Widget _choice(BuildContext ctx, String value, IconData icon, String label) {
+    return Button(
+      onPressed: () => Navigator.pop(ctx, value),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(children: [
+          Icon(icon, size: 15),
+          const SizedBox(width: 10),
+          Text(label),
+        ]),
+      ),
+    );
   }
 
   Future<void> _addServer(
