@@ -27,7 +27,7 @@ class _AppShellState extends State<AppShell> {
       controller: _panes,
       paneBuilder: (context, id, _) => switch (id) {
         'sidebar' => const SchemaSidebar(),
-        'main' => const WorksheetTabs(),
+        'main' => const WorksheetTabBar(),
         _ => const SizedBox.shrink(),
       },
     );

@@ -47,12 +47,12 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
   }
 
   void _run() => ref
-      .read(worksheetResultProvider(widget.worksheetId).notifier)
+      .read(worksheetProvider(widget.worksheetId).notifier)
       .run(_code.text);
 
   @override
   Widget build(BuildContext context) {
-    final result = ref.watch(worksheetResultProvider(widget.worksheetId));
+    final result = ref.watch(worksheetProvider(widget.worksheetId));
     final connName = ref.watch(currentConnectionProvider).name;
     // Sidebar can request a query — only the *active* worksheet responds.
     ref.listen<String?>(requestedQueryProvider, (_, next) {
@@ -61,7 +61,7 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
       if (next != null && isActive) {
         _code.text = next;
         _run();
-        ref.read(requestedQueryProvider.notifier).state = null;
+        ref.read(requestedQueryProvider.notifier).clear();
       }
     });
     return Container(
@@ -84,7 +84,7 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
       extensions: ['db', 'sqlite', 'sqlite3'],
     );
     final file = await openFile(acceptedTypeGroups: const [group]);
-    if (file != null && mounted) openSqliteFile(ref, file.path);
+    if (file != null && mounted) ref.read(currentConnectionProvider.notifier).openFile(file.path);
   }
 
   Widget _editorPane(String connName) {
