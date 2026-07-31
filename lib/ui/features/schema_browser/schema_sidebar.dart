@@ -101,8 +101,9 @@ class SchemaSidebar extends ConsumerWidget {
     return HoverButton(
       onPressed: () {
         final name = t.name.replaceAll('"', '""');
-        ref.read(requestedQueryProvider.notifier).state =
-            'SELECT * FROM "$name" LIMIT 200;';
+        ref
+            .read(requestedQueryProvider.notifier)
+            .request('SELECT * FROM "$name" LIMIT 200;');
       },
       builder: (context, states) => Container(
         color: states.isHovered ? _accent.withValues(alpha: 0.10) : null,

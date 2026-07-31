@@ -17,8 +17,8 @@ const _textLo = Color(0xFF5A6069);
 /// its editor + result (and session) persist across switches; the tab is closed
 /// → its `WorksheetView` unmounts → `worksheetSessionProvider` disposes → the
 /// Session closes.
-class WorksheetTabs extends ConsumerWidget {
-  const WorksheetTabs({super.key});
+class WorksheetTabBar extends ConsumerWidget {
+  const WorksheetTabBar({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -43,7 +43,7 @@ class WorksheetTabs extends ConsumerWidget {
     );
   }
 
-  Widget _strip(WorksheetTabsState tabs, WorksheetTabsController ctrl) {
+  Widget _strip(WorksheetTabsState tabs, WorksheetTabs ctrl) {
     return Container(
       height: 34,
       decoration: const BoxDecoration(
@@ -69,7 +69,7 @@ class WorksheetTabs extends ConsumerWidget {
     );
   }
 
-  Widget _tab(WorksheetTabsState tabs, WorksheetTabsController ctrl, int i) {
+  Widget _tab(WorksheetTabsState tabs, WorksheetTabs ctrl, int i) {
     final id = tabs.ids[i];
     final active = id == tabs.activeId;
     return GestureDetector(
