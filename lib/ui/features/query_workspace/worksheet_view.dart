@@ -50,6 +50,14 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
   Widget build(BuildContext context) {
     final result = ref.watch(worksheetProvider);
     final connName = ref.watch(currentConnectionProvider).name;
+    // Sidebar (or anything) can request a query: load it into the editor + run.
+    ref.listen<String?>(requestedQueryProvider, (_, next) {
+      if (next != null) {
+        _code.text = next;
+        _run();
+        ref.read(requestedQueryProvider.notifier).state = null;
+      }
+    });
     return Container(
       color: _bg,
       child: MultiPane(

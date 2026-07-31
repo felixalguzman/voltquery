@@ -4,6 +4,7 @@ import '../../../data/drivers/sqlite/sqlite_driver.dart';
 import '../../../domain/drivers/driver.dart';
 import '../../../domain/models/connection.dart';
 import '../../../domain/models/engine.dart';
+import '../../../domain/models/schema.dart';
 import 'worksheet_runner.dart';
 import 'worksheet_state.dart';
 
@@ -45,6 +46,17 @@ Future<void> _seedDemo(Session s) async {
       "('Alan Turing','a.turing@bletchley.example',1998.99),"
       "('Katherine Johnson','kj@nasa.gov',1640.0)");
 }
+
+/// Tables + views of the active session, for the schema sidebar. Rebuilds when
+/// the connection changes. SQLite has no schema level, so `SchemaInfo('')`.
+final schemaTablesProvider = FutureProvider<List<TableInfo>>((ref) async {
+  final session = await ref.watch(sessionProvider.future);
+  return session.schema.tables(const SchemaInfo(''));
+});
+
+/// A query the sidebar asks the worksheet to load + run (e.g. click a table).
+/// The worksheet listens, applies it to the editor, then clears this.
+final requestedQueryProvider = StateProvider<String?>((ref) => null);
 
 /// Opens a SQLite file as the active connection (name = its file name).
 void openSqliteFile(WidgetRef ref, String path) {
