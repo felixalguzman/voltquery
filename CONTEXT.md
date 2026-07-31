@@ -113,11 +113,31 @@ defined by issue **Driver abstraction — unified interface across the 3
 databases** (not this ticket). A Driver declares its **Capabilities**.
 
 ### Capabilities
-Per-Engine feature flags the model branches on instead of hard-coding
-Engine checks. Known flags: `hasServer`, `hasSchemas` (drive the hierarchy),
-plus — from driver research — `supportsQueryCancel`,
-`supportsRowCursorStreaming`, `supportsNestedTransactions` (uneven across the
-three). The full flag set is finalized with the Driver abstraction.
+Per-Engine feature flags the model branches on instead of hard-coding Engine
+checks. Finalized set (see `docs/design/driver-abstraction.md`): `hasServer`,
+`hasSchemas` (drive the hierarchy), `supportsTls`, `supportsQueryCancel`
+(Postgres only), `supportsSavepoints`, `supportsNestedTransactions` (none of the
+three at API level), `paramStyle`. Consumers read flags — never `switch(engine)`.
+
+### ResultCursor
+A **pull-based** reader over a row-returning result: its `ResultField`s plus
+`fetch(n)` (pull the next batch of `ResultRow`s), `hasMore`, and `close()`.
+Holds its Worksheet's **Session** open until closed. One open ResultCursor per
+open result view; the grid pulls batches on scroll.
+
+### ExecutionResult
+The tagged outcome of one `execute(sql, params)` on a Session — either a
+**RowsResult** (carries a `ResultCursor`, for SELECT-like statements) or a
+**CommandResult** (carries `affectedRows` + optional `lastInsertId`, for
+DML/DDL). The caller switches on the tag; a manager can't know the kind before
+running arbitrary user SQL.
+
+### DriverError
+An engine exception **normalized** to a uniform shape so the UI reacts the same
+across engines: a `DriverErrorKind` (e.g. `authFailed`, `syntaxError`, `timeout`,
+`canceled`, `constraintViolation`, `permissionDenied`, `unsupported`, …), a
+human message, the native code (SQLSTATE/errno), and the original cause. Each
+Driver maps its native errors into this taxonomy.
 
 ## Connection & runtime
 
