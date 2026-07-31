@@ -31,11 +31,22 @@ enum StatementKind { query, dml, ddl, other }
 
 /// One statement carved out of a Query buffer.
 class SqlStatement {
-  const SqlStatement({required this.sql, required this.kind});
+  const SqlStatement({
+    required this.sql,
+    required this.kind,
+    this.start = 0,
+    this.end = 0,
+  });
 
   /// The statement text, trimmed, without its trailing delimiter.
   final String sql;
   final StatementKind kind;
+
+  /// Half-open char span `[start, end)` of this statement's region in the
+  /// original buffer (delimiter excluded, leading trivia included) — used to map
+  /// a caret offset to its statement ("Run at cursor").
+  final int start;
+  final int end;
 
   @override
   String toString() => 'SqlStatement(${kind.name}: $sql)';
@@ -66,6 +77,18 @@ class SqlStatementSplitter {
     }
   }
 
+  /// The statement whose region contains [offset] (for "Run at cursor"). Caret
+  /// in a blank gap rounds forward to the next statement; past the end → the
+  /// last. Null only when the buffer has no statements.
+  SqlStatement? statementAt(String buffer, int offset) {
+    final sts = split(buffer);
+    if (sts.isEmpty) return null;
+    for (final st in sts) {
+      if (offset <= st.end) return st;
+    }
+    return sts.last;
+  }
+
   List<SqlStatement> _split(String s) {
     final out = <SqlStatement>[];
     var delimiter = ';';
@@ -73,10 +96,13 @@ class SqlStatementSplitter {
     var i = 0;
     final n = s.length;
 
-    void emit(int end) {
-      var raw = s.substring(start, end);
-      raw = raw.substring(_leadingTriviaEnd(raw)).trim(); // drop leading comments
-      if (raw.isNotEmpty) out.add(SqlStatement(sql: raw, kind: _classify(raw)));
+    void emit(int to) {
+      final raw = s.substring(start, to);
+      final sql = raw.substring(_leadingTriviaEnd(raw)).trim(); // drop comments
+      if (sql.isNotEmpty) {
+        out.add(SqlStatement(
+            sql: sql, kind: _classify(sql), start: start, end: to));
+      }
     }
 
     // Is position [i] the start of a statement (only whitespace seen since the

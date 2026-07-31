@@ -38,4 +38,29 @@ void main() {
     // Editor default 'SELECT * FROM customers;' → 4 seeded rows.
     expect(find.textContaining('4 row(s)'), findsOneWidget);
   });
+
+  testWidgets('Run at cursor runs the statement under the caret', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: _memoryStore,
+        child: const FluentApp(
+          debugShowCheckedModeBanner: false,
+          home: ScaffoldPage(
+            padding: EdgeInsets.zero,
+            content: WorksheetView(worksheetId: 'ws-0'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Open the Run-mode menu → "Run at cursor". Caret sits at offset 0, so the
+    // statement under it is the default 'SELECT * FROM customers'.
+    await tester.tap(find.byType(DropDownButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('Run at cursor'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('4 row(s)'), findsOneWidget);
+  });
 }
