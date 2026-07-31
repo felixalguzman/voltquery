@@ -145,6 +145,34 @@ SELECT 3;''';
     });
   });
 
+  group('statementAt (Run at cursor)', () {
+    final splitter = SqlStatementSplitter(SqlDialect.postgres);
+    const buf = 'SELECT 1;\nUPDATE t SET a=1;\nSELECT 3';
+    //           0......7 8  9...............25 26
+
+    String? at(int offset) => splitter.statementAt(buf, offset)?.sql;
+
+    test('maps a caret inside each statement to that statement', () {
+      expect(at(2), 'SELECT 1'); // inside first
+      expect(at(15), 'UPDATE t SET a=1'); // inside second
+      expect(at(buf.length), 'SELECT 3'); // caret at very end → last
+    });
+
+    test('caret right after a semicolon belongs to the next statement', () {
+      expect(at(9), 'UPDATE t SET a=1'); // just past "SELECT 1;"
+    });
+
+    test('empty buffer → null', () {
+      expect(splitter.statementAt('   ', 0), isNull);
+    });
+
+    test('does not split on a ; inside a string when locating', () {
+      const b = "SELECT ';' AS x; SELECT 2";
+      expect(splitter.statementAt(b, 5)?.sql, "SELECT ';' AS x");
+      expect(splitter.statementAt(b, b.length)?.sql, 'SELECT 2');
+    });
+  });
+
   group('robustness', () {
     test('unterminated string is emitted whole, not mis-split', () {
       // The dangling quote swallows the rest → one statement, no crash.

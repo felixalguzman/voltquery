@@ -19,7 +19,9 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   a dialect-aware `SqlStatementSplitter` splits the buffer, statements run in order
   **stop-on-error**, each writes its own HistoryEntry; row-returning statements get
   **result sub-tabs**, the rest a **Messages log**. A successful DDL evicts the
-  schema-tree cache so the sidebar self-refreshes.
+  schema-tree cache so the sidebar self-refreshes. **Run** (whole), **Run at
+  cursor** / **Run selection** (⌃⏎ = selection-else-cursor) via the splitter's
+  offset-aware `statementAt`.
 - **Schema sidebar** (`schema_browser/`): **lazy tree** (ADR-0008, #13) — Postgres
   nests Schema → objects; SQLite/MySQL show objects at root. Every level loads on
   the fluent `TreeView`'s `onExpandToggle` via a per-Connection `SchemaRepository`
@@ -38,7 +40,7 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 - **Theming**: inline "Clean Dev-Tool" tokens (dark, cyan accent) — not yet in
   `ui/core/theme` (still TODO per #7).
 
-**54 tests** green (`flutter test`); `flutter analyze` clean.
+**59 tests** green (`flutter test`); `flutter analyze` clean.
 
 ## Deferred / known gaps
 
@@ -49,15 +51,17 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 - **Tables/Views folders + sibling render-cap/filter** — the lazy tree flattens
   objects (icon-distinguished) rather than foldering; large-schema cap (#13 §Very
   large) deferred.
-- **Run at cursor / Run selection** (#12) — only whole-buffer Run is wired;
-  cursor/selection variants + continue-on-error setting + Cancel/timeouts deferred.
+- **Cancel + timeouts, continue-on-error, manual-commit** (#12 remainder) —
+  Run / Run-at-cursor (Ctrl+Enter) / Run-selection are wired; Cancel (per-engine),
+  per-statement timeout, continue-on-error setting, and the manual-commit toggle
+  (Commit/Rollback) are deferred.
 - **TLS** — Postgres/MySQL connect with SSL disabled (`TODO(tls)` in the drivers).
 - mac/win **keychain** adapter for the SecretStore (ADR-0006).
 - `ui/core/theme` (mix tokens) not built; tokens are inlined per widget.
 
 ## Next candidates (pick one)
 
-1. Run at cursor / Run selection + Cancel + continue-on-error (#12 remainder).
+1. Cancel + timeouts + continue-on-error + manual-commit (#12 remainder).
 2. Keyboard nav / shortcuts (#21) + the app shell (NavigationView + menu bar).
 3. Index introspection — implement `indexes()` across the driver trio; hang
    Index nodes under each table (schema tree already lazy-loads their level).

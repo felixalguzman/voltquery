@@ -1,5 +1,6 @@
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart' as m;
+import 'package:flutter/services.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:panes/panes.dart';
@@ -64,8 +65,42 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
     super.dispose();
   }
 
-  void _run() =>
-      ref.read(worksheetProvider(widget.worksheetId).notifier).run(_code.text);
+  void _runSql(String sql) =>
+      ref.read(worksheetProvider(widget.worksheetId).notifier).run(sql);
+
+  /// Run the whole editor buffer (▶ Run). Also the sidebar's request path.
+  void _run() => _runSql(_code.text);
+
+  /// Run just the selected SQL, if any.
+  void _runSelection() {
+    if (_code.selectedText.trim().isNotEmpty) _runSql(_code.selectedText);
+  }
+
+  /// Run the single statement under the caret (dialect-aware split).
+  void _runAtCursor() {
+    final engine = ref.read(currentConnectionProvider).engine;
+    final st = SqlStatementSplitter(SqlDialect.of(engine))
+        .statementAt(_code.text, _caretOffset());
+    if (st != null) _runSql(st.sql);
+  }
+
+  /// Ctrl/⌘+Enter: run the selection if there is one, else the statement at the
+  /// caret — the DataGrip/DBeaver default.
+  void _runSmart() =>
+      _code.selectedText.trim().isNotEmpty ? _runSelection() : _runAtCursor();
+
+  /// Absolute char offset of the caret in the full buffer (re_editor gives it as
+  /// line + column).
+  int _caretOffset() {
+    final sel = _code.selection;
+    final lines = _code.text.split('\n');
+    final line = sel.extentIndex.clamp(0, lines.length - 1);
+    var off = 0;
+    for (var i = 0; i < line; i++) {
+      off += lines[i].length + 1; // + newline
+    }
+    return off + sel.extentOffset;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -112,14 +147,22 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
       children: [
         _toolbar(connName),
         Expanded(
-          child: CodeEditor(
-            controller: _code,
-            style: CodeEditorStyle(
-              fontSize: 13.5,
-              backgroundColor: _bg,
-              codeTheme: CodeHighlightTheme(
-                languages: {'sql': CodeHighlightThemeMode(mode: langSql)},
-                theme: atomOneDarkTheme,
+          child: CallbackShortcuts(
+            bindings: {
+              const SingleActivator(LogicalKeyboardKey.enter, control: true):
+                  _runSmart,
+              const SingleActivator(LogicalKeyboardKey.enter, meta: true):
+                  _runSmart,
+            },
+            child: CodeEditor(
+              controller: _code,
+              style: CodeEditorStyle(
+                fontSize: 13.5,
+                backgroundColor: _bg,
+                codeTheme: CodeHighlightTheme(
+                  languages: {'sql': CodeHighlightThemeMode(mode: langSql)},
+                  theme: atomOneDarkTheme,
+                ),
               ),
             ),
           ),
@@ -148,6 +191,22 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
           Button(onPressed: _openFile, child: const Text('Open…')),
           const Spacer(),
           FilledButton(onPressed: _run, child: const Text('▶ Run')),
+          const SizedBox(width: 6),
+          DropDownButton(
+            title: const Icon(FluentIcons.chevron_down, size: 10),
+            items: [
+              MenuFlyoutItem(
+                leading: const Icon(FluentIcons.caret_right, size: 12),
+                text: const Text('Run at cursor   Ctrl+Enter'),
+                onPressed: _runAtCursor,
+              ),
+              MenuFlyoutItem(
+                leading: const Icon(FluentIcons.text_field, size: 12),
+                text: const Text('Run selection'),
+                onPressed: _runSelection,
+              ),
+            ],
+          ),
         ],
       ),
     );
