@@ -164,17 +164,35 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
             leading: Icon(
                 c.isPrimaryKey ? FluentIcons.permissions : FluentIcons.circle_ring,
                 size: 11, color: c.isPrimaryKey ? _accent : _textLo),
-            content: Row(children: [
-              Flexible(
-                child: Text(c.name,
-                    overflow: TextOverflow.ellipsis,
-                    style: _mono.copyWith(fontSize: 12)),
-              ),
-              const SizedBox(width: 8),
-              Text(c.dataType,
-                  style: const TextStyle(
-                      color: _textLo, fontSize: 10.5, fontFamily: 'monospace')),
-            ]),
+            // Name sizes to content but capped at ~55% of the *actual* row
+            // width (via LayoutBuilder — flex weights would reserve a fixed
+            // share and truncate the type even with space free); the type takes
+            // all remaining width and ellipsizes only when it genuinely can't
+            // fit.
+            content: LayoutBuilder(builder: (context, cons) {
+              return Row(children: [
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: cons.maxWidth * 0.55),
+                  child: Text(c.name,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                      maxLines: 1,
+                      style: _mono.copyWith(fontSize: 12)),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(c.dataType,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                      maxLines: 1,
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                          color: _textLo,
+                          fontSize: 10.5,
+                          fontFamily: 'monospace')),
+                ),
+              ]);
+            }),
           ),
       ];
 
