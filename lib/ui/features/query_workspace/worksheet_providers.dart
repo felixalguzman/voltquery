@@ -222,7 +222,21 @@ class Worksheet extends _$Worksheet {
     return const WorksheetIdle();
   }
 
+  /// Set by [cancel]; the run loop stops at the next boundary.
+  bool _cancelRequested = false;
+
   void reset() => state = const WorksheetIdle();
+
+  /// Stop the in-flight run. Abandons + closes the Session so an in-flight
+  /// *server* query aborts (the autoDispose family re-creates it on the next
+  /// run); the loop then stops before the next statement. SQLite runs
+  /// synchronously on the main isolate, so a single running statement can't be
+  /// interrupted — Cancel stops the *remaining* statements of a script.
+  void cancel() {
+    if (state is! WorksheetRunning) return;
+    _cancelRequested = true;
+    ref.invalidate(worksheetSessionProvider(worksheetId));
+  }
 
   /// Splits [sql] into statements (dialect-aware) and runs them **in order** on
   /// this Worksheet's one Session, **stop-on-error** (ADR-0007). Each statement
@@ -234,6 +248,7 @@ class Worksheet extends _$Worksheet {
       SqlDialect.of(conn.engine),
     ).split(sql);
     if (statements.isEmpty) return;
+    _cancelRequested = false;
     state = const WorksheetRunning();
 
     // One session for the whole script. Opening it can fail (auth, vault
@@ -273,6 +288,7 @@ class Worksheet extends _$Worksheet {
     final outcomes = <StatementOutcome>[];
     var ranDdl = false;
     for (var k = 0; k < statements.length; k++) {
+      if (_cancelRequested) break;
       final st = statements[k];
       final started = DateTime.now();
       final sw = Stopwatch()..start();
@@ -302,7 +318,7 @@ class Worksheet extends _$Worksheet {
       }
       if (st.kind == StatementKind.ddl) ranDdl = true;
     }
-    state = WorksheetScript(outcomes);
+    state = WorksheetScript(outcomes, canceled: _cancelRequested);
     // Any successful DDL may have changed the catalog — drop the tree cache.
     if (ranDdl) ref.invalidate(schemaRepositoryProvider);
   }

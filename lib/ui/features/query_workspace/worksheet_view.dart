@@ -248,7 +248,15 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
           ..._txControls(),
           _continueOnErrorToggle(),
           const SizedBox(width: 10),
-          FilledButton(onPressed: _run, child: const Text('▶ Run')),
+          if (ref.watch(worksheetProvider(widget.worksheetId))
+              is WorksheetRunning)
+            FilledButton(
+              onPressed:
+                  ref.read(worksheetProvider(widget.worksheetId).notifier).cancel,
+              child: const Text('■ Cancel'),
+            )
+          else
+            FilledButton(onPressed: _run, child: const Text('▶ Run')),
           const SizedBox(width: 6),
           DropDownButton(
             title: const Icon(FluentIcons.chevron_down, size: 10),
@@ -327,14 +335,31 @@ class _ResultPane extends StatelessWidget {
         WorksheetRunning() => const Center(child: ProgressRing()),
         // A single-statement script renders its one result directly (grid /
         // message / failure); a multi-statement script gets sub-tabs + log.
-        WorksheetScript(:final outcomes) =>
-          outcomes.length == 1
-              ? _single(outcomes.first.result)
-              : _ScriptView(outcomes: outcomes),
+        WorksheetScript(:final outcomes, :final canceled) =>
+          _scriptBody(outcomes, canceled),
         _ => _single(result),
       },
     );
   }
+}
+
+Widget _scriptBody(List<StatementOutcome> outcomes, bool canceled) {
+  final body = outcomes.isEmpty
+      ? _centered('Run canceled before any statement ran.')
+      : outcomes.length == 1
+          ? _single(outcomes.first.result)
+          : _ScriptView(outcomes: outcomes);
+  if (!canceled) return body;
+  return Column(children: [
+    Container(
+      width: double.infinity,
+      color: const Color(0x22FFB020),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      child: const Text('■ Run canceled — remaining statements were not run.',
+          style: TextStyle(color: Color(0xFFFFB020), fontSize: 11.5)),
+    ),
+    Expanded(child: body),
+  ]);
 }
 
 /// Renders one statement's payload — the original single-result view.
