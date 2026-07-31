@@ -9,8 +9,10 @@ import '../../../domain/models/connection.dart';
 import '../../../domain/models/engine.dart';
 import '../../../domain/models/history_entry.dart';
 import '../../../domain/models/schema.dart';
+import '../../../domain/sql/sql_statement_splitter.dart';
 import '../connections/connection_providers.dart';
 import '../history/history_providers.dart';
+import '../schema_browser/schema_providers.dart';
 import 'worksheet_runner.dart';
 import 'worksheet_state.dart';
 
@@ -35,11 +37,11 @@ class CurrentConnection extends _$CurrentConnection {
 
   /// Opens a SQLite file as the active connection (name = its file name).
   void openFile(String path) => state = Connection(
-        id: path,
-        name: path.split(RegExp(r'[/\\]')).last,
-        engine: Engine.sqlite,
-        sqlitePath: path,
-      );
+    id: path,
+    name: path.split(RegExp(r'[/\\]')).last,
+    engine: Engine.sqlite,
+    sqlitePath: path,
+  );
 }
 
 /// Dedicated **per-Connection introspection Session** (ADR-0008), distinct from
@@ -71,8 +73,9 @@ Future<Session> _openSession(Ref ref, Connection conn) async {
   ref.onDispose(() => disposed = true);
   final secret = conn.credentialRef == null
       ? null
-      : await (await ref.read(secretStoreProvider.future))
-          .read(conn.credentialRef!);
+      : await (await ref.read(
+          secretStoreProvider.future,
+        )).read(conn.credentialRef!);
   final session = await driverFor(conn.engine).connect(conn, secret: secret);
   if (disposed) {
     await session.close();
@@ -84,17 +87,22 @@ Future<Session> _openSession(Ref ref, Connection conn) async {
 
 Future<void> _seedDemoIfEmpty(Session s) async {
   final probe = await s.execute(
-      "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='customers'");
+    "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='customers'",
+  );
   final rows = await (probe as RowsResult).cursor.fetch(1);
   await probe.cursor.close();
   if ((rows.first.values.first as int) > 0) return;
-  await s.execute('CREATE TABLE IF NOT EXISTS customers ('
-      'id INTEGER PRIMARY KEY, name TEXT, email TEXT, total REAL)');
-  await s.execute("INSERT INTO customers (name, email, total) VALUES "
-      "('Ada Lovelace','ada@analytical.io',2940.0),"
-      "('Grace Hopper',NULL,2731.5),"
-      "('Alan Turing','a.turing@bletchley.example',1998.99),"
-      "('Katherine Johnson','kj@nasa.gov',1640.0)");
+  await s.execute(
+    'CREATE TABLE IF NOT EXISTS customers ('
+    'id INTEGER PRIMARY KEY, name TEXT, email TEXT, total REAL)',
+  );
+  await s.execute(
+    "INSERT INTO customers (name, email, total) VALUES "
+    "('Ada Lovelace','ada@analytical.io',2940.0),"
+    "('Grace Hopper',NULL,2731.5),"
+    "('Alan Turing','a.turing@bletchley.example',1998.99),"
+    "('Katherine Johnson','kj@nasa.gov',1640.0)",
+  );
 }
 
 /// Tables + views of the active connection (via the introspection session).
@@ -133,60 +141,111 @@ class Worksheet extends _$Worksheet {
 
   void reset() => state = const WorksheetIdle();
 
+  /// Splits [sql] into statements (dialect-aware) and runs them **in order** on
+  /// this Worksheet's one Session, **stop-on-error** (ADR-0007). Each statement
+  /// records its own HistoryEntry; a successful DDL evicts the schema-tree cache
+  /// (ADR-0008 / #13) so the sidebar reflects the new shape.
   Future<void> run(String sql) async {
-    final query = sql.trim();
-    if (query.isEmpty) return;
+    final conn = ref.read(currentConnectionProvider);
+    final statements = SqlStatementSplitter(
+      SqlDialect.of(conn.engine),
+    ).split(sql);
+    if (statements.isEmpty) return;
     state = const WorksheetRunning();
-    final started = DateTime.now();
-    final sw = Stopwatch()..start();
-    final WorksheetResult result;
-    result = await _runGuarded(worksheetId, query);
-    sw.stop();
-    state = result;
-    await _record(query, started, sw.elapsedMilliseconds, result);
-  }
 
-  /// Opening the session can fail (auth, vault locked, unreachable) — turn any
-  /// failure into a [WorksheetFailure] so it shows in the result pane.
-  Future<WorksheetResult> _runGuarded(String worksheetId, String query) async {
+    // One session for the whole script. Opening it can fail (auth, vault
+    // locked, unreachable) — surface that as a single failed outcome.
+    final Session session;
     try {
-      final session =
-          await ref.read(worksheetSessionProvider(worksheetId).future);
-      return await ref.read(worksheetRunnerProvider).run(session, query);
-    } on DriverError catch (e) {
-      return WorksheetFailure(e);
+      session = await ref.read(worksheetSessionProvider(worksheetId).future);
     } catch (e) {
-      return WorksheetFailure(
-          DriverError(DriverErrorKind.connectionFailed, e.toString()));
+      final err = e is DriverError
+          ? e
+          : DriverError(DriverErrorKind.connectionFailed, e.toString());
+      state = WorksheetScript([
+        StatementOutcome(
+          index: 1,
+          sql: statements.first.sql,
+          kind: statements.first.kind,
+          result: WorksheetFailure(err),
+        ),
+      ]);
+      return;
     }
+
+    final runner = ref.read(worksheetRunnerProvider);
+    final outcomes = <StatementOutcome>[];
+    var ranDdl = false;
+    for (var k = 0; k < statements.length; k++) {
+      final st = statements[k];
+      final started = DateTime.now();
+      final sw = Stopwatch()..start();
+      WorksheetResult result;
+      try {
+        result = await runner.run(session, st.sql);
+      } on DriverError catch (e) {
+        result = WorksheetFailure(e);
+      } catch (e) {
+        result = WorksheetFailure(
+          DriverError(DriverErrorKind.connectionFailed, e.toString()),
+        );
+      }
+      sw.stop();
+      outcomes.add(
+        StatementOutcome(
+          index: k + 1,
+          sql: st.sql,
+          kind: st.kind,
+          result: result,
+        ),
+      );
+      await _record(st.sql, started, sw.elapsedMilliseconds, result);
+      if (result is WorksheetFailure) break; // stop-on-error
+      if (st.kind == StatementKind.ddl) ranDdl = true;
+    }
+    state = WorksheetScript(outcomes);
+    // Any successful DDL may have changed the catalog — drop the tree cache.
+    if (ranDdl) ref.invalidate(schemaRepositoryProvider);
   }
 
   Future<void> _record(
-      String sql, DateTime started, int ms, WorksheetResult result) async {
+    String sql,
+    DateTime started,
+    int ms,
+    WorksheetResult result,
+  ) async {
     final conn = ref.read(currentConnectionProvider);
-    final (HistoryStatus status, int? rowCount, String? errKind, String? errMsg) =
-        switch (result) {
+    final (
+      HistoryStatus status,
+      int? rowCount,
+      String? errKind,
+      String? errMsg,
+    ) = switch (result) {
       WorksheetRows(:final rows) => (HistoryStatus.ok, rows.length, null, null),
       WorksheetFailure(:final error) => (
-          HistoryStatus.error,
-          null,
-          error.kind.name,
-          error.message
-        ),
+        HistoryStatus.error,
+        null,
+        error.kind.name,
+        error.message,
+      ),
       _ => (HistoryStatus.ok, null, null, null),
     };
-    await ref.read(historyRepositoryProvider).record(HistoryEntry(
-          connectionName: conn.name,
-          engine: conn.engine.name,
-          databaseName: conn.defaultDatabase,
-          sql: sql,
-          startedAt: started,
-          durationMs: ms,
-          status: status,
-          rowCount: rowCount,
-          errorKind: errKind,
-          errorMessage: errMsg,
-        ));
+    await ref
+        .read(historyRepositoryProvider)
+        .record(
+          HistoryEntry(
+            connectionName: conn.name,
+            engine: conn.engine.name,
+            databaseName: conn.defaultDatabase,
+            sql: sql,
+            startedAt: started,
+            durationMs: ms,
+            status: status,
+            rowCount: rowCount,
+            errorKind: errKind,
+            errorMessage: errMsg,
+          ),
+        );
   }
 }
 

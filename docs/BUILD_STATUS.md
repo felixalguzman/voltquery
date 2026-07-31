@@ -15,7 +15,11 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 - **Query workspace** (`lib/ui/features/query_workspace/`): re_editor + pluto_grid
   in a resizable `panes` split; **Worksheet tabs**, each with its **own** Session
   (`worksheetSessionProvider.autoDispose.family`, ADR-0002/0004). `WorksheetRunner`
-  materializes results (render-capped).
+  materializes results (render-capped). **Multi-statement Run** (ADR-0007, #12/#15):
+  a dialect-aware `SqlStatementSplitter` splits the buffer, statements run in order
+  **stop-on-error**, each writes its own HistoryEntry; row-returning statements get
+  **result sub-tabs**, the rest a **Messages log**. A successful DDL evicts the
+  schema-tree cache so the sidebar self-refreshes.
 - **Schema sidebar** (`schema_browser/`): **lazy tree** (ADR-0008, #13) — Postgres
   nests Schema → objects; SQLite/MySQL show objects at root. Every level loads on
   the fluent `TreeView`'s `onExpandToggle` via a per-Connection `SchemaRepository`
@@ -34,7 +38,7 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 - **Theming**: inline "Clean Dev-Tool" tokens (dark, cyan accent) — not yet in
   `ui/core/theme` (still TODO per #7).
 
-**30 tests** green (`flutter test`); `flutter analyze` clean.
+**54 tests** green (`flutter test`); `flutter analyze` clean.
 
 ## Deferred / known gaps
 
@@ -45,14 +49,15 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 - **Tables/Views folders + sibling render-cap/filter** — the lazy tree flattens
   objects (icon-distinguished) rather than foldering; large-schema cap (#13 §Very
   large) deferred.
-- **Multi-statement scripts + result sub-tabs** (#12/#15) — one statement per run.
+- **Run at cursor / Run selection** (#12) — only whole-buffer Run is wired;
+  cursor/selection variants + continue-on-error setting + Cancel/timeouts deferred.
 - **TLS** — Postgres/MySQL connect with SSL disabled (`TODO(tls)` in the drivers).
 - mac/win **keychain** adapter for the SecretStore (ADR-0006).
 - `ui/core/theme` (mix tokens) not built; tokens are inlined per widget.
 
 ## Next candidates (pick one)
 
-1. Multi-statement + result sub-tabs (#12/#15).
+1. Run at cursor / Run selection + Cancel + continue-on-error (#12 remainder).
 2. Keyboard nav / shortcuts (#21) + the app shell (NavigationView + menu bar).
 3. Index introspection — implement `indexes()` across the driver trio; hang
    Index nodes under each table (schema tree already lazy-loads their level).
