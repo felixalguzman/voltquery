@@ -188,6 +188,7 @@ class _PostgresIntrospector implements SchemaIntrospector {
   Future<List<ColumnInfo>> columns(TableInfo table) async {
     // Qualify by schema — same table name can exist in many schemas.
     final schemaName = table.schema.isEmpty ? 'public' : table.schema;
+    final keys = await _keyColumns(schemaName, table.name);
     final r = await _conn.execute(
       pg.Sql.named(
           'SELECT column_name, data_type, is_nullable, ordinal_position, column_default '
@@ -201,12 +202,41 @@ class _PostgresIntrospector implements SchemaIntrospector {
           name: row[0] as String,
           dataType: row[1] as String,
           nullable: (row[2] as String) == 'YES',
-          isPrimaryKey: false, // TODO(slice): key constraints
-          isForeignKey: false,
+          isPrimaryKey: keys.pk.contains(row[0]),
+          isForeignKey: keys.fk.contains(row[0]),
           ordinal: (row[3] as int) - 1,
           defaultValue: row[4]?.toString(),
         ),
     ];
+  }
+
+  /// PK + FK column-name sets for a table (one round-trip via the constraint
+  /// catalog). Powers the key glyphs in the schema tree.
+  Future<({Set<String> pk, Set<String> fk})> _keyColumns(
+      String schema, String table) async {
+    final r = await _conn.execute(
+      pg.Sql.named(
+        'SELECT kcu.column_name, tc.constraint_type '
+        'FROM information_schema.table_constraints tc '
+        'JOIN information_schema.key_column_usage kcu '
+        '  ON kcu.constraint_name = tc.constraint_name '
+        '  AND kcu.constraint_schema = tc.constraint_schema '
+        "WHERE tc.constraint_type IN ('PRIMARY KEY','FOREIGN KEY') "
+        'AND tc.table_schema = @s AND tc.table_name = @t',
+      ),
+      parameters: {'s': schema, 't': table},
+    );
+    final pk = <String>{};
+    final fk = <String>{};
+    for (final row in r) {
+      final col = row[0] as String;
+      if (row[1] == 'PRIMARY KEY') {
+        pk.add(col);
+      } else {
+        fk.add(col);
+      }
+    }
+    return (pk: pk, fk: fk);
   }
 
   @override

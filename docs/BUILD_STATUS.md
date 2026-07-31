@@ -30,7 +30,8 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   (one-entry-per-parent-ref cache, evict-on-failure). Row-tap opens the table in
   a new worksheet tab; chevron reveals columns + a lazy **Indexes** group
   (`indexes()` implemented across the driver trio). Runs on the per-Connection
-  introspection Session.
+  introspection Session. Columns mark **PK** (accent key) and **FK** (link glyph)
+  across all three engines.
 - **Connections** (`connections/`): built-in demo + saved connections (drift),
   switch/add/delete; SQLite file-open; server form (Postgres/MySQL) with an inline
   **Test connection**.
@@ -44,14 +45,14 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 - **Theming**: inline "Clean Dev-Tool" tokens (dark, cyan accent) — not yet in
   `ui/core/theme` (still TODO per #7).
 
-**64 tests** green (`flutter test`); `flutter analyze` clean.
+**65 tests** green (`flutter test`); `flutter analyze` clean.
 
 ## Deferred / known gaps
 
 - Grid **keyboard cell navigation** — issue #21 (selection works; arrow-nav needs
   focus/shortcuts work, batched with the shell).
-- **FK detail** — columns show PK but not FK (`isForeignKey` always false across
-  the drivers). Indexes now introspected + shown; FK constraints not yet.
+- **Node interactions** (#53) — right-click context menu (copy name / copy
+  `CREATE` / open SELECT / preview data) across tables, columns, indexes.
 - **Tables/Views folders + sibling render-cap/filter** — the lazy tree flattens
   objects (icon-distinguished) rather than foldering; large-schema cap (#13 §Very
   large) deferred.
@@ -70,7 +71,7 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 1. Keyboard nav / shortcuts (#21) + the app shell (NavigationView + menu bar) —
    also the home for solving editor focus-after-run app-wide.
 2. Background isolate for the SQLite driver — unblocks true Cancel + timeouts.
-3. FK detail in the tree + Tables/Views folders + large-schema render-cap.
+3. Node interactions (#53) + Tables/Views folders + large-schema render-cap.
 4. Postgres/MySQL TLS.
 5. `ui/core/theme` via mix.
 

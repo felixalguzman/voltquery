@@ -139,6 +139,8 @@ class _SqliteSchemaIntrospector implements SchemaIntrospector {
   Future<List<ColumnInfo>> columns(TableInfo table) async {
     // PRAGMA can't take bound parameters — interpolate a quoted literal.
     final name = table.name.replaceAll("'", "''");
+    final fk = _db.select("PRAGMA foreign_key_list('$name')");
+    final fkCols = {for (final r in fk) r['from'] as String};
     final rs = _db.select("PRAGMA table_info('$name')");
     return [
       for (final row in rs)
@@ -147,7 +149,7 @@ class _SqliteSchemaIntrospector implements SchemaIntrospector {
           dataType: (row['type'] as String?) ?? '',
           nullable: (row['notnull'] as int) == 0,
           isPrimaryKey: (row['pk'] as int) != 0,
-          isForeignKey: false, // TODO(slice): PRAGMA foreign_key_list
+          isForeignKey: fkCols.contains(row['name']),
           ordinal: row['cid'] as int,
           defaultValue: row['dflt_value']?.toString(),
         ),
