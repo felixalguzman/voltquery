@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:riverpod/riverpod.dart' show Ref;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -18,14 +20,37 @@ import 'worksheet_state.dart';
 
 part 'worksheet_providers.g.dart';
 
-/// The seeded demo — a **shared-cache in-memory** SQLite DB so every
-/// per-Worksheet session (and the introspection session) sees the same data.
-const demoConnection = Connection(
+/// The seeded demo — a **temp-file** SQLite DB (unique per app run) so the
+/// introspection Session and every Worksheet Session share ONE real database.
+///
+/// It used to be a `cache=shared` in-memory DB, but that cache is *not* shared
+/// across connections on the bundled desktop sqlite — each session got its own
+/// private DB (masked because each self-seeds `customers`), so DDL run in a
+/// worksheet stayed invisible to the schema tree. A real file always shares. A
+/// fresh path per run keeps the demo pristine each launch; [sweepDemoDbs] (from
+/// `main`) removes leftovers.
+final Connection demoConnection = Connection(
   id: 'demo',
   name: 'demo',
   engine: Engine.sqlite,
-  sqlitePath: 'file:vqdemo?mode=memory&cache=shared',
+  sqlitePath: _demoDbPath(),
 );
+
+String _demoDbPath() =>
+    '${Directory.systemTemp.path}/voltquery_demo_'
+    '${DateTime.now().microsecondsSinceEpoch}.db';
+
+/// Best-effort delete of demo temp DBs left by earlier runs. Called from `main`
+/// at startup (no session is open yet, so nothing is in use).
+void sweepDemoDbs() {
+  try {
+    for (final e in Directory.systemTemp.listSync()) {
+      if (e is File && e.path.contains('voltquery_demo_')) e.deleteSync();
+    }
+  } catch (_) {
+    // Sweep is a courtesy — never let it block startup.
+  }
+}
 
 /// The connection the workspace currently targets.
 @riverpod

@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'ui/core/shell/app_shell.dart';
+import 'ui/features/query_workspace/worksheet_providers.dart';
 
 /// VoltQuery — futuristic cross-platform SQL database manager (DBeaver alt).
 ///
@@ -9,6 +10,9 @@ import 'ui/core/shell/app_shell.dart';
 /// query workspace (re_editor → SQLite driver → pluto_grid) against a seeded
 /// in-memory demo database. Shell, theming, and the rest land slice-by-slice.
 void main() {
+  // Clear demo temp DBs from earlier runs so the demo starts pristine (its path
+  // is a fresh temp file per launch — see demoConnection).
+  sweepDemoDbs();
   // TODO(build): window_manager setup (size, min-size, title) before runApp.
   runApp(const ProviderScope(child: VoltQueryApp()));
 }
