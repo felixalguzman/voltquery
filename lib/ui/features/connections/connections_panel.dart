@@ -21,9 +21,14 @@ const _accentDim = Color(0x1F2FE6FF);
 const _textHi = Color(0xFFE6E8EC);
 const _textMid = Color(0xFF9BA1AD);
 const _textLo = Color(0xFF5A6069);
-const _sqliteBadge = Color(0xFF8A93A3);
-const _pgBadge = Color(0xFF4E9BF0);
-const _myBadge = Color(0xFFE9A44B);
+
+/// Engine → brand glyph (simple_icons) + brand colour. One source for the
+/// connections list rows and the new-connection dialog.
+(IconData, Color) engineBrand(Engine engine) => switch (engine) {
+      Engine.sqlite => (SimpleIcons.sqlite, Color(0xFF56B6E0)),
+      Engine.postgres => (SimpleIcons.postgresql, Color(0xFF6699E6)),
+      Engine.mysql => (SimpleIcons.mariadb, Color(0xFF00A9CE)),
+    };
 
 /// Saved connections + the built-in demo. Click to switch (rebuilds the
 /// sessions); "+" adds a SQLite file; hover a saved one to delete. Wires the
@@ -151,14 +156,11 @@ class ConnectionsPanel extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SizedBox(height: 4),
-            _choice(ctx, 'sqlite', SimpleIcons.sqlite, const Color(0xFF56B6E0),
-                'SQLite file…'),
+            _choice(ctx, 'sqlite', Engine.sqlite, 'SQLite file…'),
             const SizedBox(height: 8),
-            _choice(ctx, 'pg', SimpleIcons.postgresql, const Color(0xFF6699E6),
-                'PostgreSQL…'),
+            _choice(ctx, 'pg', Engine.postgres, 'PostgreSQL…'),
             const SizedBox(height: 8),
-            _choice(ctx, 'mysql', SimpleIcons.mariadb, const Color(0xFF00A9CE),
-                'MySQL / MariaDB…'),
+            _choice(ctx, 'mysql', Engine.mysql, 'MySQL / MariaDB…'),
           ],
         ),
         actions: [
@@ -176,10 +178,10 @@ class ConnectionsPanel extends ConsumerWidget {
   }
 
   /// A full-width engine choice for the New-connection dialog — stacked (not
-  /// crammed into the actions Row) so long labels never wrap. [icon] is the
-  /// engine's brand glyph (simple_icons) in its brand [color].
-  Widget _choice(
-      BuildContext ctx, String value, IconData icon, Color color, String label) {
+  /// crammed into the actions Row) so long labels never wrap, with the engine's
+  /// brand glyph in its brand colour.
+  Widget _choice(BuildContext ctx, String value, Engine engine, String label) {
+    final (icon, color) = engineBrand(engine);
     return Button(
       onPressed: () => Navigator.pop(ctx, value),
       child: Padding(
@@ -208,11 +210,7 @@ class ConnectionsPanel extends ConsumerWidget {
   Widget _row(BuildContext context, WidgetRef ref, Connection c, String activeId,
       {bool builtIn = false}) {
     final active = c.id == activeId;
-    final (Color badgeColor, String badgeText) = switch (c.engine) {
-      Engine.postgres => (_pgBadge, 'P'),
-      Engine.mysql => (_myBadge, 'M'),
-      Engine.sqlite => (_sqliteBadge, 'S'),
-    };
+    final (IconData icon, Color color) = engineBrand(c.engine);
     return HoverButton(
       onPressed: () => _select(context, ref, c),
       builder: (context, states) => Container(
@@ -220,20 +218,8 @@ class ConnectionsPanel extends ConsumerWidget {
         padding: const EdgeInsets.only(left: 12, right: 6),
         height: 30,
         child: Row(children: [
-          Container(
-            width: 16,
-            height: 16,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-                color: badgeColor,
-                borderRadius: BorderRadius.circular(3)),
-            child: Text(badgeText,
-                style: const TextStyle(
-                    color: Color(0xFF08121C),
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                    fontFamily: 'monospace')),
-          ),
+          // Brand glyph (left). Right stays free for a live status dot (#14).
+          SizedBox(width: 16, child: Icon(icon, size: 15, color: color)),
           const SizedBox(width: 8),
           Expanded(
             child: Text(c.name,
