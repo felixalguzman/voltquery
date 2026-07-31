@@ -8,25 +8,28 @@ import 'package:voltquery/ui/core/shell/app_shell.dart';
 import 'package:voltquery/ui/features/connections/connection_providers.dart';
 import 'package:voltquery/ui/features/history/history_providers.dart';
 import 'package:voltquery/ui/features/query_workspace/worksheet_providers.dart';
+// requestedQueryProvider drives the active worksheet from the sidebar.
 
 /// Integration for the lazy schema tree (issue #13): the sidebar lists the demo
 /// tables, clicking one runs its `SELECT *`, and expanding one lazy-loads its
 /// columns.
-Future<void> _pumpApp(WidgetTester tester) async {
+Future<ProviderContainer> _pumpApp(WidgetTester tester) async {
+  final container = ProviderContainer(overrides: [
+    localStoreProvider.overrideWith((ref) {
+      final store = LocalStore.memory();
+      ref.onDispose(store.close);
+      return store;
+    }),
+    // Avoid the drift .watch() streams' pending timers under FakeAsync.
+    recentHistoryProvider
+        .overrideWith((ref) => Stream.value(const <HistoryEntry>[])),
+    savedConnectionsProvider
+        .overrideWith((ref) => Stream.value(const <Connection>[])),
+  ]);
+  addTearDown(container.dispose);
   await tester.pumpWidget(
-    ProviderScope(
-      overrides: [
-        localStoreProvider.overrideWith((ref) {
-          final store = LocalStore.memory();
-          ref.onDispose(store.close);
-          return store;
-        }),
-        // Avoid the drift .watch() streams' pending timers under FakeAsync.
-        recentHistoryProvider
-            .overrideWith((ref) => Stream.value(const <HistoryEntry>[])),
-        savedConnectionsProvider
-            .overrideWith((ref) => Stream.value(const <Connection>[])),
-      ],
+    UncontrolledProviderScope(
+      container: container,
       child: FluentApp(
         debugShowCheckedModeBanner: false,
         home: ScaffoldPage(
@@ -43,6 +46,7 @@ Future<void> _pumpApp(WidgetTester tester) async {
     ),
   );
   await tester.pumpAndSettle();
+  return container;
 }
 
 void main() {
@@ -76,5 +80,21 @@ void main() {
     expect(find.text('email'), findsOneWidget);
     expect(find.text('total'), findsOneWidget);
     expect(find.textContaining('row(s)'), findsNothing);
+  });
+
+  testWidgets('a successful DDL run refreshes the tree (new table appears)',
+      (tester) async {
+    final container = await _pumpApp(tester);
+
+    expect(find.text('ddl_made_me'), findsNothing);
+
+    // Run CREATE via the active worksheet — the notifier evicts the schema
+    // cache on successful DDL (ADR-0008), so the sidebar re-introspects.
+    container
+        .read(requestedQueryProvider.notifier)
+        .request('CREATE TABLE ddl_made_me (id INTEGER);');
+    await tester.pumpAndSettle();
+
+    expect(find.text('ddl_made_me'), findsOneWidget);
   });
 }

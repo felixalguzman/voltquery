@@ -33,12 +33,13 @@ class WorksheetView extends ConsumerStatefulWidget {
 }
 
 class _WorksheetViewState extends ConsumerState<WorksheetView> {
-  final _code =
-      CodeLineEditingController.fromText('SELECT * FROM customers;');
-  final _panes = PaneController(entries: [
-    PaneEntry(id: 'editor', initialSize: PaneSize.fraction(0.42)),
-    PaneEntry(id: 'result', initialSize: PaneSize.fraction(0.58)),
-  ]);
+  final _code = CodeLineEditingController.fromText('SELECT * FROM customers;');
+  final _panes = PaneController(
+    entries: [
+      PaneEntry(id: 'editor', initialSize: PaneSize.fraction(0.42)),
+      PaneEntry(id: 'result', initialSize: PaneSize.fraction(0.58)),
+    ],
+  );
 
   @override
   void dispose() {
@@ -46,9 +47,8 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
     super.dispose();
   }
 
-  void _run() => ref
-      .read(worksheetProvider(widget.worksheetId).notifier)
-      .run(_code.text);
+  void _run() =>
+      ref.read(worksheetProvider(widget.worksheetId).notifier).run(_code.text);
 
   @override
   Widget build(BuildContext context) {
@@ -84,7 +84,9 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
       extensions: ['db', 'sqlite', 'sqlite3'],
     );
     final file = await openFile(acceptedTypeGroups: const [group]);
-    if (file != null && mounted) ref.read(currentConnectionProvider.notifier).openFile(file.path);
+    if (file != null && mounted) {
+      ref.read(currentConnectionProvider.notifier).openFile(file.path);
+    }
   }
 
   Widget _editorPane(String connName) {
@@ -117,22 +119,20 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
         color: _panel,
         border: Border(bottom: BorderSide(color: _hair)),
       ),
-      child: Row(children: [
-        const Icon(FluentIcons.database, size: 14, color: _accent),
-        const SizedBox(width: 6),
-        Text('$connName · SQLite',
-            style: const TextStyle(color: _textMid, fontSize: 12)),
-        const SizedBox(width: 12),
-        Button(
-          onPressed: _openFile,
-          child: const Text('Open…'),
-        ),
-        const Spacer(),
-        FilledButton(
-          onPressed: _run,
-          child: const Text('▶ Run'),
-        ),
-      ]),
+      child: Row(
+        children: [
+          const Icon(FluentIcons.database, size: 14, color: _accent),
+          const SizedBox(width: 6),
+          Text(
+            '$connName · SQLite',
+            style: const TextStyle(color: _textMid, fontSize: 12),
+          ),
+          const SizedBox(width: 12),
+          Button(onPressed: _openFile, child: const Text('Open…')),
+          const Spacer(),
+          FilledButton(onPressed: _run, child: const Text('▶ Run')),
+        ],
+      ),
     );
   }
 }
@@ -148,53 +148,223 @@ class _ResultPane extends StatelessWidget {
       child: switch (result) {
         WorksheetIdle() => _centered('Run a query to see results.'),
         WorksheetRunning() => const Center(child: ProgressRing()),
-        WorksheetMessage(:final text) =>
-          _banner(text, color: _ok, icon: FluentIcons.check_mark),
-        WorksheetFailure(:final error) => _banner(
-            '${error.kind.name}: ${error.message}',
-            color: _err,
-            icon: FluentIcons.error_badge,
-          ),
-        WorksheetRows() => _grid(result as WorksheetRows),
+        // A single-statement script renders its one result directly (grid /
+        // message / failure); a multi-statement script gets sub-tabs + log.
+        WorksheetScript(:final outcomes) =>
+          outcomes.length == 1
+              ? _single(outcomes.first.result)
+              : _ScriptView(outcomes: outcomes),
+        _ => _single(result),
       },
     );
   }
+}
 
-  Widget _centered(String s) =>
-      Center(child: Text(s, style: const TextStyle(color: _textMid)));
+/// Renders one statement's payload — the original single-result view.
+Widget _single(WorksheetResult r) => switch (r) {
+  WorksheetRows() => _grid(r),
+  WorksheetMessage(:final text) => _banner(
+    text,
+    color: _ok,
+    icon: FluentIcons.check_mark,
+  ),
+  WorksheetFailure(:final error) => _banner(
+    '${error.kind.name}: ${error.message}',
+    color: _err,
+    icon: FluentIcons.error_badge,
+  ),
+  _ => _centered('Run a query to see results.'),
+};
 
-  Widget _banner(String s, {required Color color, required IconData icon}) {
-    return Padding(
-      padding: const EdgeInsets.all(14),
-      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+Widget _centered(String s) => Center(
+  child: Text(s, style: const TextStyle(color: _textMid)),
+);
+
+Widget _banner(String s, {required Color color, required IconData icon}) {
+  return Padding(
+    padding: const EdgeInsets.all(14),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
         Icon(icon, color: color, size: 16),
         const SizedBox(width: 8),
-        Flexible(child: Text(s, style: TextStyle(color: color))),
-      ]),
+        Flexible(
+          child: Text(s, style: TextStyle(color: color)),
+        ),
+      ],
+    ),
+  );
+}
+
+/// Multi-statement result: a result sub-tab per row-returning statement + a
+/// Messages tab logging every statement's outcome (ADR-0007 / #15).
+class _ScriptView extends StatefulWidget {
+  const _ScriptView({required this.outcomes});
+  final List<StatementOutcome> outcomes;
+
+  @override
+  State<_ScriptView> createState() => _ScriptViewState();
+}
+
+class _ScriptViewState extends State<_ScriptView> {
+  int _tab = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = [
+      for (final o in widget.outcomes)
+        if (o.isRows) o,
+    ];
+    // No grids to show → the log is the whole view.
+    if (rows.isEmpty) return _messagesLog(widget.outcomes);
+
+    final labels = [for (final o in rows) 'Result ${o.index}', 'Messages'];
+    final views = <Widget>[
+      for (final o in rows) _grid(o.result as WorksheetRows),
+      _messagesLog(widget.outcomes),
+    ];
+    final sel = _tab.clamp(0, views.length - 1);
+    return Column(
+      children: [
+        _tabStrip(labels, sel),
+        Expanded(
+          child: IndexedStack(index: sel, children: views),
+        ),
+      ],
     );
   }
 
-  Widget _grid(WorksheetRows r) {
-    final columns = [
-      for (var i = 0; i < r.fields.length; i++)
-        PlutoColumn(
-          title: r.fields[i].name,
-          field: 'c$i',
-          type: PlutoColumnType.text(),
-          enableEditingMode: false,
+  Widget _tabStrip(List<String> labels, int sel) {
+    return Container(
+      height: 30,
+      color: _bg,
+      child: Row(
+        children: [
+          for (var i = 0; i < labels.length; i++)
+            HoverButton(
+              onPressed: () => setState(() => _tab = i),
+              builder: (context, states) {
+                final active = i == sel;
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: active ? _accent : Colors.transparent,
+                        width: 2,
+                      ),
+                    ),
+                    color: states.isHovered ? _panel : null,
+                  ),
+                  child: Text(
+                    labels[i],
+                    style: TextStyle(
+                      color: active ? _accent : _textMid,
+                      fontSize: 12,
+                      fontWeight: active ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The execution log — one line per statement (status, detail, duration).
+Widget _messagesLog(List<StatementOutcome> outcomes) {
+  return Container(
+    color: _panel,
+    child: ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      itemCount: outcomes.length,
+      itemBuilder: (context, i) => _logRow(outcomes[i]),
+    ),
+  );
+}
+
+Widget _logRow(StatementOutcome o) {
+  final (String text, Color color, IconData icon) = switch (o.result) {
+    WorksheetRows r => (
+      '${r.rows.length} row(s)${r.capped ? ' · capped' : ''} · ${r.durationMs} ms',
+      _ok,
+      FluentIcons.check_mark,
+    ),
+    WorksheetMessage m => (m.text, _ok, FluentIcons.check_mark),
+    WorksheetFailure f => (
+      '${f.error.kind.name}: ${f.error.message}',
+      _err,
+      FluentIcons.error_badge,
+    ),
+    _ => ('', _textMid, FluentIcons.info),
+  };
+  final preview = o.sql.replaceAll(RegExp(r'\s+'), ' ').trim();
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: color, size: 14),
+        const SizedBox(width: 8),
+        Text(
+          '#${o.index}',
+          style: const TextStyle(
+            color: _textMid,
+            fontSize: 11.5,
+            fontFamily: 'monospace',
+          ),
         ),
-    ];
-    final rows = [
-      for (final row in r.rows)
-        PlutoRow(cells: {
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(text, style: TextStyle(color: color, fontSize: 12)),
+              Text(
+                preview,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: _textMid,
+                  fontSize: 11,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _grid(WorksheetRows r) {
+  final columns = [
+    for (var i = 0; i < r.fields.length; i++)
+      PlutoColumn(
+        title: r.fields[i].name,
+        field: 'c$i',
+        type: PlutoColumnType.text(),
+        enableEditingMode: false,
+      ),
+  ];
+  final rows = [
+    for (final row in r.rows)
+      PlutoRow(
+        cells: {
           for (var i = 0; i < r.fields.length; i++)
             'c$i': PlutoCell(value: row.values[i] ?? 'NULL'),
-        }),
-    ];
-    // pluto_grid needs a Material ancestor (absent under FluentApp).
-    return m.Material(
-      color: _panel,
-      child: Column(children: [
+        },
+      ),
+  ];
+  // pluto_grid needs a Material ancestor (absent under FluentApp).
+  return m.Material(
+    color: _panel,
+    child: Column(
+      children: [
         Expanded(
           child: PlutoGrid(
             key: ValueKey(identityHashCode(r)),
@@ -209,9 +379,15 @@ class _ResultPane extends StatelessWidget {
                 defaultCellPadding: EdgeInsets.symmetric(horizontal: 10),
                 defaultColumnTitlePadding: EdgeInsets.symmetric(horizontal: 10),
                 cellTextStyle: TextStyle(
-                    fontFamily: 'monospace', fontSize: 12.5, color: Color(0xFFE6E8EC)),
+                  fontFamily: 'monospace',
+                  fontSize: 12.5,
+                  color: Color(0xFFE6E8EC),
+                ),
                 columnTextStyle: TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w600, color: _textMid),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: _textMid,
+                ),
                 gridBackgroundColor: _panel,
                 rowColor: _panel,
                 activatedColor: Color(0xFF1E2A30),
@@ -239,7 +415,7 @@ class _ResultPane extends StatelessWidget {
             style: const TextStyle(color: _textMid, fontSize: 11),
           ),
         ),
-      ]),
-    );
-  }
+      ],
+    ),
+  );
 }

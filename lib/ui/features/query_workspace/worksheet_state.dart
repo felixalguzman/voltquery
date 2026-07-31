@@ -1,11 +1,12 @@
 import '../../../domain/drivers/driver_error.dart';
 import '../../../domain/drivers/result.dart';
+import '../../../domain/sql/sql_statement_splitter.dart';
 
 /// The outcome of running SQL in a Worksheet — grid-ready.
 ///
-/// One state per row-returning Statement is the full model (ADR-0007); this
-/// first slice materializes a single result. Plain sealed classes for now;
-/// promote to `freezed` when the query-workspace grows.
+/// A script yields one [StatementOutcome] per Statement, gathered into a
+/// [WorksheetScript] (ADR-0007). Plain sealed classes for now; promote to
+/// `freezed` when the query-workspace grows.
 sealed class WorksheetResult {
   const WorksheetResult();
 }
@@ -45,4 +46,38 @@ class WorksheetMessage extends WorksheetResult {
 class WorksheetFailure extends WorksheetResult {
   const WorksheetFailure(this.error);
   final DriverError error;
+}
+
+/// One Statement's execution within a script run (ADR-0007). [result] is the
+/// per-statement payload: [WorksheetRows] (→ a result sub-tab), [WorksheetMessage]
+/// (DML/DDL affected-count → messages log) or [WorksheetFailure].
+class StatementOutcome {
+  const StatementOutcome({
+    required this.index,
+    required this.sql,
+    required this.kind,
+    required this.result,
+  });
+
+  /// 1-based position in the script.
+  final int index;
+  final String sql;
+  final StatementKind kind;
+  final WorksheetResult result;
+
+  bool get isRows => result is WorksheetRows;
+  bool get isFailure => result is WorksheetFailure;
+}
+
+/// The result of running a (possibly multi-statement) script: the ordered
+/// outcomes. Row-returning statements become result sub-tabs; the rest post to
+/// the messages log (ADR-0007 / #15).
+class WorksheetScript extends WorksheetResult {
+  const WorksheetScript(this.outcomes);
+  final List<StatementOutcome> outcomes;
+
+  List<StatementOutcome> get rowResults => [
+    for (final o in outcomes)
+      if (o.isRows) o,
+  ];
 }
