@@ -155,8 +155,26 @@ class _SqliteSchemaIntrospector implements SchemaIntrospector {
   }
 
   @override
-  Future<List<IndexInfo>> indexes(TableInfo table) async =>
-      throw UnimplementedError('index introspection — later slice');
+  Future<List<IndexInfo>> indexes(TableInfo table) async {
+    final name = table.name.replaceAll("'", "''");
+    final list = _db.select("PRAGMA index_list('$name')");
+    final result = <IndexInfo>[];
+    for (final row in list) {
+      final idxName = row['name'] as String;
+      final info = _db.select(
+          "PRAGMA index_info('${idxName.replaceAll("'", "''")}')");
+      result.add(IndexInfo(
+        name: idxName,
+        // 'name' is null for expression columns — skip those entries.
+        columns: [
+          for (final c in info)
+            if (c['name'] != null) c['name'] as String,
+        ],
+        unique: (row['unique'] as int) == 1,
+      ));
+    }
+    return result;
+  }
 }
 
 /// Maps a raw `sqlite3` exception into the normalized [DriverError] taxonomy
