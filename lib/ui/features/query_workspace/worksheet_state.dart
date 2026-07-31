@@ -73,8 +73,12 @@ class StatementOutcome {
 /// outcomes. Row-returning statements become result sub-tabs; the rest post to
 /// the messages log (ADR-0007 / #15).
 class WorksheetScript extends WorksheetResult {
-  const WorksheetScript(this.outcomes);
+  const WorksheetScript(this.outcomes, {this.canceled = false});
   final List<StatementOutcome> outcomes;
+
+  /// The run was stopped early by the user (Cancel) — remaining statements did
+  /// not execute.
+  final bool canceled;
 
   List<StatementOutcome> get rowResults => [
     for (final o in outcomes)

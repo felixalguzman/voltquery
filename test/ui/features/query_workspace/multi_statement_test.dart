@@ -59,6 +59,14 @@ void main() {
     expect(script.outcomes[2].isRows, true); // SELECT 2 still ran
   });
 
+  test('cancel is a no-op when nothing is running', () async {
+    final container = ProviderContainer(overrides: _memoryStore());
+    addTearDown(container.dispose);
+    final n = container.read(worksheetProvider('ws-i').notifier);
+    n.cancel(); // idle → nothing happens, no throw
+    expect(container.read(worksheetProvider('ws-i')), isA<WorksheetIdle>());
+  });
+
   test('manual commit: Rollback undoes an insert', () async {
     final container = ProviderContainer(overrides: _memoryStore());
     addTearDown(container.dispose);
