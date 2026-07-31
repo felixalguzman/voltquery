@@ -3,6 +3,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../data/drivers/driver_factory.dart';
 import '../../../domain/drivers/driver.dart';
+import '../../../domain/drivers/driver_error.dart';
 import '../../../domain/drivers/result.dart';
 import '../../../domain/models/connection.dart';
 import '../../../domain/models/engine.dart';
@@ -130,11 +131,26 @@ class Worksheet extends _$Worksheet {
     state = const WorksheetRunning();
     final started = DateTime.now();
     final sw = Stopwatch()..start();
-    final session = await ref.read(worksheetSessionProvider(worksheetId).future);
-    final result = await ref.read(worksheetRunnerProvider).run(session, query);
+    final WorksheetResult result;
+    result = await _runGuarded(worksheetId, query);
     sw.stop();
     state = result;
     await _record(query, started, sw.elapsedMilliseconds, result);
+  }
+
+  /// Opening the session can fail (auth, vault locked, unreachable) — turn any
+  /// failure into a [WorksheetFailure] so it shows in the result pane.
+  Future<WorksheetResult> _runGuarded(String worksheetId, String query) async {
+    try {
+      final session =
+          await ref.read(worksheetSessionProvider(worksheetId).future);
+      return await ref.read(worksheetRunnerProvider).run(session, query);
+    } on DriverError catch (e) {
+      return WorksheetFailure(e);
+    } catch (e) {
+      return WorksheetFailure(
+          DriverError(DriverErrorKind.connectionFailed, e.toString()));
+    }
   }
 
   Future<void> _record(
