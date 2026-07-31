@@ -121,7 +121,15 @@ WorksheetRunner worksheetRunner(Ref ref) => const WorksheetRunner();
 @riverpod
 class Worksheet extends _$Worksheet {
   @override
-  WorksheetResult build(String worksheetId) => const WorksheetIdle();
+  WorksheetResult build(String worksheetId) {
+    // Keep this worksheet's Session alive for the worksheet's lifetime
+    // (ADR-0004). Without this, a one-off `read` on the autoDispose session
+    // provider disposes it mid-connect — fine for instant SQLite, but it races
+    // slow (network) connects. `.select((_) => null)` keeps it alive without
+    // rebuilding this notifier when the session's AsyncValue changes.
+    ref.watch(worksheetSessionProvider(worksheetId).select((_) => null));
+    return const WorksheetIdle();
+  }
 
   void reset() => state = const WorksheetIdle();
 
