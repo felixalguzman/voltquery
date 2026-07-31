@@ -1,3 +1,4 @@
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart' as m;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -48,13 +49,14 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
   @override
   Widget build(BuildContext context) {
     final result = ref.watch(worksheetProvider);
+    final connName = ref.watch(currentConnectionProvider).name;
     return Container(
       color: _bg,
       child: MultiPane(
         direction: Axis.vertical,
         controller: _panes,
         paneBuilder: (context, id, _) => switch (id) {
-          'editor' => _editorPane(),
+          'editor' => _editorPane(connName),
           'result' => _ResultPane(result: result),
           _ => const SizedBox.shrink(),
         },
@@ -62,11 +64,20 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
     );
   }
 
-  Widget _editorPane() {
+  Future<void> _openFile() async {
+    const group = XTypeGroup(
+      label: 'SQLite',
+      extensions: ['db', 'sqlite', 'sqlite3'],
+    );
+    final file = await openFile(acceptedTypeGroups: const [group]);
+    if (file != null && mounted) openSqliteFile(ref, file.path);
+  }
+
+  Widget _editorPane(String connName) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _toolbar(),
+        _toolbar(connName),
         Expanded(
           child: CodeEditor(
             controller: _code,
@@ -84,7 +95,7 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
     );
   }
 
-  Widget _toolbar() {
+  Widget _toolbar(String connName) {
     return Container(
       height: 42,
       padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -95,7 +106,13 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
       child: Row(children: [
         const Icon(FluentIcons.database, size: 14, color: _accent),
         const SizedBox(width: 6),
-        const Text('demo · SQLite', style: TextStyle(color: _textMid, fontSize: 12)),
+        Text('$connName · SQLite',
+            style: const TextStyle(color: _textMid, fontSize: 12)),
+        const SizedBox(width: 12),
+        Button(
+          onPressed: _openFile,
+          child: const Text('Open…'),
+        ),
         const Spacer(),
         FilledButton(
           onPressed: _run,
