@@ -190,8 +190,10 @@ class _ResultPane extends StatelessWidget {
             onLoaded: (e) {
               e.stateManager.setShowColumnFilter(false);
               // Cell selection + arrow-key / Tab navigation + Ctrl+C copy
-              // (built into pluto_grid; grid focuses on click).
+              // (built into pluto_grid). setKeepFocus keeps the grid's focus
+              // node active so key events register after a cell is selected.
               e.stateManager.setSelectingMode(PlutoGridSelectingMode.cell);
+              e.stateManager.setKeepFocus(true);
             },
           ),
         ),
