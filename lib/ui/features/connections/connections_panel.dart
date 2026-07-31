@@ -2,6 +2,7 @@ import 'package:cryptography/cryptography.dart' show SecretBoxAuthenticationErro
 import 'package:file_selector/file_selector.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:simple_icons/simple_icons.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../data/services/secret_store.dart';
@@ -150,11 +151,14 @@ class ConnectionsPanel extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SizedBox(height: 4),
-            _choice(ctx, 'sqlite', FluentIcons.document, 'SQLite file…'),
+            _choice(ctx, 'sqlite', SimpleIcons.sqlite, const Color(0xFF56B6E0),
+                'SQLite file…'),
             const SizedBox(height: 8),
-            _choice(ctx, 'pg', FluentIcons.database, 'PostgreSQL…'),
+            _choice(ctx, 'pg', SimpleIcons.postgresql, const Color(0xFF6699E6),
+                'PostgreSQL…'),
             const SizedBox(height: 8),
-            _choice(ctx, 'mysql', FluentIcons.database, 'MySQL / MariaDB…'),
+            _choice(ctx, 'mysql', SimpleIcons.mariadb, const Color(0xFF00A9CE),
+                'MySQL / MariaDB…'),
           ],
         ),
         actions: [
@@ -172,14 +176,16 @@ class ConnectionsPanel extends ConsumerWidget {
   }
 
   /// A full-width engine choice for the New-connection dialog — stacked (not
-  /// crammed into the actions Row) so long labels never wrap.
-  Widget _choice(BuildContext ctx, String value, IconData icon, String label) {
+  /// crammed into the actions Row) so long labels never wrap. [icon] is the
+  /// engine's brand glyph (simple_icons) in its brand [color].
+  Widget _choice(
+      BuildContext ctx, String value, IconData icon, Color color, String label) {
     return Button(
       onPressed: () => Navigator.pop(ctx, value),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(children: [
-          Icon(icon, size: 15),
+          Icon(icon, size: 16, color: color),
           const SizedBox(width: 10),
           Text(label),
         ]),
