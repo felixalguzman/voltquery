@@ -1,0 +1,213 @@
+<!doctype html>
+<!-- PROTOTYPE — THROWAWAY. Resolves wayfinder ticket #15 (editor <-> grid wiring).
+     Clean Dev-Tool theming (#7). Static mockup to react to — no logic.
+     Frames: ?view=hero | ?view=variants | ?view=cells -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>VoltQuery — Worksheet (editor↔grid) prototype</title>
+<style>
+  :root{
+    --bg:#0D0E11; --panel:#16181D; --raised:#1B1E24; --hair:#262A31;
+    --hi:#E6E8EC; --mid:#9BA1AD; --lo:#5A6069;
+    --accent:#2FE6FF; --accent-dim:rgba(47,230,255,.12); --on-accent:#04222b;
+    --ok:#6FE39A; --err:#FF6B6B; --warn:#FFB86C;
+    --kw:#2FE6FF; --str:#6FE39A; --num:#FFB86C; --ident:#E6E8EC; --comment:#5A6069;
+    --pg:#4E9BF0;
+    --r:4px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#000;font-family:Inter,system-ui,'Segoe UI',sans-serif;color:var(--hi);-webkit-font-smoothing:antialiased}
+  .frame{width:1440px;background:var(--bg);padding:26px 36px 40px;display:none}
+  body.hero .frame.hero,body.variants .frame.variants,body.cells .frame.cells{display:block}
+  .cap{color:var(--lo);font-size:12px;letter-spacing:.14em;text-transform:uppercase;margin:0 0 14px}
+  .mono{font-family:'JetBrains Mono','SF Mono',ui-monospace,monospace}
+  .num{color:var(--num)} .kw{color:var(--kw)} .str{color:var(--str)} .cm{color:var(--comment)} .id{color:var(--ident)}
+
+  /* window */
+  .ws{border:1px solid var(--hair);border-radius:6px;overflow:hidden;background:var(--bg)}
+  .tb{height:42px;display:flex;align-items:center;gap:10px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--hair)}
+  .pill{display:flex;align-items:center;gap:7px;background:var(--raised);border:1px solid var(--hair);border-radius:var(--r);padding:5px 9px;font-size:12.5px}
+  .bdg{width:18px;height:18px;border-radius:3px;background:var(--pg);color:#08121c;font:600 10px/1 'JetBrains Mono',monospace;display:flex;align-items:center;justify-content:center}
+  .sel{color:var(--mid)} .sel b{color:var(--hi);font-weight:600}
+  .run{background:var(--accent);color:var(--on-accent);border:1px solid var(--accent);border-radius:var(--r);padding:6px 13px;font-size:13px;font-weight:600}
+  .stop{background:transparent;color:var(--err);border:1px solid #3a2530;border-radius:var(--r);padding:6px 11px;font-size:13px}
+  .tgl{margin-left:auto;display:flex;align-items:center;gap:8px;color:var(--mid);font-size:12px}
+  .chip{background:var(--raised);border:1px solid var(--hair);border-radius:20px;padding:3px 10px;font-size:11.5px;color:var(--mid)}
+
+  /* editor */
+  .ed{display:flex;background:var(--bg);font-size:13.5px;line-height:22px}
+  .gut{color:var(--lo);text-align:right;padding:12px 10px 12px 14px;user-select:none;border-right:1px solid var(--hair);min-width:44px}
+  .code{padding:12px 14px;white-space:pre;overflow:hidden;flex:1}
+  .code .cur{display:block;background:var(--accent-dim);box-shadow:inset 2px 0 0 var(--accent);margin:0 -14px;padding:0 14px}
+
+  /* splitter */
+  .split{height:8px;background:var(--panel);border-top:1px solid var(--hair);border-bottom:1px solid var(--hair);
+         display:flex;align-items:center;justify-content:center}
+  .split .grip{width:34px;height:3px;border-radius:2px;background:var(--hair)}
+
+  /* result region */
+  .rtabs{display:flex;align-items:center;gap:2px;background:var(--panel);border-bottom:1px solid var(--hair);padding:0 8px;height:34px}
+  .rtab{padding:7px 12px;font-size:12.5px;color:var(--lo);border-bottom:2px solid transparent}
+  .rtab.on{color:var(--hi);border-bottom-color:var(--accent)}
+  .rtab .dot{color:var(--ok)} .rtab.msg .warnc{color:var(--warn)}
+  .rspacer{flex:1}
+  .rtool{color:var(--lo);font-size:11.5px;display:flex;gap:12px;padding-right:4px}
+
+  /* grid */
+  .grid{font-family:'JetBrains Mono',monospace;font-size:12.5px}
+  .grow{display:grid;grid-template-columns:44px 70px 1fr 1.4fr 190px 110px;border-bottom:1px solid #1C2027}
+  .ghead{background:var(--raised);color:var(--mid);position:sticky;top:0}
+  .gc{padding:7px 10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-right:1px solid #1C2027}
+  .gc.rgt{text-align:right} .gc.gutn{color:var(--lo);text-align:right;background:var(--panel)}
+  .ghead .gc .ty{color:var(--lo);font-size:10px;margin-left:6px}
+  .grow.selrow{background:var(--accent-dim)}
+  .cnull{color:var(--lo);font-style:italic}
+  .cnum{color:var(--num);text-align:right} .cts{color:var(--mid)} .cstr{color:var(--hi)}
+  .cwide{color:var(--hi)}
+  .statusbar{display:flex;align-items:center;gap:12px;height:28px;background:var(--panel);border-top:1px solid var(--hair);
+             padding:0 12px;color:var(--lo);font-size:11.5px}
+  .spin{width:11px;height:11px;border:2px solid var(--hair);border-top-color:var(--accent);border-radius:50%;display:inline-block}
+  .fetchrow{display:grid;grid-template-columns:44px 1fr;border-bottom:1px solid #1C2027;color:var(--lo)}
+  .fetchrow .gc{color:var(--lo)}
+
+  /* messages */
+  .msgs{padding:10px 14px;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.9}
+  .msgs .ok{color:var(--ok)} .msgs .er{color:var(--err)} .msgs .t{color:var(--lo)}
+
+  /* variants */
+  .cards{display:flex;gap:20px}
+  .card{flex:1;background:var(--panel);border:1px solid var(--hair);border-radius:6px;overflow:hidden}
+  .card.reco{border-color:var(--accent)}
+  .c-h{padding:10px 13px;border-bottom:1px solid var(--hair);display:flex;align-items:center;gap:8px}
+  .c-h .k{font:600 11px/1 'JetBrains Mono',monospace;color:var(--on-accent);background:var(--accent);padding:3px 6px;border-radius:3px}
+  .c-h .t{font-size:12.5px;font-weight:600}.tag{margin-left:auto;font-size:10px;color:var(--accent);border:1px solid var(--accent);border-radius:3px;padding:2px 6px}
+  .c-b{height:250px;background:var(--bg);position:relative}
+  .note{color:var(--mid);font-size:11.5px;line-height:1.5;padding:10px 13px;border-top:1px solid var(--hair)}
+  .mock-tabs{display:flex;gap:2px;background:var(--panel);border-bottom:1px solid var(--hair);padding:0 6px;height:26px;align-items:center;font-size:11px}
+  .mt{padding:4px 8px;color:var(--lo)} .mt.on{color:var(--hi);border-bottom:2px solid var(--accent)}
+  .fakegrid{padding:8px;display:flex;flex-direction:column;gap:5px}
+  .fakerow{height:9px;background:#1C2027;border-radius:2px} .fakerow.h{background:#23303c}
+  .logstrip{border-top:1px solid var(--hair);padding:6px 8px;color:var(--lo);font-size:10.5px;font-family:'JetBrains Mono',monospace}
+  .sidelog{width:120px;border-left:1px solid var(--hair);padding:8px;color:var(--lo);font-size:10px;font-family:'JetBrains Mono',monospace}
+</style>
+</head>
+<body class="hero">
+
+<!-- ============ HERO ============ -->
+<div class="frame hero">
+  <p class="cap">Worksheet — editor (top) + result grid (bottom), horizontal split</p>
+  <div class="ws">
+    <div class="tb">
+      <div class="pill"><span class="bdg">P</span><span class="sel"><b>orders-db</b></span></div>
+      <div class="pill sel">db <b>orders</b> ▾</div>
+      <button class="run">▶ Run <span style="opacity:.6">⌘⏎</span></button>
+      <button class="stop">■ Cancel</button>
+      <div class="tgl"><span class="chip">Autocommit ▾</span><span class="chip">tx: idle</span></div>
+    </div>
+    <!-- editor -->
+    <div class="ed">
+      <div class="gut mono">1<br>2<br>3<br>4<br>5<br>6<br>7</div>
+      <div class="code mono"><span class="cm">-- top customers by spend</span>
+<span class="kw">SELECT</span> <span class="id">id</span>, <span class="id">name</span>, <span class="id">email</span>, <span class="id">created_at</span>, <span class="id">total</span>
+<span class="kw">FROM</span> <span class="id">orders</span>
+<span class="kw">WHERE</span> <span class="id">total</span> &gt; <span class="num">100</span>
+<span class="kw">ORDER BY</span> <span class="id">total</span> <span class="kw">DESC</span>;
+<span class="cur"><span class="kw">SELECT</span> <span class="kw">count</span>(*) <span class="kw">FROM</span> <span class="id">orders</span>;   <span class="cm">← run-at-cursor target</span></span>
+</div>
+    </div>
+    <div class="split"><div class="grip"></div></div>
+    <!-- results -->
+    <div class="rtabs">
+      <div class="rtab on"><span class="dot">●</span> Result 1 <span style="color:var(--lo)">· orders</span></div>
+      <div class="rtab">Result 2 <span style="color:var(--lo)">· count</span></div>
+      <div class="rtab msg">Messages</div>
+      <div class="rspacer"></div>
+      <div class="rtool"><span>312 rows</span><span>41 ms</span><span>PostgreSQL 16.2</span></div>
+    </div>
+    <div class="grid">
+      <div class="grow ghead">
+        <div class="gc gutn">#</div>
+        <div class="gc rgt">id<span class="ty">int4</span></div>
+        <div class="gc">name<span class="ty">text</span></div>
+        <div class="gc">email<span class="ty">text</span></div>
+        <div class="gc">created_at<span class="ty">timestamptz</span></div>
+        <div class="gc rgt">total<span class="ty">numeric</span></div>
+      </div>
+      <div class="grow"><div class="gc gutn">1</div><div class="gc cnum">4821</div><div class="gc cstr">Ada Lovelace</div><div class="gc cstr">ada@analytical.io</div><div class="gc cts">2026-03-11 09:22:04+00</div><div class="gc cnum">2 940.00</div></div>
+      <div class="grow selrow"><div class="gc gutn">2</div><div class="gc cnum">1190</div><div class="gc cstr">Grace Hopper</div><div class="gc cnull">NULL</div><div class="gc cts">2026-02-28 14:05:51+00</div><div class="gc cnum">2 731.50</div></div>
+      <div class="grow"><div class="gc gutn">3</div><div class="gc cnum">77</div><div class="gc cstr">Alan Turing</div><div class="gc cstr">a.turing@bletchley.example.co.uk</div><div class="gc cts">2026-01-04 22:41:10+00</div><div class="gc cnum">1 998.99</div></div>
+      <div class="grow"><div class="gc gutn">4</div><div class="gc cnum">5310</div><div class="gc cwide">Katherine Johnson — very long display name that overflows the col…</div><div class="gc cstr">kj@nasa.gov</div><div class="gc cts">2025-12-19 06:12:00+00</div><div class="gc cnum">1 640.00</div></div>
+      <div class="grow"><div class="gc gutn">5</div><div class="gc cnum">88</div><div class="gc cstr">Radia Perlman</div><div class="gc cstr">radia@spanningtree.net</div><div class="gc cts">2025-11-30 18:33:27+00</div><div class="gc cnum">1 405.25</div></div>
+      <div class="fetchrow"><div class="gc gutn">·</div><div class="gc"><span class="spin"></span> fetching next 50… (cursor.fetch(50) — infinite scroll)</div></div>
+    </div>
+    <div class="statusbar"><span>rows 1–50 fetched</span><span>· more on scroll</span><span style="margin-left:auto">Result 1 · SELECT · 41 ms · autocommit</span></div>
+  </div>
+</div>
+
+<!-- ============ VARIANTS ============ -->
+<div class="frame variants">
+  <p class="cap">Results region — how multiple results + messages coexist (pick one)</p>
+  <div class="cards">
+    <div class="card reco">
+      <div class="c-h"><span class="k">A</span><span class="t">Result tabs + Messages tab</span><span class="tag">hero</span></div>
+      <div class="c-b">
+        <div class="mock-tabs"><span class="mt on">Result 1</span><span class="mt">Result 2</span><span class="mt">Messages</span></div>
+        <div class="fakegrid"><div class="fakerow h"></div><div class="fakerow"></div><div class="fakerow"></div><div class="fakerow"></div><div class="fakerow"></div><div class="fakerow"></div></div>
+      </div>
+      <div class="note">One tab per row-returning Statement + a Messages tab (affected-rows, errors, timings). Familiar (DBeaver). Full width per grid.</div>
+    </div>
+    <div class="card">
+      <div class="c-h"><span class="k">B</span><span class="t">Single grid + log strip</span></div>
+      <div class="c-b">
+        <div class="fakegrid" style="height:170px"><div class="fakerow h"></div><div class="fakerow"></div><div class="fakerow"></div><div class="fakerow"></div><div class="fakerow"></div></div>
+        <div class="logstrip">▸ stmt 1: 312 rows 41ms · stmt 2: 1 row · ✔ done</div>
+      </div>
+      <div class="note">Last result in the grid; a collapsible log strip shows per-statement messages. Simple, but earlier results need re-run/scroll-back.</div>
+    </div>
+    <div class="card">
+      <div class="c-h"><span class="k">C</span><span class="t">Grid + docked side log</span></div>
+      <div class="c-b" style="display:flex">
+        <div class="fakegrid" style="flex:1"><div class="fakerow h"></div><div class="fakerow"></div><div class="fakerow"></div><div class="fakerow"></div><div class="fakerow"></div></div>
+        <div class="sidelog">stmt 1 ✔<br>312 rows<br>41 ms<br><br>stmt 2 ✔<br>1 row</div>
+      </div>
+      <div class="note">Grid + always-visible side log. Messages never hidden, but steals horizontal room the grid wants for wide results.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ CELLS ============ -->
+<div class="frame cells">
+  <p class="cap">Grid cell rendering · dynamic columns · lazy-load</p>
+  <div class="ws">
+    <div class="rtabs"><div class="rtab on"><span class="dot">●</span> Result 1</div><div class="rspacer"></div>
+      <div class="rtool"><span>columns built at runtime from ResultFields</span></div></div>
+    <div class="grid">
+      <div class="grow ghead">
+        <div class="gc gutn">#</div><div class="gc rgt">id<span class="ty">int4</span></div><div class="gc">name<span class="ty">text</span></div>
+        <div class="gc">email<span class="ty">text</span></div><div class="gc">created_at<span class="ty">timestamptz</span></div><div class="gc rgt">total<span class="ty">numeric</span></div>
+      </div>
+      <div class="grow"><div class="gc gutn">1</div><div class="gc cnum">4821</div><div class="gc cstr">Ada Lovelace</div><div class="gc cstr">ada@analytical.io</div><div class="gc cts">2026-03-11 09:22:04+00</div><div class="gc cnum">2 940.00</div></div>
+      <div class="grow"><div class="gc gutn">2</div><div class="gc cnum">1190</div><div class="gc cstr">Grace Hopper</div><div class="gc cnull">NULL</div><div class="gc cts">2026-02-28 14:05:51+00</div><div class="gc cnum">2 731.50</div></div>
+      <div class="grow selrow"><div class="gc gutn">3</div><div class="gc cnum">77</div><div class="gc cstr">Alan Turing</div><div class="gc cwide">a.turing@bletchley.example.co.uk — note appended, truncat…</div><div class="gc cts">2026-01-04 22:41:10+00</div><div class="gc cnum">1 998.99</div></div>
+      <div class="fetchrow"><div class="gc gutn">·</div><div class="gc"><span class="spin"></span> fetching next 50 via cursor.fetch(50)…</div></div>
+    </div>
+    <div class="statusbar">
+      <span><b style="color:var(--mid)">NULL</b> = dim italic</span>
+      <span>· <span class="cnum">numbers</span> right-aligned mono</span>
+      <span>· timestamps mono</span>
+      <span>· wide text truncated + click-to-expand</span>
+      <span style="margin-left:auto">InfinityScrollRows · rowCount unknown until drained</span>
+    </div>
+  </div>
+  <p class="cap" style="margin-top:22px">Messages tab (non-row statements &amp; errors)</p>
+  <div class="ws"><div class="msgs">
+    <div><span class="t">[1]</span> <span class="ok">✔</span> SELECT — 312 rows · 41 ms</div>
+    <div><span class="t">[2]</span> <span class="ok">✔</span> UPDATE orders SET … — <span class="ok">18 rows affected</span> · 12 ms</div>
+    <div><span class="t">[3]</span> <span class="er">✕</span> <span class="er">syntaxError</span> at line 9 near "FORM" · 0 ms <span class="t">(stopped — stop-on-error)</span></div>
+  </div></div>
+</div>
+
+<script>const v=new URLSearchParams(location.search).get('view')||'hero';document.body.className=v;</script>
+</body>
+</html>
