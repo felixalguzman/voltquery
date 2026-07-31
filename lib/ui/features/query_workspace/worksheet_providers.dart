@@ -1,13 +1,14 @@
 import 'package:riverpod/riverpod.dart' show Ref;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import '../../../data/drivers/sqlite/sqlite_driver.dart';
+import '../../../data/drivers/driver_factory.dart';
 import '../../../domain/drivers/driver.dart';
 import '../../../domain/drivers/result.dart';
 import '../../../domain/models/connection.dart';
 import '../../../domain/models/engine.dart';
 import '../../../domain/models/history_entry.dart';
 import '../../../domain/models/schema.dart';
+import '../connections/connection_providers.dart';
 import '../history/history_providers.dart';
 import 'worksheet_runner.dart';
 import 'worksheet_state.dart';
@@ -45,7 +46,8 @@ class CurrentConnection extends _$CurrentConnection {
 @Riverpod(keepAlive: true)
 Future<Session> introspectionSession(Ref ref) async {
   final conn = ref.watch(currentConnectionProvider);
-  final session = await SqliteDriver().connect(conn);
+  final session = await driverFor(conn.engine)
+      .connect(conn, secret: ref.read(sessionSecretsProvider)[conn.id]);
   if (conn.id == 'demo') await _seedDemoIfEmpty(session);
   ref.onDispose(session.close);
   return session;
@@ -56,7 +58,8 @@ Future<Session> introspectionSession(Ref ref) async {
 @riverpod
 Future<Session> worksheetSession(Ref ref, String worksheetId) async {
   final conn = ref.watch(currentConnectionProvider);
-  final session = await SqliteDriver().connect(conn);
+  final session = await driverFor(conn.engine)
+      .connect(conn, secret: ref.read(sessionSecretsProvider)[conn.id]);
   if (conn.id == 'demo') await _seedDemoIfEmpty(session);
   ref.onDispose(session.close);
   return session;

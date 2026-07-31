@@ -7,6 +7,7 @@ import '../../../domain/models/connection.dart';
 import '../../../domain/models/engine.dart';
 import '../query_workspace/worksheet_providers.dart';
 import 'connection_providers.dart';
+import 'postgres_form.dart';
 
 // TODO(theming #7): unify tokens into ui/core/theme.
 const _panel = Color(0xFF16181D);
@@ -17,6 +18,7 @@ const _textHi = Color(0xFFE6E8EC);
 const _textMid = Color(0xFF9BA1AD);
 const _textLo = Color(0xFF5A6069);
 const _sqliteBadge = Color(0xFF8A93A3);
+const _pgBadge = Color(0xFF4E9BF0);
 
 /// Saved connections + the built-in demo. Click to switch (rebuilds the
 /// sessions); "+" adds a SQLite file; hover a saved one to delete. Wires the
@@ -35,7 +37,7 @@ class ConnectionsPanel extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _header(ref),
+          _header(context, ref),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 4),
@@ -50,7 +52,7 @@ class ConnectionsPanel extends ConsumerWidget {
     );
   }
 
-  Widget _header(WidgetRef ref) => Container(
+  Widget _header(BuildContext context, WidgetRef ref) => Container(
         height: 30,
         padding: const EdgeInsets.only(left: 12, right: 6),
         decoration: const BoxDecoration(
@@ -66,14 +68,45 @@ class ConnectionsPanel extends ConsumerWidget {
           const Spacer(),
           IconButton(
             icon: const Icon(FluentIcons.add, size: 12, color: _textMid),
-            onPressed: () => _addSqlite(ref),
+            onPressed: () => _addMenu(context, ref),
           ),
         ]),
       );
 
+  Future<void> _addMenu(BuildContext context, WidgetRef ref) async {
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (ctx) => ContentDialog(
+        title: const Text('New connection'),
+        actions: [
+          Button(
+              child: const Text('SQLite file…'),
+              onPressed: () => Navigator.pop(ctx, 'sqlite')),
+          FilledButton(
+              child: const Text('PostgreSQL…'),
+              onPressed: () => Navigator.pop(ctx, 'pg')),
+          Button(child: const Text('Cancel'), onPressed: () => Navigator.pop(ctx)),
+        ],
+      ),
+    );
+    if (choice == 'sqlite') await _addSqlite(ref);
+    if (choice == 'pg' && context.mounted) await _addPostgres(context, ref);
+  }
+
+  Future<void> _addPostgres(BuildContext context, WidgetRef ref) async {
+    final result = await showPostgresConnectionDialog(context);
+    if (result == null) return;
+    await ref.read(connectionRepositoryProvider).save(result.connection);
+    ref
+        .read(sessionSecretsProvider.notifier)
+        .put(result.connection.id, result.password);
+    ref.read(currentConnectionProvider.notifier).set(result.connection);
+  }
+
   Widget _row(WidgetRef ref, Connection c, String activeId,
       {bool builtIn = false}) {
     final active = c.id == activeId;
+    final isPg = c.engine == Engine.postgres;
     return HoverButton(
       onPressed: () => ref.read(currentConnectionProvider.notifier).set(c),
       builder: (context, states) => Container(
@@ -86,9 +119,10 @@ class ConnectionsPanel extends ConsumerWidget {
             height: 16,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-                color: _sqliteBadge, borderRadius: BorderRadius.circular(3)),
-            child: const Text('S',
-                style: TextStyle(
+                color: isPg ? _pgBadge : _sqliteBadge,
+                borderRadius: BorderRadius.circular(3)),
+            child: Text(isPg ? 'P' : 'S',
+                style: const TextStyle(
                     color: Color(0xFF08121C),
                     fontSize: 9,
                     fontWeight: FontWeight.w700,
