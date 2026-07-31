@@ -11,6 +11,7 @@ class _FakeIntrospector implements SchemaIntrospector {
   int schemaCalls = 0;
   int tableCalls = 0;
   int columnCalls = 0;
+  int indexCalls = 0;
   bool failColumns = false;
 
   @override
@@ -49,7 +50,12 @@ class _FakeIntrospector implements SchemaIntrospector {
   }
 
   @override
-  Future<List<IndexInfo>> indexes(TableInfo table) async => const [];
+  Future<List<IndexInfo>> indexes(TableInfo table) async {
+    indexCalls++;
+    return const [
+      IndexInfo(name: 'ix_a', columns: ['a'], unique: false),
+    ];
+  }
 }
 
 const _pgCaps = Capabilities(
@@ -93,6 +99,16 @@ void main() {
     expect(fake.columnCalls, 1);
     await repo.columns(aud); // same name, other schema → distinct entry
     expect(fake.columnCalls, 2);
+  });
+
+  test('indexes are memoized per table and cleared by invalidate', () async {
+    const t = TableInfo(name: 'orders', kind: ObjectKind.table, schema: 'public');
+    await repo.indexes(t);
+    await repo.indexes(t);
+    expect(fake.indexCalls, 1);
+    repo.invalidate();
+    await repo.indexes(t);
+    expect(fake.indexCalls, 2);
   });
 
   test('tables() returns both kinds for the caller to partition', () async {

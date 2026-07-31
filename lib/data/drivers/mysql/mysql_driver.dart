@@ -165,8 +165,34 @@ class _MysqlIntrospector implements SchemaIntrospector {
   }
 
   @override
-  Future<List<IndexInfo>> indexes(TableInfo table) async =>
-      throw UnimplementedError('index introspection — later slice');
+  Future<List<IndexInfo>> indexes(TableInfo table) async {
+    final rs = await _conn.execute(
+      'SELECT index_name, non_unique, column_name, seq_in_index '
+      'FROM information_schema.statistics '
+      'WHERE table_schema = DATABASE() AND table_name = :t '
+      'ORDER BY index_name, seq_in_index',
+      {'t': table.name},
+    );
+    // Rows are one-per-column; fold them into one IndexInfo per index_name,
+    // preserving column order (seq_in_index).
+    final byName = <String, ({List<String> cols, bool unique})>{};
+    final order = <String>[];
+    for (final r in rs.rows) {
+      final name = r.colAt(0) ?? '';
+      final unique = r.colAt(1) == '0';
+      final col = r.colAt(2) ?? '';
+      final entry = byName.putIfAbsent(name, () {
+        order.add(name);
+        return (cols: <String>[], unique: unique);
+      });
+      entry.cols.add(col);
+    }
+    return [
+      for (final name in order)
+        IndexInfo(
+            name: name, columns: byName[name]!.cols, unique: byName[name]!.unique),
+    ];
+  }
 }
 
 DriverError _mapMysqlError(my.MySQLServerException e) {

@@ -78,6 +78,22 @@ void main() {
     expect(cols.firstWhere((c) => c.name == 'email').nullable, isFalse);
   });
 
+  test('introspection lists indexes with columns and uniqueness', () async {
+    await session.execute(
+        'CREATE TABLE t (id INTEGER PRIMARY KEY, a TEXT, b TEXT)');
+    await session.execute('CREATE INDEX ix_a ON t (a)');
+    await session.execute('CREATE UNIQUE INDEX ux_ab ON t (a, b)');
+
+    final ix = await session.schema
+        .indexes(const TableInfo(name: 't', kind: ObjectKind.table));
+    final byName = {for (final i in ix) i.name: i};
+
+    expect(byName['ix_a']!.columns, ['a']);
+    expect(byName['ix_a']!.unique, isFalse);
+    expect(byName['ux_ab']!.columns, ['a', 'b']); // multi-column order preserved
+    expect(byName['ux_ab']!.unique, isTrue);
+  });
+
   test('SQLite capabilities: no server, no schemas, no query-cancel', () {
     expect(driver.engine, Engine.sqlite);
     final c = driver.capabilities;

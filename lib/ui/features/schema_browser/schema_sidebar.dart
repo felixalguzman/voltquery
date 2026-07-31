@@ -144,7 +144,11 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
         leading: Icon(icon, size: 13, color: _textMid),
         content: Text(t.name, overflow: TextOverflow.ellipsis, style: _mono),
         lazy: true,
-        value: _Loader(() async => _columnItems(await widget.repo.columns(t))),
+        // Columns show immediately on expand; indexes hang under a lazy folder.
+        value: _Loader(() async => [
+              ..._columnItems(await widget.repo.columns(t)),
+              _indexesFolder(t),
+            ]),
         onInvoked: (item, reason) async {
           // The chevron also fires onInvoked(expandToggle) — ignore that; only a
           // row press opens the table.
@@ -195,6 +199,48 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
                 ),
               ]);
             }),
+          ),
+      ];
+
+  /// The lazy "Indexes" group under a table/view.
+  TreeViewItem _indexesFolder(TableInfo t) => TreeViewItem(
+        leading: const Icon(FluentIcons.folder, size: 12, color: _textLo),
+        content: const Text('Indexes',
+            style: TextStyle(
+                color: _textMid, fontSize: 11.5, letterSpacing: 0.3)),
+        lazy: true,
+        value: _Loader(() async => _indexItems(await widget.repo.indexes(t))),
+        onExpandToggle: _onExpand,
+      );
+
+  List<TreeViewItem> _indexItems(List<IndexInfo> indexes) => [
+        for (final ix in indexes)
+          TreeViewItem(
+            collapsable: false,
+            leading: Icon(FluentIcons.number_symbol,
+                size: 11, color: ix.unique ? _accent : _textLo),
+            content: Row(children: [
+              Flexible(
+                child: Text(ix.name,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
+                    maxLines: 1,
+                    style: _mono.copyWith(fontSize: 12)),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                    '${ix.unique ? 'UNIQUE ' : ''}(${ix.columns.join(', ')})',
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
+                    maxLines: 1,
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                        color: ix.unique ? _accent : _textLo,
+                        fontSize: 10.5,
+                        fontFamily: 'monospace')),
+              ),
+            ]),
           ),
       ];
 

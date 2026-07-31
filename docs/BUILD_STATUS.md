@@ -27,8 +27,10 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 - **Schema sidebar** (`schema_browser/`): **lazy tree** (ADR-0008, #13) — Postgres
   nests Schema → objects; SQLite/MySQL show objects at root. Every level loads on
   the fluent `TreeView`'s `onExpandToggle` via a per-Connection `SchemaRepository`
-  (one-entry-per-parent-ref cache, evict-on-failure). Row-tap runs `SELECT *`;
-  chevron reveals columns. Runs on the per-Connection introspection Session.
+  (one-entry-per-parent-ref cache, evict-on-failure). Row-tap opens the table in
+  a new worksheet tab; chevron reveals columns + a lazy **Indexes** group
+  (`indexes()` implemented across the driver trio). Runs on the per-Connection
+  introspection Session.
 - **Connections** (`connections/`): built-in demo + saved connections (drift),
   switch/add/delete; SQLite file-open; server form (Postgres/MySQL) with an inline
   **Test connection**.
@@ -42,14 +44,14 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 - **Theming**: inline "Clean Dev-Tool" tokens (dark, cyan accent) — not yet in
   `ui/core/theme` (still TODO per #7).
 
-**62 tests** green (`flutter test`); `flutter analyze` clean.
+**64 tests** green (`flutter test`); `flutter analyze` clean.
 
 ## Deferred / known gaps
 
 - Grid **keyboard cell navigation** — issue #21 (selection works; arrow-nav needs
   focus/shortcuts work, batched with the shell).
-- **Index nodes + FK/PK detail** — introspector `indexes()` still
-  `UnimplementedError`; the tree stops at columns. PK shown, FK not yet.
+- **FK detail** — columns show PK but not FK (`isForeignKey` always false across
+  the drivers). Indexes now introspected + shown; FK constraints not yet.
 - **Tables/Views folders + sibling render-cap/filter** — the lazy tree flattens
   objects (icon-distinguished) rather than foldering; large-schema cap (#13 §Very
   large) deferred.
@@ -65,11 +67,10 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 
 ## Next candidates (pick one)
 
-1. Index introspection — implement `indexes()` across the driver trio; hang
-   Index nodes under each table (schema tree already lazy-loads their level).
-2. Keyboard nav / shortcuts (#21) + the app shell (NavigationView + menu bar) —
+1. Keyboard nav / shortcuts (#21) + the app shell (NavigationView + menu bar) —
    also the home for solving editor focus-after-run app-wide.
-3. Background isolate for the SQLite driver — unblocks true Cancel + timeouts.
+2. Background isolate for the SQLite driver — unblocks true Cancel + timeouts.
+3. FK detail in the tree + Tables/Views folders + large-schema render-cap.
 4. Postgres/MySQL TLS.
 5. `ui/core/theme` via mix.
 

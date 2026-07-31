@@ -84,6 +84,8 @@ void main() {
     expect(find.text('email'), findsOneWidget);
     expect(find.text('total'), findsOneWidget);
     expect(find.textContaining('row(s)'), findsNothing);
+    // An Indexes group hangs under the table (lazy).
+    expect(find.text('Indexes'), findsOneWidget);
   });
 
   testWidgets('a multi-statement script with DDL refreshes the tree',

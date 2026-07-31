@@ -210,8 +210,36 @@ class _PostgresIntrospector implements SchemaIntrospector {
   }
 
   @override
-  Future<List<IndexInfo>> indexes(TableInfo table) async =>
-      throw UnimplementedError('index introspection — later slice');
+  Future<List<IndexInfo>> indexes(TableInfo table) async {
+    final schemaName = table.schema.isEmpty ? 'public' : table.schema;
+    final r = await _conn.execute(
+      pg.Sql.named(
+        'SELECT i.relname AS name, ix.indisunique AS is_unique, '
+        'array_agg(a.attname ORDER BY x.ordinality) AS cols '
+        'FROM pg_class t '
+        'JOIN pg_namespace n ON n.oid = t.relnamespace '
+        'JOIN pg_index ix ON ix.indrelid = t.oid '
+        'JOIN pg_class i ON i.oid = ix.indexrelid '
+        'JOIN LATERAL unnest(ix.indkey) WITH ORDINALITY AS x(attnum, ordinality) '
+        '  ON true '
+        'LEFT JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = x.attnum '
+        'WHERE t.relname = @t AND n.nspname = @s '
+        'GROUP BY i.relname, ix.indisunique ORDER BY i.relname',
+      ),
+      parameters: {'s': schemaName, 't': table.name},
+    );
+    return [
+      for (final row in r)
+        IndexInfo(
+          name: row[0] as String,
+          unique: row[1] as bool,
+          // array_agg → List; expression columns come back null — skip them.
+          columns: [
+            for (final c in (row[2] as List)) if (c != null) c as String,
+          ],
+        ),
+    ];
+  }
 }
 
 /// Maps a Postgres exception into the normalized [DriverError] taxonomy.
