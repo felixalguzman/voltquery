@@ -7,7 +7,7 @@ part of 'worksheet_providers.dart';
 // **************************************************************************
 
 String _$introspectionSessionHash() =>
-    r'b1bbcb87c828fc6842ae64be71763dcf843aa90f';
+    r'bce02485173d66e7dd258b4f4eac778e6c98923c';
 
 /// Dedicated **per-Connection introspection Session** (ADR-0008), distinct from
 /// the per-Worksheet sessions. Kept alive so it seeds + holds the shared demo.
@@ -27,7 +27,7 @@ final introspectionSessionProvider = FutureProvider<Session>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef IntrospectionSessionRef = FutureProviderRef<Session>;
-String _$worksheetSessionHash() => r'707c097a2c43b6652c768b9f24f02158da2bf543';
+String _$worksheetSessionHash() => r'94b80a2b1b769156d4e49771338aacca0749962f';
 
 /// Copied from Dart SDK
 class _SystemHash {

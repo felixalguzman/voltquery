@@ -44,5 +44,25 @@ final savedConnectionsProvider =
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef SavedConnectionsRef = AutoDisposeStreamProviderRef<List<Connection>>;
+String _$sessionSecretsHash() => r'84efcd0b51a13a32fbf61f0fe1a5457e74d13aae';
+
+/// In-memory session secrets keyed by connection id. **PLACEHOLDER** for the
+/// credentials vault (ADR-0006) — held in memory only, never persisted, lost on
+/// quit. Replace with the SecretStore (keychain / encrypted vault).
+///
+/// Copied from [SessionSecrets].
+@ProviderFor(SessionSecrets)
+final sessionSecretsProvider =
+    NotifierProvider<SessionSecrets, Map<String, String>>.internal(
+      SessionSecrets.new,
+      name: r'sessionSecretsProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$sessionSecretsHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$SessionSecrets = Notifier<Map<String, String>>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

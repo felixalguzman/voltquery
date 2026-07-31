@@ -15,3 +15,15 @@ ConnectionRepository connectionRepository(Ref ref) =>
 @riverpod
 Stream<List<Connection>> savedConnections(Ref ref) =>
     ref.watch(connectionRepositoryProvider).watchAll();
+
+/// In-memory session secrets keyed by connection id. **PLACEHOLDER** for the
+/// credentials vault (ADR-0006) — held in memory only, never persisted, lost on
+/// quit. Replace with the SecretStore (keychain / encrypted vault).
+@Riverpod(keepAlive: true)
+class SessionSecrets extends _$SessionSecrets {
+  @override
+  Map<String, String> build() => const {};
+
+  void put(String connectionId, String secret) =>
+      state = {...state, connectionId: secret};
+}
