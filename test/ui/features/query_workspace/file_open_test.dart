@@ -29,7 +29,7 @@ void main() {
     });
 
     // Default connection is the in-memory demo.
-    expect(container.read(currentConnectionProvider).sqlitePath, ':memory:');
+    expect(container.read(currentConnectionProvider).id, 'demo');
 
     // Point the workspace at the file (what the Open button does).
     container.read(currentConnectionProvider.notifier).state = Connection(
@@ -39,7 +39,7 @@ void main() {
       sqlitePath: path,
     );
 
-    final session = await container.read(sessionProvider.future);
+    final session = await container.read(introspectionSessionProvider.future);
     final result = await session.execute('SELECT v FROM t') as RowsResult;
     final rows = await result.cursor.fetch(10);
 

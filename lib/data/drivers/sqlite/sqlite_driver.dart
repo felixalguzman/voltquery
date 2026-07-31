@@ -30,9 +30,13 @@ class SqliteDriver implements Driver {
   @override
   Future<Session> connect(Connection config, {String? secret}) async {
     final path = config.sqlitePath;
-    final db = (path == null || path == ':memory:')
-        ? sq.sqlite3.openInMemory()
-        : sq.sqlite3.open(path);
+    final db = switch (path) {
+      null || ':memory:' => sq.sqlite3.openInMemory(),
+      // `file:...?mode=memory&cache=shared` URIs (shared in-memory) and any
+      // other `file:` URI need uri parsing enabled.
+      final p when p.startsWith('file:') => sq.sqlite3.open(p, uri: true),
+      final p => sq.sqlite3.open(p),
+    };
     return SqliteSession(config, db);
   }
 }

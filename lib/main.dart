@@ -39,13 +39,14 @@ class _Home extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Pre-warm the active session so the workspace is usable immediately.
-    final session = ref.watch(sessionProvider);
+    // Gate on the introspection session (seeds + keeps the shared demo alive)
+    // so worksheet sessions open against a ready database.
+    final ready = ref.watch(introspectionSessionProvider);
     return ScaffoldPage(
       padding: EdgeInsets.zero,
-      content: session.when(
+      content: ready.when(
         loading: () => const Center(child: ProgressRing()),
-        error: (e, _) => Center(child: Text('Failed to open demo DB: $e')),
+        error: (e, _) => Center(child: Text('Failed to open database: $e')),
         data: (_) => const AppShell(),
       ),
     );

@@ -24,7 +24,9 @@ const _ok = Color(0xFF6FE39A);
 /// vertical `MultiPane`, driven by [worksheetProvider]. First end-to-end slice
 /// of connect → query → grid (issues #12/#15).
 class WorksheetView extends ConsumerStatefulWidget {
-  const WorksheetView({super.key});
+  const WorksheetView({super.key, required this.worksheetId});
+
+  final String worksheetId;
 
   @override
   ConsumerState<WorksheetView> createState() => _WorksheetViewState();
@@ -44,15 +46,19 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
     super.dispose();
   }
 
-  void _run() => ref.read(worksheetProvider.notifier).run(_code.text);
+  void _run() => ref
+      .read(worksheetResultProvider(widget.worksheetId).notifier)
+      .run(_code.text);
 
   @override
   Widget build(BuildContext context) {
-    final result = ref.watch(worksheetProvider);
+    final result = ref.watch(worksheetResultProvider(widget.worksheetId));
     final connName = ref.watch(currentConnectionProvider).name;
-    // Sidebar (or anything) can request a query: load it into the editor + run.
+    // Sidebar can request a query — only the *active* worksheet responds.
     ref.listen<String?>(requestedQueryProvider, (_, next) {
-      if (next != null) {
+      final isActive =
+          ref.read(worksheetTabsProvider).activeId == widget.worksheetId;
+      if (next != null && isActive) {
         _code.text = next;
         _run();
         ref.read(requestedQueryProvider.notifier).state = null;
