@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:panes/panes.dart';
 
-import '../../features/query_workspace/worksheet_view.dart';
+import '../../features/query_workspace/worksheet_tabs.dart';
 import '../../features/schema_browser/schema_sidebar.dart';
 
 /// The app shell: schema sidebar | workspace, in a resizable horizontal
@@ -27,7 +27,7 @@ class _AppShellState extends State<AppShell> {
       controller: _panes,
       paneBuilder: (context, id, _) => switch (id) {
         'sidebar' => const SchemaSidebar(),
-        'main' => const WorksheetView(),
+        'main' => const WorksheetTabs(),
         _ => const SizedBox.shrink(),
       },
     );

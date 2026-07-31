@@ -15,7 +15,7 @@ void main() {
           home: ScaffoldPage(
             padding: EdgeInsets.zero,
             content: Consumer(builder: (context, ref, _) {
-              return ref.watch(sessionProvider).when(
+              return ref.watch(introspectionSessionProvider).when(
                     loading: () => const ProgressRing(),
                     error: (e, _) => Text('$e'),
                     data: (_) => const AppShell(),
