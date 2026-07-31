@@ -7,39 +7,44 @@ import '../../../domain/drivers/result.dart';
 import '../../../domain/models/connection.dart';
 import '../../../domain/models/engine.dart';
 
-/// Result of the Postgres form — a secret-free [Connection] plus the password to
-/// hand to the vault.
-typedef PostgresFormResult = ({Connection connection, String password});
+/// A secret-free [Connection] plus the password to hand to the vault.
+typedef ServerFormResult = ({Connection connection, String password});
 
-Future<PostgresFormResult?> showPostgresConnectionDialog(BuildContext context) {
-  return showDialog<PostgresFormResult>(
+/// Connection form for a server engine (Postgres / MySQL) with an inline
+/// **Test connection**. The #14 wizard's server branch.
+Future<ServerFormResult?> showServerConnectionDialog(BuildContext context,
+    {required Engine engine}) {
+  return showDialog<ServerFormResult>(
     context: context,
-    builder: (_) => const _PostgresDialog(),
+    builder: (_) => _ServerDialog(engine: engine),
   );
 }
 
 enum _Test { idle, testing, ok, error }
 
-/// Minimal connection form (the #14 wizard's Postgres branch) with an inline
-/// **Test connection** that connects + reports the server version or the
-/// normalized error, without saving.
-class _PostgresDialog extends StatefulWidget {
-  const _PostgresDialog();
+class _ServerDialog extends StatefulWidget {
+  const _ServerDialog({required this.engine});
+  final Engine engine;
 
   @override
-  State<_PostgresDialog> createState() => _PostgresDialogState();
+  State<_ServerDialog> createState() => _ServerDialogState();
 }
 
-class _PostgresDialogState extends State<_PostgresDialog> {
-  final _name = TextEditingController(text: 'Postgres');
+class _ServerDialogState extends State<_ServerDialog> {
+  late final _name = TextEditingController(text: _isPg ? 'Postgres' : 'MySQL');
   final _host = TextEditingController(text: 'localhost');
-  final _port = TextEditingController(text: '5432');
-  final _user = TextEditingController(text: 'postgres');
+  late final _port = TextEditingController(text: '${_isPg ? 5432 : 3306}');
+  late final _user =
+      TextEditingController(text: _isPg ? 'postgres' : 'root');
   final _password = TextEditingController();
-  final _database = TextEditingController(text: 'postgres');
+  late final _database =
+      TextEditingController(text: _isPg ? 'postgres' : '');
 
   _Test _test = _Test.idle;
   String _testMsg = '';
+
+  bool get _isPg => widget.engine == Engine.postgres;
+  String get _dbLabel => _isPg ? 'PostgreSQL' : 'MySQL';
 
   @override
   void dispose() {
@@ -54,12 +59,13 @@ class _PostgresDialogState extends State<_PostgresDialog> {
     return Connection(
       id: id,
       name: _name.text.trim().isEmpty ? _host.text.trim() : _name.text.trim(),
-      engine: Engine.postgres,
+      engine: widget.engine,
       host: _host.text.trim(),
-      port: int.tryParse(_port.text.trim()) ?? 5432,
+      port: int.tryParse(_port.text.trim()) ?? (_isPg ? 5432 : 3306),
       username: _user.text.trim(),
       credentialRef: forSave ? id : null,
-      defaultDatabase: _database.text.trim(),
+      defaultDatabase:
+          _database.text.trim().isEmpty ? null : _database.text.trim(),
     );
   }
 
@@ -69,15 +75,15 @@ class _PostgresDialogState extends State<_PostgresDialog> {
       _testMsg = '';
     });
     try {
-      final session = await driverFor(Engine.postgres)
+      final session = await driverFor(widget.engine)
           .connect(_connection(forSave: false), secret: _password.text);
-      String server = 'Connected';
+      var server = 'Connected';
       try {
         final result = await session.execute('SELECT version()');
         if (result is RowsResult) {
           final rows = await result.cursor.fetch(1);
-          final v = rows.first.values.first as String?;
-          if (v != null) server = v.split(' ').take(2).join(' '); // "PostgreSQL 17.0"
+          final v = rows.first.values.first?.toString();
+          if (v != null && v.isNotEmpty) server = v.split(' ').take(2).join(' ');
           await result.cursor.close();
         }
       } catch (_) {/* version is best-effort */}
@@ -109,7 +115,7 @@ class _PostgresDialogState extends State<_PostgresDialog> {
   Widget build(BuildContext context) {
     return ContentDialog(
       constraints: const BoxConstraints(maxWidth: 480),
-      title: const Text('New PostgreSQL connection'),
+      title: Text('New $_dbLabel connection'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -139,16 +145,14 @@ class _PostgresDialogState extends State<_PostgresDialog> {
     );
   }
 
-  Widget _testRow() {
-    return Row(children: [
-      Button(
-        onPressed: _test == _Test.testing ? null : _runTest,
-        child: const Text('⚡ Test connection'),
-      ),
-      const SizedBox(width: 10),
-      Expanded(child: _status()),
-    ]);
-  }
+  Widget _testRow() => Row(children: [
+        Button(
+          onPressed: _test == _Test.testing ? null : _runTest,
+          child: const Text('⚡ Test connection'),
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: _status()),
+      ]);
 
   Widget _status() {
     switch (_test) {
