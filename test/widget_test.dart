@@ -2,8 +2,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:voltquery/data/services/local_store.dart';
+import 'package:voltquery/domain/models/connection.dart';
 import 'package:voltquery/domain/models/history_entry.dart';
 import 'package:voltquery/main.dart';
+import 'package:voltquery/ui/features/connections/connection_providers.dart';
 import 'package:voltquery/ui/features/history/history_providers.dart';
 
 void main() {
@@ -18,6 +20,8 @@ void main() {
           }),
           recentHistoryProvider
               .overrideWith((ref) => Stream.value(const <HistoryEntry>[])),
+          savedConnectionsProvider
+              .overrideWith((ref) => Stream.value(const <Connection>[])),
         ],
         child: const VoltQueryApp(),
       ),

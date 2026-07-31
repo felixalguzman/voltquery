@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:panes/panes.dart';
 
+import '../../features/connections/connections_panel.dart';
 import '../../features/history/history_panel.dart';
 import '../../features/query_workspace/worksheet_tabs.dart';
 import '../../features/schema_browser/schema_sidebar.dart';
@@ -29,8 +30,9 @@ class _AppShellState extends State<AppShell> {
       paneBuilder: (context, id, _) => switch (id) {
         'sidebar' => const Column(
             children: [
-              Expanded(child: SchemaSidebar()),
-              Expanded(child: HistoryPanel()),
+              Expanded(flex: 2, child: ConnectionsPanel()),
+              Expanded(flex: 3, child: SchemaSidebar()),
+              Expanded(flex: 2, child: HistoryPanel()),
             ],
           ),
         'main' => const WorksheetTabBar(),
