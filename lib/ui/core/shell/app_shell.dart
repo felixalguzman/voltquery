@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:panes/panes.dart';
 
+import '../../features/history/history_panel.dart';
 import '../../features/query_workspace/worksheet_tabs.dart';
 import '../../features/schema_browser/schema_sidebar.dart';
 
@@ -26,7 +27,12 @@ class _AppShellState extends State<AppShell> {
       direction: Axis.horizontal,
       controller: _panes,
       paneBuilder: (context, id, _) => switch (id) {
-        'sidebar' => const SchemaSidebar(),
+        'sidebar' => const Column(
+            children: [
+              Expanded(child: SchemaSidebar()),
+              Expanded(child: HistoryPanel()),
+            ],
+          ),
         'main' => const WorksheetTabBar(),
         _ => const SizedBox.shrink(),
       },
