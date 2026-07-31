@@ -50,17 +50,21 @@ Future<ProviderContainer> _pumpApp(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('clicking a sidebar table runs SELECT * for it', (tester) async {
+  testWidgets('clicking a sidebar table opens it in a NEW tab and runs it',
+      (tester) async {
     await _pumpApp(tester);
 
     // Demo seeds a 'customers' table — the sidebar shows it (SQLite has no
     // schema level, so objects sit at the tree root).
     expect(find.text('customers'), findsOneWidget);
+    expect(find.text('Query 2'), findsNothing); // only the default tab so far
 
     await tester.tap(find.text('customers'));
     await tester.pumpAndSettle();
 
-    // Worksheet ran SELECT * FROM customers → 4 seeded rows.
+    // A new worksheet tab opened + ran SELECT * FROM customers → 4 seeded rows,
+    // without clobbering the original tab.
+    expect(find.text('Query 2'), findsOneWidget);
     expect(find.textContaining('4 row(s)'), findsOneWidget);
   });
 
@@ -82,17 +86,21 @@ void main() {
     expect(find.textContaining('row(s)'), findsNothing);
   });
 
-  testWidgets('a successful DDL run refreshes the tree (new table appears)',
+  testWidgets('a multi-statement script with DDL refreshes the tree',
       (tester) async {
     final container = await _pumpApp(tester);
 
     expect(find.text('ddl_made_me'), findsNothing);
 
-    // Run CREATE via the active worksheet — the notifier evicts the schema
-    // cache on successful DDL (ADR-0008), so the sidebar re-introspects.
-    container
-        .read(requestedQueryProvider.notifier)
-        .request('CREATE TABLE ddl_made_me (id INTEGER);');
+    // The exact shape a user runs: CREATE + INSERT + SELECTs. A successful DDL
+    // anywhere in the script evicts the schema cache (ADR-0008), so the sidebar
+    // re-introspects and the new table appears — no manual refresh.
+    container.read(requestedQueryProvider.notifier).request(
+          'CREATE TABLE ddl_made_me (id INTEGER, name TEXT);'
+          "INSERT INTO ddl_made_me VALUES (1, 'x');"
+          'SELECT * FROM customers;'
+          'SELECT * FROM ddl_made_me;',
+        );
     await tester.pumpAndSettle();
 
     expect(find.text('ddl_made_me'), findsOneWidget);

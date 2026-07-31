@@ -8,6 +8,7 @@ import 'package:re_editor/re_editor.dart';
 import 'package:re_highlight/languages/sql.dart';
 import 'package:re_highlight/styles/atom-one-dark.dart';
 
+import '../../../domain/sql/sql_statement_splitter.dart';
 import 'worksheet_providers.dart';
 import 'worksheet_state.dart';
 
@@ -33,13 +34,29 @@ class WorksheetView extends ConsumerStatefulWidget {
 }
 
 class _WorksheetViewState extends ConsumerState<WorksheetView> {
-  final _code = CodeLineEditingController.fromText('SELECT * FROM customers;');
+  late final CodeLineEditingController _code;
   final _panes = PaneController(
     entries: [
       PaneEntry(id: 'editor', initialSize: PaneSize.fraction(0.42)),
       PaneEntry(id: 'result', initialSize: PaneSize.fraction(0.58)),
     ],
   );
+
+  @override
+  void initState() {
+    super.initState();
+    // A tab opened from the sidebar carries a seed query; else the default.
+    final seed = ref.read(worksheetSeedsProvider)[widget.worksheetId];
+    _code =
+        CodeLineEditingController.fromText(seed ?? 'SELECT * FROM customers;');
+    if (seed != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref.read(worksheetSeedsProvider.notifier).take(widget.worksheetId);
+        ref.read(worksheetProvider(widget.worksheetId).notifier).run(seed);
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -293,7 +310,12 @@ Widget _logRow(StatementOutcome o) {
       _ok,
       FluentIcons.check_mark,
     ),
-    WorksheetMessage m => (m.text, _ok, FluentIcons.check_mark),
+    // DDL has no meaningful affected-row count — show a plain OK.
+    WorksheetMessage m => (
+      o.kind == StatementKind.ddl ? 'OK' : m.text,
+      _ok,
+      FluentIcons.check_mark,
+    ),
     WorksheetFailure f => (
       '${f.error.kind.name}: ${f.error.message}',
       _err,

@@ -122,6 +122,28 @@ class RequestedQuery extends _$RequestedQuery {
   void clear() => state = null;
 }
 
+/// One-shot initial SQL for a **freshly opened** Worksheet — the sidebar's
+/// "open table" opens a *new* tab (never clobbering the current editor) and
+/// seeds it here. The Worksheet consumes + clears its seed on first build.
+///
+/// **keepAlive**: nobody *watches* this (only `put`/`take`), so an autoDispose
+/// provider would reset to `{}` in the microtask between opening the tab and the
+/// new Worksheet's `initState` reading the seed — losing it.
+@Riverpod(keepAlive: true)
+class WorksheetSeeds extends _$WorksheetSeeds {
+  @override
+  Map<String, String> build() => const {};
+
+  void put(String worksheetId, String sql) =>
+      state = {...state, worksheetId: sql};
+
+  String? take(String worksheetId) {
+    final sql = state[worksheetId];
+    if (sql != null) state = {...state}..remove(worksheetId);
+    return sql;
+  }
+}
+
 @riverpod
 WorksheetRunner worksheetRunner(Ref ref) => const WorksheetRunner();
 
@@ -267,9 +289,12 @@ class WorksheetTabs extends _$WorksheetTabs {
     return WorksheetTabsState(ids: [id], activeId: id);
   }
 
-  void add() {
+  /// Adds a new tab, makes it active, and returns its id (so a caller can seed
+  /// its editor — see [WorksheetSeeds]).
+  String add() {
     final id = _next();
     state = WorksheetTabsState(ids: [...state.ids, id], activeId: id);
+    return id;
   }
 
   void select(String id) =>
