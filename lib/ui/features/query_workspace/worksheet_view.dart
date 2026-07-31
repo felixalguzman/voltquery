@@ -156,6 +156,7 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
             },
             child: CodeEditor(
               controller: _code,
+              shortcutsActivatorsBuilder: const _SqlEditorShortcuts(),
               style: CodeEditorStyle(
                 fontSize: 13.5,
                 backgroundColor: _bg,
@@ -211,6 +212,49 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
       ),
     );
   }
+}
+
+/// re_editor's defaults bind **Ctrl+Enter to newline** (which swallowed our Run
+/// shortcut — inserting a newline over the selection) and put word move/select
+/// on **Alt+Arrow** only. This drops Ctrl+Enter from `newLine` (so ⌃⏎ bubbles to
+/// the Run `CallbackShortcuts`) and adds **Ctrl(+Shift)+Arrow** for word
+/// move/select alongside the existing Alt bindings (Linux/Windows convention).
+class _SqlEditorShortcuts extends CodeShortcutsActivatorsBuilder {
+  const _SqlEditorShortcuts();
+  static const _base = DefaultCodeShortcutsActivatorsBuilder();
+
+  @override
+  List<ShortcutActivator>? build(CodeShortcutType type) => switch (type) {
+        CodeShortcutType.newLine => const [
+            SingleActivator(LogicalKeyboardKey.enter),
+            SingleActivator(LogicalKeyboardKey.enter, shift: true),
+            SingleActivator(LogicalKeyboardKey.numpadEnter),
+            SingleActivator(LogicalKeyboardKey.numpadEnter, shift: true),
+          ],
+        CodeShortcutType.cursorMoveWordBoundaryBackward => const [
+            SingleActivator(LogicalKeyboardKey.arrowLeft, control: true),
+            SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true),
+          ],
+        CodeShortcutType.cursorMoveWordBoundaryForward => const [
+            SingleActivator(LogicalKeyboardKey.arrowRight, control: true),
+            SingleActivator(LogicalKeyboardKey.arrowRight, alt: true),
+          ],
+        // Key→direction kept identical to re_editor's own mapping (only the
+        // modifier changes), so behaviour matches the working Alt+Shift+Arrow.
+        CodeShortcutType.selectionExtendWordBoundaryForward => const [
+            SingleActivator(LogicalKeyboardKey.arrowLeft,
+                control: true, shift: true),
+            SingleActivator(LogicalKeyboardKey.arrowLeft,
+                alt: true, shift: true),
+          ],
+        CodeShortcutType.selectionExtendWordBoundaryBackward => const [
+            SingleActivator(LogicalKeyboardKey.arrowRight,
+                control: true, shift: true),
+            SingleActivator(LogicalKeyboardKey.arrowRight,
+                alt: true, shift: true),
+          ],
+        _ => _base.build(type),
+      };
 }
 
 class _ResultPane extends StatelessWidget {
