@@ -185,6 +185,29 @@ class ContinueOnError extends _$ContinueOnError {
   void set(bool value) => state = value;
 }
 
+/// Per-Worksheet transaction mode (ADR-0007). Off = autocommit (each statement
+/// commits immediately). On = manual: the app issues `begin()` before the first
+/// run and holds the tx open until the user Commits/Rolls back.
+@riverpod
+class ManualCommit extends _$ManualCommit {
+  @override
+  bool build(String worksheetId) => false;
+
+  void toggle() => state = !state;
+}
+
+/// Whether a manual transaction is currently open for a Worksheet — the single
+/// source of truth for the Commit/Rollback affordances (drivers don't reliably
+/// report `inTransaction` for pg/mysql, so we track it app-side).
+@riverpod
+class WorksheetTx extends _$WorksheetTx {
+  @override
+  bool build(String worksheetId) => false;
+
+  // ignore: avoid_positional_boolean_parameters
+  void set(bool open) => state = open;
+}
+
 /// Per-Worksheet result state (family keyed by WorksheetId).
 @riverpod
 class Worksheet extends _$Worksheet {
@@ -233,6 +256,18 @@ class Worksheet extends _$Worksheet {
       return;
     }
 
+    // Manual-commit mode: open a transaction before the first statement and
+    // leave it open (autocommit mode does nothing here — each statement commits).
+    if (ref.read(manualCommitProvider(worksheetId)) &&
+        !ref.read(worksheetTxProvider(worksheetId))) {
+      try {
+        await session.begin();
+        ref.read(worksheetTxProvider(worksheetId).notifier).set(true);
+      } catch (_) {
+        // If BEGIN fails, fall through and run in autocommit — never brick Run.
+      }
+    }
+
     final runner = ref.read(worksheetRunnerProvider);
     final continueOnError = ref.read(continueOnErrorProvider);
     final outcomes = <StatementOutcome>[];
@@ -270,6 +305,26 @@ class Worksheet extends _$Worksheet {
     state = WorksheetScript(outcomes);
     // Any successful DDL may have changed the catalog — drop the tree cache.
     if (ranDdl) ref.invalidate(schemaRepositoryProvider);
+  }
+
+  /// Commit the open manual transaction (no-op if none). See [ManualCommit].
+  Future<void> commit() => _endTx((s) => s.commit());
+
+  /// Roll back the open manual transaction (no-op if none).
+  Future<void> rollback() => _endTx((s) => s.rollback());
+
+  Future<void> _endTx(Future<void> Function(Session) op) async {
+    if (!ref.read(worksheetTxProvider(worksheetId))) return;
+    try {
+      final session = await ref.read(worksheetSessionProvider(worksheetId).future);
+      await op(session);
+    } finally {
+      // Whether or not it threw, the app no longer considers a tx open — a stuck
+      // "open" flag is worse than a redundant BEGIN on the next run.
+      ref.read(worksheetTxProvider(worksheetId).notifier).set(false);
+      // Committed/rolled-back DDL may have changed the catalog.
+      ref.invalidate(schemaRepositoryProvider);
+    }
   }
 
   Future<void> _record(

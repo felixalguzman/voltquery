@@ -304,7 +304,314 @@ final continueOnErrorProvider =
     );
 
 typedef _$ContinueOnError = Notifier<bool>;
-String _$worksheetHash() => r'4a855953f55a6aa8ef24e5afb09fa38cade25937';
+String _$manualCommitHash() => r'c2dbf046401069ca3f4410c2ded85af1653f55fd';
+
+abstract class _$ManualCommit extends BuildlessAutoDisposeNotifier<bool> {
+  late final String worksheetId;
+
+  bool build(String worksheetId);
+}
+
+/// Per-Worksheet transaction mode (ADR-0007). Off = autocommit (each statement
+/// commits immediately). On = manual: the app issues `begin()` before the first
+/// run and holds the tx open until the user Commits/Rolls back.
+///
+/// Copied from [ManualCommit].
+@ProviderFor(ManualCommit)
+const manualCommitProvider = ManualCommitFamily();
+
+/// Per-Worksheet transaction mode (ADR-0007). Off = autocommit (each statement
+/// commits immediately). On = manual: the app issues `begin()` before the first
+/// run and holds the tx open until the user Commits/Rolls back.
+///
+/// Copied from [ManualCommit].
+class ManualCommitFamily extends Family<bool> {
+  /// Per-Worksheet transaction mode (ADR-0007). Off = autocommit (each statement
+  /// commits immediately). On = manual: the app issues `begin()` before the first
+  /// run and holds the tx open until the user Commits/Rolls back.
+  ///
+  /// Copied from [ManualCommit].
+  const ManualCommitFamily();
+
+  /// Per-Worksheet transaction mode (ADR-0007). Off = autocommit (each statement
+  /// commits immediately). On = manual: the app issues `begin()` before the first
+  /// run and holds the tx open until the user Commits/Rolls back.
+  ///
+  /// Copied from [ManualCommit].
+  ManualCommitProvider call(String worksheetId) {
+    return ManualCommitProvider(worksheetId);
+  }
+
+  @override
+  ManualCommitProvider getProviderOverride(
+    covariant ManualCommitProvider provider,
+  ) {
+    return call(provider.worksheetId);
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'manualCommitProvider';
+}
+
+/// Per-Worksheet transaction mode (ADR-0007). Off = autocommit (each statement
+/// commits immediately). On = manual: the app issues `begin()` before the first
+/// run and holds the tx open until the user Commits/Rolls back.
+///
+/// Copied from [ManualCommit].
+class ManualCommitProvider
+    extends AutoDisposeNotifierProviderImpl<ManualCommit, bool> {
+  /// Per-Worksheet transaction mode (ADR-0007). Off = autocommit (each statement
+  /// commits immediately). On = manual: the app issues `begin()` before the first
+  /// run and holds the tx open until the user Commits/Rolls back.
+  ///
+  /// Copied from [ManualCommit].
+  ManualCommitProvider(String worksheetId)
+    : this._internal(
+        () => ManualCommit()..worksheetId = worksheetId,
+        from: manualCommitProvider,
+        name: r'manualCommitProvider',
+        debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+            ? null
+            : _$manualCommitHash,
+        dependencies: ManualCommitFamily._dependencies,
+        allTransitiveDependencies:
+            ManualCommitFamily._allTransitiveDependencies,
+        worksheetId: worksheetId,
+      );
+
+  ManualCommitProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.worksheetId,
+  }) : super.internal();
+
+  final String worksheetId;
+
+  @override
+  bool runNotifierBuild(covariant ManualCommit notifier) {
+    return notifier.build(worksheetId);
+  }
+
+  @override
+  Override overrideWith(ManualCommit Function() create) {
+    return ProviderOverride(
+      origin: this,
+      override: ManualCommitProvider._internal(
+        () => create()..worksheetId = worksheetId,
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        worksheetId: worksheetId,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeNotifierProviderElement<ManualCommit, bool> createElement() {
+    return _ManualCommitProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ManualCommitProvider && other.worksheetId == worksheetId;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, worksheetId.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+mixin ManualCommitRef on AutoDisposeNotifierProviderRef<bool> {
+  /// The parameter `worksheetId` of this provider.
+  String get worksheetId;
+}
+
+class _ManualCommitProviderElement
+    extends AutoDisposeNotifierProviderElement<ManualCommit, bool>
+    with ManualCommitRef {
+  _ManualCommitProviderElement(super.provider);
+
+  @override
+  String get worksheetId => (origin as ManualCommitProvider).worksheetId;
+}
+
+String _$worksheetTxHash() => r'13f160b782ff77fb38c96fd3fbf48b4016b2670a';
+
+abstract class _$WorksheetTx extends BuildlessAutoDisposeNotifier<bool> {
+  late final String worksheetId;
+
+  bool build(String worksheetId);
+}
+
+/// Whether a manual transaction is currently open for a Worksheet — the single
+/// source of truth for the Commit/Rollback affordances (drivers don't reliably
+/// report `inTransaction` for pg/mysql, so we track it app-side).
+///
+/// Copied from [WorksheetTx].
+@ProviderFor(WorksheetTx)
+const worksheetTxProvider = WorksheetTxFamily();
+
+/// Whether a manual transaction is currently open for a Worksheet — the single
+/// source of truth for the Commit/Rollback affordances (drivers don't reliably
+/// report `inTransaction` for pg/mysql, so we track it app-side).
+///
+/// Copied from [WorksheetTx].
+class WorksheetTxFamily extends Family<bool> {
+  /// Whether a manual transaction is currently open for a Worksheet — the single
+  /// source of truth for the Commit/Rollback affordances (drivers don't reliably
+  /// report `inTransaction` for pg/mysql, so we track it app-side).
+  ///
+  /// Copied from [WorksheetTx].
+  const WorksheetTxFamily();
+
+  /// Whether a manual transaction is currently open for a Worksheet — the single
+  /// source of truth for the Commit/Rollback affordances (drivers don't reliably
+  /// report `inTransaction` for pg/mysql, so we track it app-side).
+  ///
+  /// Copied from [WorksheetTx].
+  WorksheetTxProvider call(String worksheetId) {
+    return WorksheetTxProvider(worksheetId);
+  }
+
+  @override
+  WorksheetTxProvider getProviderOverride(
+    covariant WorksheetTxProvider provider,
+  ) {
+    return call(provider.worksheetId);
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'worksheetTxProvider';
+}
+
+/// Whether a manual transaction is currently open for a Worksheet — the single
+/// source of truth for the Commit/Rollback affordances (drivers don't reliably
+/// report `inTransaction` for pg/mysql, so we track it app-side).
+///
+/// Copied from [WorksheetTx].
+class WorksheetTxProvider
+    extends AutoDisposeNotifierProviderImpl<WorksheetTx, bool> {
+  /// Whether a manual transaction is currently open for a Worksheet — the single
+  /// source of truth for the Commit/Rollback affordances (drivers don't reliably
+  /// report `inTransaction` for pg/mysql, so we track it app-side).
+  ///
+  /// Copied from [WorksheetTx].
+  WorksheetTxProvider(String worksheetId)
+    : this._internal(
+        () => WorksheetTx()..worksheetId = worksheetId,
+        from: worksheetTxProvider,
+        name: r'worksheetTxProvider',
+        debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+            ? null
+            : _$worksheetTxHash,
+        dependencies: WorksheetTxFamily._dependencies,
+        allTransitiveDependencies: WorksheetTxFamily._allTransitiveDependencies,
+        worksheetId: worksheetId,
+      );
+
+  WorksheetTxProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.worksheetId,
+  }) : super.internal();
+
+  final String worksheetId;
+
+  @override
+  bool runNotifierBuild(covariant WorksheetTx notifier) {
+    return notifier.build(worksheetId);
+  }
+
+  @override
+  Override overrideWith(WorksheetTx Function() create) {
+    return ProviderOverride(
+      origin: this,
+      override: WorksheetTxProvider._internal(
+        () => create()..worksheetId = worksheetId,
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        worksheetId: worksheetId,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeNotifierProviderElement<WorksheetTx, bool> createElement() {
+    return _WorksheetTxProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is WorksheetTxProvider && other.worksheetId == worksheetId;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, worksheetId.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+mixin WorksheetTxRef on AutoDisposeNotifierProviderRef<bool> {
+  /// The parameter `worksheetId` of this provider.
+  String get worksheetId;
+}
+
+class _WorksheetTxProviderElement
+    extends AutoDisposeNotifierProviderElement<WorksheetTx, bool>
+    with WorksheetTxRef {
+  _WorksheetTxProviderElement(super.provider);
+
+  @override
+  String get worksheetId => (origin as WorksheetTxProvider).worksheetId;
+}
+
+String _$worksheetHash() => r'1d63a8e54b83df58398cc357c39aab5d9b5ccbce';
 
 abstract class _$Worksheet
     extends BuildlessAutoDisposeNotifier<WorksheetResult> {

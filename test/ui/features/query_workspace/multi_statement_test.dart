@@ -59,6 +59,38 @@ void main() {
     expect(script.outcomes[2].isRows, true); // SELECT 2 still ran
   });
 
+  test('manual commit: Rollback undoes an insert', () async {
+    final container = ProviderContainer(overrides: _memoryStore());
+    addTearDown(container.dispose);
+    const id = 'ws-tx';
+    // Keep the autoDispose providers alive across the awaits.
+    container.listen(worksheetProvider(id), (_, _) {});
+    container.listen(worksheetTxProvider(id), (_, _) {});
+    container.read(manualCommitProvider(id).notifier).toggle(); // manual on
+
+    final n = container.read(worksheetProvider(id).notifier);
+
+    int countOf(String wid) {
+      final s = container.read(worksheetProvider(wid)) as WorksheetScript;
+      return (s.outcomes.single.result as WorksheetRows).rows.single.values.single
+          as int;
+    }
+
+    await n.run(
+      "INSERT INTO customers (name, email, total) VALUES ('Tx', null, 1)",
+    );
+    expect(container.read(worksheetTxProvider(id)), true); // Run opened a tx
+
+    await n.run('SELECT COUNT(*) AS c FROM customers');
+    expect(countOf(id), 5); // the insert is visible inside the tx
+
+    await n.rollback();
+    expect(container.read(worksheetTxProvider(id)), false);
+
+    await n.run('SELECT COUNT(*) AS c FROM customers');
+    expect(countOf(id), 4); // rollback undid the insert
+  });
+
   testWidgets('a multi-result script renders result sub-tabs + Messages',
       (tester) async {
     final container = ProviderContainer(overrides: _memoryStore());
