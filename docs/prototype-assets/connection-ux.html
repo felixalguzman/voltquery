@@ -1,0 +1,288 @@
+<!doctype html>
+<!-- PROTOTYPE — THROWAWAY. Resolves wayfinder ticket #14 (Connection management UX).
+     Clean Dev-Tool theming (ticket #7). Static mockup to react to — no logic.
+     View frames: ?view=hero | ?view=variants | ?view=states -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>VoltQuery — Connection UX prototype</title>
+<style>
+  :root{
+    --bg:#0D0E11; --panel:#16181D; --raised:#1B1E24; --hair:#262A31;
+    --hi:#E6E8EC; --mid:#9BA1AD; --lo:#5A6069;
+    --accent:#2FE6FF; --accent-dim:rgba(47,230,255,.12); --on-accent:#04222b;
+    --ok:#6FE39A; --err:#FF6B6B; --warn:#FFB86C;
+    --pg:#4E9BF0; --my:#E9A44B; --lt:#8A93A3;
+    --r:4px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#000;font-family:Inter,system-ui,'Segoe UI',sans-serif;color:var(--hi);
+       -webkit-font-smoothing:antialiased}
+  .frame{width:1440px;background:var(--bg);padding:28px 40px 40px;display:none}
+  body.hero .frame.hero,body.variants .frame.variants,body.states .frame.states{display:block}
+  .cap{color:var(--lo);font-size:12px;letter-spacing:.14em;text-transform:uppercase;margin:0 0 14px}
+  .mono{font-family:'JetBrains Mono','SF Mono',ui-monospace,monospace}
+  .badge{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:3px;
+         font:600 10px/1 'JetBrains Mono',monospace;color:#08121c}
+  .b-pg{background:var(--pg)} .b-my{background:var(--my)} .b-lt{background:var(--lt)}
+  .btn{border:1px solid var(--hair);background:var(--raised);color:var(--hi);border-radius:var(--r);
+       padding:7px 13px;font-size:13px;cursor:default}
+  .btn.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+  .btn.ghost{background:transparent}
+  .field label{display:block;color:var(--mid);font-size:11.5px;margin:0 0 5px;letter-spacing:.02em}
+  .inp{background:#0F1116;border:1px solid var(--hair);border-radius:var(--r);color:var(--hi);
+       font-size:13px;padding:8px 10px;width:100%}
+  .inp.focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim)}
+  .row{display:flex;gap:12px} .row>*{flex:1}
+
+  /* ---------- HERO: window = sidebar + wizard modal ---------- */
+  .win{height:820px;border:1px solid var(--hair);border-radius:6px;overflow:hidden;display:flex;position:relative;background:var(--bg)}
+  .side{width:290px;background:var(--panel);border-right:1px solid var(--hair);display:flex;flex-direction:column}
+  .side-h{height:44px;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--hair)}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--accent)}
+  .side-h .ttl{font-weight:600;font-size:13px;letter-spacing:.04em}
+  .side-h .sp{flex:1}
+  .plus{width:26px;height:26px;border:1px solid var(--hair);border-radius:var(--r);display:flex;align-items:center;
+        justify-content:center;color:var(--accent);font-size:16px;background:var(--raised)}
+  .search{margin:10px;background:#0F1116;border:1px solid var(--hair);border-radius:var(--r);
+          padding:6px 9px;color:var(--lo);font-size:12px}
+  .grp{padding:6px 12px 3px;color:var(--lo);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase}
+  .conn{display:flex;align-items:center;gap:9px;padding:7px 12px;font-size:13px;color:var(--mid);border-left:2px solid transparent}
+  .conn .nm{color:var(--hi)} .conn .sub{color:var(--lo);font-size:11px}
+  .conn.active{background:var(--accent-dim);border-left-color:var(--accent)}
+  .conn .col{display:flex;flex-direction:column;line-height:1.25}
+  .conn .st{margin-left:auto;width:7px;height:7px;border-radius:50%}
+  .st.on{background:var(--ok)} .st.off{background:var(--lo)}
+  .side-f{margin-top:auto;border-top:1px solid var(--hair);padding:9px 12px;display:flex;align-items:center;gap:8px;
+          color:var(--mid);font-size:12px}
+  .lockpill{margin-left:auto;display:flex;align-items:center;gap:6px;color:var(--warn);font-size:11px}
+
+  .stage{flex:1;position:relative;background:
+     linear-gradient(var(--hair) 1px,transparent 1px) 0 0/100% 34px,
+     var(--bg)}
+  .scrim{position:absolute;inset:0;background:rgba(3,5,8,.62)}
+  .modal{position:absolute;left:50%;top:52%;transform:translate(-50%,-50%);width:720px;
+         background:var(--panel);border:1px solid var(--hair);border-radius:6px;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+  .m-h{display:flex;align-items:center;gap:10px;padding:15px 18px;border-bottom:1px solid var(--hair)}
+  .m-h .t{font-weight:600;font-size:14px} .m-h .x{margin-left:auto;color:var(--lo)}
+  .m-b{display:flex;min-height:330px}
+  .eng-rail{width:180px;border-right:1px solid var(--hair);padding:10px}
+  .eng{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:var(--r);color:var(--mid);font-size:13px}
+  .eng.sel{background:var(--accent-dim);color:var(--hi)}
+  .form{flex:1;padding:16px 18px;display:flex;flex-direction:column;gap:13px}
+  .m-f{display:flex;align-items:center;gap:10px;padding:13px 18px;border-top:1px solid var(--hair)}
+  .m-f .sp{flex:1}
+  .hint{color:var(--lo);font-size:11.5px}
+
+  /* ---------- VARIANTS ---------- */
+  .cards{display:flex;gap:22px}
+  .card{flex:1;background:var(--panel);border:1px solid var(--hair);border-radius:6px;overflow:hidden}
+  .card.reco{border-color:var(--accent)}
+  .c-h{padding:11px 14px;border-bottom:1px solid var(--hair);display:flex;align-items:center;gap:8px}
+  .c-h .k{font:600 11px/1 'JetBrains Mono',monospace;color:var(--on-accent);background:var(--accent);
+          padding:3px 6px;border-radius:3px}
+  .c-h .t{font-size:13px;font-weight:600} .tag{margin-left:auto;font-size:10px;color:var(--accent);
+          border:1px solid var(--accent);border-radius:3px;padding:2px 6px}
+  .c-b{padding:14px;height:340px;position:relative;background:var(--bg)}
+  .note{color:var(--mid);font-size:11.5px;line-height:1.5;padding:10px 14px;border-top:1px solid var(--hair)}
+  .steps{display:flex;flex-direction:column;gap:2px}
+  .step{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--lo);padding:6px 8px;border-radius:var(--r)}
+  .step .n{width:18px;height:18px;border-radius:50%;border:1px solid var(--hair);display:flex;align-items:center;
+           justify-content:center;font-size:10px}
+  .step.on{color:var(--hi)} .step.on .n{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+  .step.done .n{background:var(--accent-dim);color:var(--accent);border-color:var(--accent)}
+  .mini label{font-size:10px;color:var(--mid);display:block;margin-bottom:3px}
+  .mini .inp{padding:6px 8px;font-size:12px;margin-bottom:9px}
+
+  /* ---------- STATES ---------- */
+  .col3{display:flex;gap:22px}
+  .panelbox{flex:1;background:var(--panel);border:1px solid var(--hair);border-radius:6px;padding:16px}
+  .panelbox h3{margin:0 0 4px;font-size:13px} .panelbox p.s{margin:0 0 14px;color:var(--lo);font-size:11.5px}
+  .test{display:flex;align-items:center;gap:10px;background:var(--raised);border:1px solid var(--hair);
+        border-radius:var(--r);padding:10px 12px;font-size:12.5px;margin-bottom:10px}
+  .spin{width:13px;height:13px;border:2px solid var(--hair);border-top-color:var(--accent);border-radius:50%}
+  .chk{color:var(--ok)} .bad{color:var(--err)}
+  .test .mono{color:var(--mid);font-size:11px}
+  .vault{max-width:420px}
+  .strength{height:5px;border-radius:3px;background:#0F1116;margin:8px 0 4px;overflow:hidden}
+  .strength i{display:block;height:100%;width:72%;background:var(--ok)}
+  .pw-hint{color:var(--lo);font-size:11px}
+  .kbd{font:600 10px/1 'JetBrains Mono',monospace;background:#0F1116;border:1px solid var(--hair);
+       border-radius:3px;padding:3px 5px;color:var(--mid)}
+</style>
+</head>
+<body class="hero">
+
+<!-- ============ HERO ============ -->
+<div class="frame hero">
+  <p class="cap">Connection UX · hero — sidebar + wizard (two-pane layout)</p>
+  <div class="win">
+    <!-- SIDEBAR -->
+    <div class="side">
+      <div class="side-h"><span class="dot"></span><span class="ttl">VoltQuery</span><span class="sp"></span>
+        <div class="plus">+</div></div>
+      <div class="search mono">⌕ filter connections…</div>
+      <div class="grp">Local</div>
+      <div class="conn"><span class="badge b-lt">S</span><div class="col"><span class="nm">app.sqlite</span>
+        <span class="sub mono">~/dev/app.sqlite</span></div><span class="st off"></span></div>
+      <div class="grp">Production</div>
+      <div class="conn active"><span class="badge b-pg">P</span><div class="col"><span class="nm">orders-db</span>
+        <span class="sub mono">db.prod:5432 · orders</span></div><span class="st on"></span></div>
+      <div class="conn"><span class="badge b-my">M</span><div class="col"><span class="nm">analytics</span>
+        <span class="sub mono">mysql.prod:3306</span></div><span class="st off"></span></div>
+      <div class="conn"><span class="badge b-pg">P</span><div class="col"><span class="nm">warehouse</span>
+        <span class="sub mono">wh.prod:5432 · dwh</span></div><span class="st off"></span></div>
+      <div class="side-f"><span class="badge b-lt" style="background:var(--accent)">🔓</span>Vault unlocked
+        <span class="lockpill">⏱ idle-lock 15m</span></div>
+    </div>
+    <!-- STAGE + MODAL -->
+    <div class="stage">
+      <div class="scrim"></div>
+      <div class="modal">
+        <div class="m-h"><span class="badge b-pg">P</span><span class="t">New connection</span><span class="x">✕</span></div>
+        <div class="m-b">
+          <div class="eng-rail">
+            <div class="eng"><span class="badge b-pg">P</span>PostgreSQL</div>
+            <div class="eng sel"><span class="badge b-pg">P</span>PostgreSQL</div>
+            <div class="eng"><span class="badge b-my">M</span>MySQL / MariaDB</div>
+            <div class="eng"><span class="badge b-lt">S</span>SQLite</div>
+          </div>
+          <div class="form">
+            <div class="field"><label>Name</label><input class="inp" value="orders-db"></div>
+            <div class="row">
+              <div class="field" style="flex:3"><label>Host</label><input class="inp focus" value="db.prod.internal"></div>
+              <div class="field"><label>Port</label><input class="inp mono" value="5432"></div>
+            </div>
+            <div class="row">
+              <div class="field"><label>User</label><input class="inp" value="app_ro"></div>
+              <div class="field"><label>Password</label><input class="inp mono" type="password" value="••••••••"></div>
+            </div>
+            <div class="row">
+              <div class="field"><label>Default database</label><input class="inp" value="orders"></div>
+              <div class="field"><label>TLS</label><input class="inp" value="require ▾"></div>
+            </div>
+          </div>
+        </div>
+        <div class="m-f">
+          <button class="btn ghost">⚡ Test connection</button>
+          <span class="chk" style="font-size:12px">✔ Connected · PostgreSQL 16.2</span>
+          <span class="sp"></span>
+          <button class="btn">Cancel</button>
+          <button class="btn pri">Save &amp; connect</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ VARIANTS ============ -->
+<div class="frame variants">
+  <p class="cap">Connection wizard — three layout options (pick one)</p>
+  <div class="cards">
+    <!-- A -->
+    <div class="card">
+      <div class="c-h"><span class="k">A</span><span class="t">Single-pane form</span></div>
+      <div class="c-b">
+        <div class="mini">
+          <label>Engine</label><div class="inp mono" style="padding:6px 8px;font-size:12px;margin-bottom:9px">PostgreSQL ▾</div>
+          <label>Name</label><div class="inp" style="padding:6px 8px;font-size:12px;margin-bottom:9px">orders-db</div>
+          <div class="row"><div><label>Host</label><div class="inp" style="padding:6px 8px;font-size:12px">db.prod</div></div>
+            <div style="max-width:64px"><label>Port</label><div class="inp mono" style="padding:6px 8px;font-size:12px">5432</div></div></div>
+          <div style="height:9px"></div>
+          <div class="row"><div><label>User</label><div class="inp" style="padding:6px 8px;font-size:12px">app_ro</div></div>
+            <div><label>Password</label><div class="inp mono" style="padding:6px 8px;font-size:12px">••••••</div></div></div>
+          <div style="height:9px"></div>
+          <label>Default DB</label><div class="inp" style="padding:6px 8px;font-size:12px">orders</div>
+        </div>
+      </div>
+      <div class="note">Everything on one dialog. Fastest for power users; engine dropdown swaps which fields show. Can feel dense.</div>
+    </div>
+    <!-- B -->
+    <div class="card">
+      <div class="c-h"><span class="k">B</span><span class="t">Stepped wizard</span></div>
+      <div class="c-b">
+        <div class="steps">
+          <div class="step done"><span class="n">✓</span>Engine — PostgreSQL</div>
+          <div class="step on"><span class="n">2</span>Connection</div>
+          <div class="step"><span class="n">3</span>Authentication</div>
+          <div class="step"><span class="n">4</span>Options &amp; TLS</div>
+        </div>
+        <div style="height:14px"></div>
+        <div class="mini">
+          <label>Host</label><div class="inp focus" style="padding:6px 8px;font-size:12px;margin-bottom:9px">db.prod.internal</div>
+          <div class="row"><div><label>Port</label><div class="inp mono" style="padding:6px 8px;font-size:12px">5432</div></div>
+            <div><label>Default DB</label><div class="inp" style="padding:6px 8px;font-size:12px">orders</div></div></div>
+        </div>
+      </div>
+      <div class="note">Guided steps. Friendliest for newcomers &amp; per-engine differences; slower — more clicks for a quick add.</div>
+    </div>
+    <!-- C -->
+    <div class="card reco">
+      <div class="c-h"><span class="k">C</span><span class="t">Two-pane (engine rail + form)</span><span class="tag">hero</span></div>
+      <div class="c-b" style="padding:0">
+        <div style="display:flex;height:100%">
+          <div style="width:120px;border-right:1px solid var(--hair);padding:10px">
+            <div class="eng"><span class="badge b-pg">P</span>Postgres</div>
+            <div class="eng sel" style="padding:6px"><span class="badge b-pg">P</span>Postgres</div>
+            <div class="eng" style="padding:6px"><span class="badge b-my">M</span>MySQL</div>
+            <div class="eng" style="padding:6px"><span class="badge b-lt">S</span>SQLite</div>
+          </div>
+          <div style="flex:1;padding:12px">
+            <div class="mini">
+              <label>Name</label><div class="inp" style="padding:6px 8px;font-size:12px;margin-bottom:9px">orders-db</div>
+              <label>Host</label><div class="inp focus" style="padding:6px 8px;font-size:12px;margin-bottom:9px">db.prod</div>
+              <div class="row"><div><label>User</label><div class="inp" style="padding:6px 8px;font-size:12px">app_ro</div></div>
+                <div><label>Pass</label><div class="inp mono" style="padding:6px 8px;font-size:12px">••••</div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="note">Engine picker always visible; form adapts. One glance, no steps; SQLite shows a file-picker instead of host/port.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ STATES ============ -->
+<div class="frame states">
+  <p class="cap">Test-connection states · master-password (Linux vault)</p>
+  <div class="col3">
+    <div class="panelbox">
+      <h3>Test connection</h3><p class="s">inline in the wizard footer</p>
+      <div class="test"><span class="btn ghost">⚡ Test</span><span class="mid" style="color:var(--lo);font-size:12px">idle</span></div>
+      <div class="test"><span class="spin"></span>Testing… <span class="mono">db.prod:5432</span></div>
+      <div class="test"><span class="chk">✔</span>Connected <span class="mono">· PostgreSQL 16.2 · 41 ms</span></div>
+      <div class="test"><span class="bad">✕</span>Auth failed <span class="mono">· 28P01 password mismatch</span></div>
+      <div class="test"><span class="bad">✕</span>Unreachable <span class="mono">· connectionFailed · timeout 5s</span></div>
+    </div>
+    <div class="panelbox">
+      <h3>Create master password</h3><p class="s">first secret save · Linux vault</p>
+      <div class="vault mini">
+        <label>Master password</label><div class="inp mono focus" style="padding:8px">••••••••••••</div>
+        <div class="strength"><i></i></div><div class="pw-hint">Strong · Argon2id · unlocks the local vault</div>
+        <div style="height:10px"></div>
+        <label>Confirm</label><div class="inp mono" style="padding:8px">••••••••••••</div>
+        <div style="height:14px"></div>
+        <button class="btn pri" style="width:100%">Create vault &amp; save secret</button>
+        <p class="pw-hint" style="margin-top:10px">⚠ Not recoverable — VoltQuery can’t reset it. Stored nowhere.</p>
+      </div>
+    </div>
+    <div class="panelbox">
+      <h3>Unlock vault</h3><p class="s">first connect after launch</p>
+      <div class="vault mini">
+        <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px;color:var(--mid);font-size:12.5px">
+          <span class="badge b-lt" style="background:var(--warn)">🔒</span>Vault locked</div>
+        <label>Master password</label><div class="inp mono focus" style="padding:8px">••••••••</div>
+        <div style="height:14px"></div>
+        <button class="btn pri" style="width:100%">Unlock <span class="kbd" style="margin-left:6px;color:var(--on-accent);background:transparent;border-color:rgba(4,34,43,.4)">↵</span></button>
+        <p class="pw-hint" style="margin-top:10px">Key held in memory this session · idle auto-lock 15m · never written to disk.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const v=new URLSearchParams(location.search).get('view')||'hero';
+  document.body.className=v;
+</script>
+</body>
+</html>
