@@ -1,3 +1,4 @@
+import 'package:base_menu/base_menu.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
@@ -14,6 +15,9 @@ import '../../features/schema_browser/schema_sidebar.dart';
 // TODO(theming #7): unify tokens into ui/core/theme.
 const _panel = Color(0xFF16181D);
 const _hair = Color(0xFF262A31);
+const _text = Color(0xFFE6E8EC);
+const _textMid = Color(0xFF9BA1AD);
+const _accent = Color(0xFF2FE6FF);
 
 /// Auto-hiding scrollbars for the panels — fluent's default (Linux/Windows) keeps
 /// a persistent vertical bar; `thumbVisibility: false` shows it only while
@@ -58,6 +62,9 @@ class _AppShellState extends ConsumerState<AppShell> {
       PaneEntry(id: 'main', initialSize: PaneSize.fraction(1.0)),
     ],
   );
+  final _fileMenu = MenuController();
+  final _queryMenu = MenuController();
+  final _viewMenu = MenuController();
 
   void _newTab() => ref.read(worksheetTabsProvider.notifier).add();
   void _dispatch(WorksheetCommand c) =>
@@ -130,58 +137,147 @@ class _AppShellState extends ConsumerState<AppShell> {
         border: Border(bottom: BorderSide(color: _hair)),
       ),
       alignment: Alignment.centerLeft,
-      child: MenuBar(
-        items: [
-          MenuBarItem(
-            title: 'File',
-            items: [
-              MenuFlyoutItem(
-                text: const Text('New Worksheet     Ctrl+N'),
-                onPressed: _newTab,
-              ),
-              MenuFlyoutItem(
-                text: const Text('Open SQLite…      Ctrl+O'),
-                onPressed: _openSqlite,
-              ),
-            ],
-          ),
-          MenuBarItem(
-            title: 'Query',
-            items: [
-              MenuFlyoutItem(
-                text: const Text('Run               Ctrl+Enter'),
-                onPressed: () => _dispatch(WorksheetCommand.runSmart),
-              ),
-              MenuFlyoutItem(
-                text: const Text('Run Script        F5'),
-                onPressed: () => _dispatch(WorksheetCommand.runWhole),
-              ),
-              MenuFlyoutItem(
-                text: const Text('Run at Cursor'),
-                onPressed: () => _dispatch(WorksheetCommand.runAtCursor),
-              ),
-              MenuFlyoutItem(
-                text: const Text('Run Selection'),
-                onPressed: () => _dispatch(WorksheetCommand.runSelection),
-              ),
-              const MenuFlyoutSeparator(),
-              MenuFlyoutItem(
-                text: const Text('Cancel'),
-                onPressed: () => _dispatch(WorksheetCommand.cancel),
-              ),
-            ],
-          ),
-          MenuBarItem(
-            title: 'View',
-            items: [
-              MenuFlyoutItem(
-                text: const Text('Refresh Schema'),
-                onPressed: _refreshSchema,
-              ),
-            ],
-          ),
-        ],
+      child: BaseMenuBar(
+        child: BaseMenuPanel(
+          constraints: const BoxConstraints.tightFor(height: 30),
+          children: [
+            _topMenu(_fileMenu, 'File', [
+              _MenuAction('New Worksheet', _newTab, accel: 'Ctrl+N'),
+              _MenuAction('Open SQLite…', _openSqlite, accel: 'Ctrl+O'),
+            ]),
+            _topMenu(_queryMenu, 'Query', [
+              _MenuAction('Run', () => _dispatch(WorksheetCommand.runSmart),
+                  accel: 'Ctrl+Enter'),
+              _MenuAction('Run Script', () => _dispatch(WorksheetCommand.runWhole),
+                  accel: 'F5'),
+              _MenuAction(
+                  'Run at Cursor', () => _dispatch(WorksheetCommand.runAtCursor)),
+              _MenuAction(
+                  'Run Selection', () => _dispatch(WorksheetCommand.runSelection)),
+              _MenuAction.separator,
+              _MenuAction('Cancel', () => _dispatch(WorksheetCommand.cancel)),
+            ]),
+            _topMenu(_viewMenu, 'View', [
+              _MenuAction('Refresh Schema', _refreshSchema),
+            ]),
+          ],
+        ),
       ),
     );
   }
+
+  /// A top-level menu (File/Query/View) as a BaseSubmenu with a styled anchor +
+  /// a dark dropdown panel.
+  Widget _topMenu(
+      MenuController controller, String title, List<_MenuAction> actions) {
+    return BaseSubmenu(
+      controller: controller,
+      requestCloseOnPointerExit: false,
+      // Without an onPressed the anchor is tap-disabled (hover-only). Toggle so
+      // clicking opens/closes too — the expected menubar behaviour.
+      onPressed: () =>
+          controller.isOpen ? controller.close() : controller.open(),
+      menu: DecoratedBox(
+        decoration: BoxDecoration(
+          color: _panel,
+          border: Border.all(color: _hair),
+          borderRadius: BorderRadius.circular(6),
+          boxShadow: const [
+            BoxShadow(color: Color(0x66000000), blurRadius: 12, offset: Offset(0, 4)),
+          ],
+        ),
+        child: BaseMenuPanel(
+          constraints: const BoxConstraints.tightFor(width: 232),
+          children: [
+            const SizedBox(height: 4),
+            for (final a in actions)
+              a.isSeparator
+                  ? const _MenuSeparator()
+                  : BaseMenuItem(onPressed: a.onPressed, child: _MenuRow(a)),
+            const SizedBox(height: 4),
+          ],
+        ),
+      ),
+      child: _TopLabel(title),
+    );
+  }
+}
+
+/// One dropdown action (or a separator sentinel).
+class _MenuAction {
+  const _MenuAction(this.label, this.onPressed, {this.accel})
+      : isSeparator = false;
+  const _MenuAction._sep()
+      : label = '',
+        onPressed = _noop,
+        accel = null,
+        isSeparator = true;
+
+  static const separator = _MenuAction._sep();
+  static void _noop() {}
+
+  final String label;
+  final VoidCallback onPressed;
+  final String? accel;
+  final bool isSeparator;
+}
+
+/// Top-bar menu button with hover highlight.
+class _TopLabel extends StatefulWidget {
+  const _TopLabel(this.title);
+  final String title;
+  @override
+  State<_TopLabel> createState() => _TopLabelState();
+}
+
+class _TopLabelState extends State<_TopLabel> {
+  bool _hover = false;
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: Container(
+        color: _hover ? const Color(0x14FFFFFF) : null,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        alignment: Alignment.center,
+        child: Text(widget.title,
+            style: const TextStyle(color: _text, fontSize: 12.5)),
+      ),
+    );
+  }
+}
+
+/// A dropdown row: label + optional accelerator hint, focus-highlighted.
+class _MenuRow extends StatelessWidget {
+  const _MenuRow(this.action);
+  final _MenuAction action;
+  @override
+  Widget build(BuildContext context) {
+    final focused = BaseMenuItem.isFocusHighlightShownOf(context);
+    return Container(
+      color: focused ? _accent.withValues(alpha: 0.16) : null,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Row(children: [
+        Expanded(
+          child: Text(action.label,
+              style: const TextStyle(color: _text, fontSize: 12.5)),
+        ),
+        if (action.accel != null) ...[
+          const SizedBox(width: 24),
+          Text(action.accel!,
+              style: const TextStyle(color: _textMid, fontSize: 11)),
+        ],
+      ]),
+    );
+  }
+}
+
+class _MenuSeparator extends StatelessWidget {
+  const _MenuSeparator();
+  @override
+  Widget build(BuildContext context) => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+        child: SizedBox(height: 1, child: ColoredBox(color: _hair)),
+      );
 }
