@@ -284,6 +284,22 @@ final worksheetSeedsProvider =
     );
 
 typedef _$WorksheetSeeds = Notifier<Map<String, String>>;
+String _$worksheetCommandsHash() => r'68885aa59a0780c054e9674b0baa24539f494a92';
+
+/// See also [WorksheetCommands].
+@ProviderFor(WorksheetCommands)
+final worksheetCommandsProvider =
+    NotifierProvider<WorksheetCommands, WorksheetCommandEvent?>.internal(
+      WorksheetCommands.new,
+      name: r'worksheetCommandsProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$worksheetCommandsHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$WorksheetCommands = Notifier<WorksheetCommandEvent?>;
 String _$continueOnErrorHash() => r'55541eed319adbd206cb1bc2177f23fd25a8c422';
 
 /// Run-loop error policy (ADR-0007). Default **stop-on-error**; toggled to

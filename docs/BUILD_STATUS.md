@@ -40,17 +40,23 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   *Deviation:* vault used on all platforms; mac/win keychain deferred.
 - **Persistence** (drift `voltquery.db`, ADR-0005): query **history** panel +
   saved connections (schema v2 + migration). Secret-free.
+- **App shell** (`ui/core/shell/app_shell.dart`): a **menu bar** (File / Query /
+  View) over the sidebar | workspace split, plus **app-wide shortcuts** (⌃⏎ Run,
+  F5 Run-script, Ctrl+N new tab, Ctrl+O open) routed to the active Worksheet via a
+  `WorksheetCommands` bus — so Run works regardless of focus (⌃⏎ chains after a
+  run). NavigationView rail is still TODO (#21).
 - **State**: Riverpod **codegen** (`@riverpod`, ADR-0004). Run
   `dart run build_runner build` after editing providers/drift tables.
 - **Theming**: inline "Clean Dev-Tool" tokens (dark, cyan accent) — not yet in
   `ui/core/theme` (still TODO per #7).
 
-**65 tests** green (`flutter test`); `flutter analyze` clean.
+**66 tests** green (`flutter test`); `flutter analyze` clean.
 
 ## Deferred / known gaps
 
-- Grid **keyboard cell navigation** — issue #21 (selection works; arrow-nav needs
-  focus/shortcuts work, batched with the shell).
+- **NavigationView rail + grid keyboard cell nav** — #21 remainder. Menu bar +
+  global shortcuts landed; the NavigationView rail and pluto_grid arrow-key cell
+  nav (+ returning caret focus to the editor after a run) are still open.
 - **Node interactions** (#53) — right-click context menu (copy name / copy
   `CREATE` / open SELECT / preview data) across tables, columns, indexes.
 - **Tables/Views folders + sibling render-cap/filter** — the lazy tree flattens
@@ -68,8 +74,7 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 
 ## Next candidates (pick one)
 
-1. Keyboard nav / shortcuts (#21) + the app shell (NavigationView + menu bar) —
-   also the home for solving editor focus-after-run app-wide.
+1. NavigationView rail + grid keyboard cell nav (#21 remainder).
 2. Background isolate for the SQLite driver — unblocks true Cancel + timeouts.
 3. Node interactions (#53) + Tables/Views folders + large-schema render-cap.
 4. Postgres/MySQL TLS.

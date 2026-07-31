@@ -65,9 +65,9 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
     super.dispose();
   }
 
-  // TODO(#12): keep the editor focused after a run so ⌃⏎ can be chained. A naive
-  // requestFocus fought the result grid and left the editor half-focused (caret
-  // dead), so focus handling is deferred until it can be solved app-wide.
+  // ⌃⏎ chaining works without editor focus now that Run is an app-wide shortcut
+  // (see AppShell → WorksheetCommands). Returning caret focus after a run so you
+  // can keep *typing* is still open (a naive requestFocus fought the grid).
   void _runSql(String sql) =>
       ref.read(worksheetProvider(widget.worksheetId).notifier).run(sql);
 
@@ -119,6 +119,23 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
         ref.read(requestedQueryProvider.notifier).clear();
       }
     });
+    // Menu-bar / global-shortcut commands go to the active worksheet.
+    ref.listen<WorksheetCommandEvent?>(worksheetCommandsProvider, (_, e) {
+      if (e == null) return;
+      if (ref.read(worksheetTabsProvider).activeId != widget.worksheetId) return;
+      switch (e.command) {
+        case WorksheetCommand.runSmart:
+          _runSmart();
+        case WorksheetCommand.runWhole:
+          _run();
+        case WorksheetCommand.runAtCursor:
+          _runAtCursor();
+        case WorksheetCommand.runSelection:
+          _runSelection();
+        case WorksheetCommand.cancel:
+          ref.read(worksheetProvider(widget.worksheetId).notifier).cancel();
+      }
+    });
     return Container(
       color: _bg,
       child: MultiPane(
@@ -150,23 +167,18 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
       children: [
         _toolbar(connName),
         Expanded(
-          child: CallbackShortcuts(
-            bindings: {
-              const SingleActivator(LogicalKeyboardKey.enter, control: true):
-                  _runSmart,
-              const SingleActivator(LogicalKeyboardKey.enter, meta: true):
-                  _runSmart,
-            },
-            child: CodeEditor(
-              controller: _code,
-              shortcutsActivatorsBuilder: const _SqlEditorShortcuts(),
-              style: CodeEditorStyle(
-                fontSize: 13.5,
-                backgroundColor: _bg,
-                codeTheme: CodeHighlightTheme(
-                  languages: {'sql': CodeHighlightThemeMode(mode: langSql)},
-                  theme: atomOneDarkTheme,
-                ),
+          // ⌃⏎ is handled app-wide at the shell (survives focus leaving the
+          // editor after a run); the editor's own newLine binding drops ⌃⏎ so it
+          // bubbles up (see _SqlEditorShortcuts).
+          child: CodeEditor(
+            controller: _code,
+            shortcutsActivatorsBuilder: const _SqlEditorShortcuts(),
+            style: CodeEditorStyle(
+              fontSize: 13.5,
+              backgroundColor: _bg,
+              codeTheme: CodeHighlightTheme(
+                languages: {'sql': CodeHighlightThemeMode(mode: langSql)},
+                theme: atomOneDarkTheme,
               ),
             ),
           ),

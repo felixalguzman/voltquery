@@ -172,6 +172,30 @@ class WorksheetSeeds extends _$WorksheetSeeds {
 @riverpod
 WorksheetRunner worksheetRunner(Ref ref) => const WorksheetRunner();
 
+/// Commands issued from the app shell (menu bar / global shortcuts) that the
+/// **active** Worksheet executes against its own editor + Session. `runSmart` =
+/// selection-else-cursor (the worksheet decides, since only it knows the caret).
+enum WorksheetCommand { runSmart, runWhole, runAtCursor, runSelection, cancel }
+
+/// One dispatched command; [seq] makes repeated same-command dispatches distinct
+/// so `ref.listen` fires every time (e.g. Ctrl+Enter twice).
+class WorksheetCommandEvent {
+  const WorksheetCommandEvent(this.seq, this.command);
+  final int seq;
+  final WorksheetCommand command;
+}
+
+@Riverpod(keepAlive: true)
+class WorksheetCommands extends _$WorksheetCommands {
+  int _seq = 0;
+
+  @override
+  WorksheetCommandEvent? build() => null;
+
+  void dispatch(WorksheetCommand command) =>
+      state = WorksheetCommandEvent(_seq++, command);
+}
+
 /// Run-loop error policy (ADR-0007). Default **stop-on-error**; toggled to
 /// continue-on-error from the worksheet toolbar. Global (kept alive) so it
 /// persists across worksheet rebuilds.
