@@ -1,8 +1,8 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'ui/core/shell/app_shell.dart';
 import 'ui/features/query_workspace/worksheet_providers.dart';
-import 'ui/features/query_workspace/worksheet_view.dart';
 
 /// VoltQuery — futuristic cross-platform SQL database manager (DBeaver alt).
 ///
@@ -46,7 +46,7 @@ class _Home extends ConsumerWidget {
       content: session.when(
         loading: () => const Center(child: ProgressRing()),
         error: (e, _) => Center(child: Text('Failed to open demo DB: $e')),
-        data: (_) => const WorksheetView(),
+        data: (_) => const AppShell(),
       ),
     );
   }
