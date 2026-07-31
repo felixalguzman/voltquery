@@ -78,6 +78,20 @@ void main() {
     expect(cols.firstWhere((c) => c.name == 'email').nullable, isFalse);
   });
 
+  test('introspection flags foreign-key columns', () async {
+    await session.execute('CREATE TABLE parent (id INTEGER PRIMARY KEY)');
+    await session.execute('CREATE TABLE child ('
+        'id INTEGER PRIMARY KEY, '
+        'parent_id INTEGER REFERENCES parent(id))');
+
+    final cols = await session.schema
+        .columns(const TableInfo(name: 'child', kind: ObjectKind.table));
+    final byName = {for (final c in cols) c.name: c};
+    expect(byName['parent_id']!.isForeignKey, isTrue);
+    expect(byName['id']!.isForeignKey, isFalse);
+    expect(byName['id']!.isPrimaryKey, isTrue);
+  });
+
   test('introspection lists indexes with columns and uniqueness', () async {
     await session.execute(
         'CREATE TABLE t (id INTEGER PRIMARY KEY, a TEXT, b TEXT)');

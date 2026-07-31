@@ -168,8 +168,17 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
           TreeViewItem(
             collapsable: false,
             leading: Icon(
-                c.isPrimaryKey ? FluentIcons.permissions : FluentIcons.circle_ring,
-                size: 11, color: c.isPrimaryKey ? _accent : _textLo),
+                c.isPrimaryKey
+                    ? FluentIcons.permissions
+                    : c.isForeignKey
+                        ? FluentIcons.link
+                        : FluentIcons.circle_ring,
+                size: 11,
+                color: c.isPrimaryKey
+                    ? _accent
+                    : c.isForeignKey
+                        ? const Color(0xFFB98CFF)
+                        : _textLo),
             // Name sizes to content but capped at ~55% of the *actual* row
             // width (via LayoutBuilder — flex weights would reserve a fixed
             // share and truncate the type even with space free); the type takes

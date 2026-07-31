@@ -143,6 +143,19 @@ class _MysqlIntrospector implements SchemaIntrospector {
 
   @override
   Future<List<ColumnInfo>> columns(TableInfo table) async {
+    final keys = await _conn.execute(
+      'SELECT column_name, constraint_name, referenced_table_name '
+      'FROM information_schema.key_column_usage '
+      'WHERE table_schema = DATABASE() AND table_name = :t',
+      {'t': table.name},
+    );
+    final pk = <String>{};
+    final fk = <String>{};
+    for (final r in keys.rows) {
+      final col = r.colAt(0) ?? '';
+      if (r.colAt(1) == 'PRIMARY') pk.add(col);
+      if (r.colAt(2) != null) fk.add(col); // referenced_table_name set → FK
+    }
     final rs = await _conn.execute(
       'SELECT column_name, data_type, is_nullable, ordinal_position, column_default '
       'FROM information_schema.columns '
@@ -156,8 +169,8 @@ class _MysqlIntrospector implements SchemaIntrospector {
           name: r.colAt(0) ?? '',
           dataType: r.colAt(1) ?? '',
           nullable: r.colAt(2) == 'YES',
-          isPrimaryKey: false, // TODO(slice): key constraints
-          isForeignKey: false,
+          isPrimaryKey: pk.contains(r.colAt(0)),
+          isForeignKey: fk.contains(r.colAt(0)),
           ordinal: (int.tryParse(r.colAt(3) ?? '') ?? 1) - 1,
           defaultValue: r.colAt(4),
         ),
