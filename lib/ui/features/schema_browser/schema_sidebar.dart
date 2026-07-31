@@ -147,12 +147,14 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
         value: _Loader(() async => _columnItems(await widget.repo.columns(t))),
         onInvoked: (item, reason) async {
           // The chevron also fires onInvoked(expandToggle) — ignore that; only a
-          // row press runs the query.
+          // row press opens the table.
           if (reason == TreeViewItemInvokeReason.expandToggle) return;
           final name = t.name.replaceAll('"', '""');
+          // Open in a NEW worksheet tab — never clobber the current editor.
+          final id = ref.read(worksheetTabsProvider.notifier).add();
           ref
-              .read(requestedQueryProvider.notifier)
-              .request('SELECT * FROM "$name" LIMIT 200;');
+              .read(worksheetSeedsProvider.notifier)
+              .put(id, 'SELECT * FROM "$name" LIMIT 200;');
         },
         onExpandToggle: _onExpand,
       );

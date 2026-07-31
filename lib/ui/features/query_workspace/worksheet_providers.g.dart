@@ -260,6 +260,30 @@ final requestedQueryProvider =
     );
 
 typedef _$RequestedQuery = AutoDisposeNotifier<String?>;
+String _$worksheetSeedsHash() => r'fca6e88af46bd186fafc223bb043397085b9c0b6';
+
+/// One-shot initial SQL for a **freshly opened** Worksheet — the sidebar's
+/// "open table" opens a *new* tab (never clobbering the current editor) and
+/// seeds it here. The Worksheet consumes + clears its seed on first build.
+///
+/// **keepAlive**: nobody *watches* this (only `put`/`take`), so an autoDispose
+/// provider would reset to `{}` in the microtask between opening the tab and the
+/// new Worksheet's `initState` reading the seed — losing it.
+///
+/// Copied from [WorksheetSeeds].
+@ProviderFor(WorksheetSeeds)
+final worksheetSeedsProvider =
+    NotifierProvider<WorksheetSeeds, Map<String, String>>.internal(
+      WorksheetSeeds.new,
+      name: r'worksheetSeedsProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$worksheetSeedsHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$WorksheetSeeds = Notifier<Map<String, String>>;
 String _$worksheetHash() => r'fdd201207e9176d1d030d1ad62e2b6bc5c4e4671';
 
 abstract class _$Worksheet
@@ -401,7 +425,7 @@ class _WorksheetProviderElement
   String get worksheetId => (origin as WorksheetProvider).worksheetId;
 }
 
-String _$worksheetTabsHash() => r'bdeb62d5a31a2fed4bef3017eb48d2dc3f4569bc';
+String _$worksheetTabsHash() => r'b6f02373969814b18c88a5a038191d40b0053309';
 
 /// See also [WorksheetTabs].
 @ProviderFor(WorksheetTabs)
