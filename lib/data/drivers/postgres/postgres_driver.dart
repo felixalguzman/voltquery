@@ -214,8 +214,11 @@ class _PostgresIntrospector implements SchemaIntrospector {
     final schemaName = table.schema.isEmpty ? 'public' : table.schema;
     final r = await _conn.execute(
       pg.Sql.named(
-        'SELECT i.relname AS name, ix.indisunique AS is_unique, '
-        'array_agg(a.attname ORDER BY x.ordinality) AS cols '
+        // string_agg (not array_agg) — the postgres pkg returns array_agg as
+        // UndecodedBytes; a delimited text is decoded to a plain String. attname
+        // is null for expression columns; string_agg skips NULLs.
+        "SELECT i.relname AS name, ix.indisunique AS is_unique, "
+        "string_agg(a.attname, ',' ORDER BY x.ordinality) AS cols "
         'FROM pg_class t '
         'JOIN pg_namespace n ON n.oid = t.relnamespace '
         'JOIN pg_index ix ON ix.indrelid = t.oid '
@@ -233,10 +236,9 @@ class _PostgresIntrospector implements SchemaIntrospector {
         IndexInfo(
           name: row[0] as String,
           unique: row[1] as bool,
-          // array_agg → List; expression columns come back null — skip them.
-          columns: [
-            for (final c in (row[2] as List)) if (c != null) c as String,
-          ],
+          columns: (row[2] as String?)?.isNotEmpty ?? false
+              ? (row[2] as String).split(',')
+              : const [],
         ),
     ];
   }
