@@ -60,6 +60,7 @@ dependencies:
   drift: ^2.19.0
   path: ^1.9.1
   riverpod: ^2.6.1
+  cryptography: ^2.9.0
   # deferred to their build slices:
   #   drift (persistence #10) · cryptography + flutter_secure_storage (credentials #11)
   #   base_menu (needs Flutter >= 3.44.4 — bump first)

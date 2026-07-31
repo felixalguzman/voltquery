@@ -46,8 +46,11 @@ class CurrentConnection extends _$CurrentConnection {
 @Riverpod(keepAlive: true)
 Future<Session> introspectionSession(Ref ref) async {
   final conn = ref.watch(currentConnectionProvider);
-  final session = await driverFor(conn.engine)
-      .connect(conn, secret: ref.read(sessionSecretsProvider)[conn.id]);
+  final secret = conn.credentialRef == null
+      ? null
+      : await (await ref.read(secretStoreProvider.future))
+          .read(conn.credentialRef!);
+  final session = await driverFor(conn.engine).connect(conn, secret: secret);
   if (conn.id == 'demo') await _seedDemoIfEmpty(session);
   ref.onDispose(session.close);
   return session;
@@ -58,8 +61,11 @@ Future<Session> introspectionSession(Ref ref) async {
 @riverpod
 Future<Session> worksheetSession(Ref ref, String worksheetId) async {
   final conn = ref.watch(currentConnectionProvider);
-  final session = await driverFor(conn.engine)
-      .connect(conn, secret: ref.read(sessionSecretsProvider)[conn.id]);
+  final secret = conn.credentialRef == null
+      ? null
+      : await (await ref.read(secretStoreProvider.future))
+          .read(conn.credentialRef!);
+  final session = await driverFor(conn.engine).connect(conn, secret: secret);
   if (conn.id == 'demo') await _seedDemoIfEmpty(session);
   ref.onDispose(session.close);
   return session;
