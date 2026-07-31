@@ -41,6 +41,24 @@ void main() {
     expect(script.rowResults.length, 2);
   });
 
+  test('continue-on-error runs every statement despite a failure', () async {
+    final container = ProviderContainer(overrides: _memoryStore());
+    addTearDown(container.dispose);
+    container.read(continueOnErrorProvider.notifier).set(true);
+
+    final notifier = container.read(worksheetProvider('ws-c').notifier);
+    await notifier.run(
+      'SELECT 1;'
+      'DROP TABLE does_not_exist;' // fails, but we continue
+      'SELECT 2;',
+    );
+
+    final script = container.read(worksheetProvider('ws-c')) as WorksheetScript;
+    expect(script.outcomes.length, 3); // none skipped
+    expect(script.outcomes[1].isFailure, true);
+    expect(script.outcomes[2].isRows, true); // SELECT 2 still ran
+  });
+
   testWidgets('a multi-result script renders result sub-tabs + Messages',
       (tester) async {
     final container = ProviderContainer(overrides: _memoryStore());

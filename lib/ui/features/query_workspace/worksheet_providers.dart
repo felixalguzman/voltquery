@@ -172,6 +172,19 @@ class WorksheetSeeds extends _$WorksheetSeeds {
 @riverpod
 WorksheetRunner worksheetRunner(Ref ref) => const WorksheetRunner();
 
+/// Run-loop error policy (ADR-0007). Default **stop-on-error**; toggled to
+/// continue-on-error from the worksheet toolbar. Global (kept alive) so it
+/// persists across worksheet rebuilds.
+@Riverpod(keepAlive: true)
+class ContinueOnError extends _$ContinueOnError {
+  @override
+  bool build() => false;
+
+  void toggle() => state = !state;
+  // ignore: avoid_positional_boolean_parameters
+  void set(bool value) => state = value;
+}
+
 /// Per-Worksheet result state (family keyed by WorksheetId).
 @riverpod
 class Worksheet extends _$Worksheet {
@@ -221,6 +234,7 @@ class Worksheet extends _$Worksheet {
     }
 
     final runner = ref.read(worksheetRunnerProvider);
+    final continueOnError = ref.read(continueOnErrorProvider);
     final outcomes = <StatementOutcome>[];
     var ranDdl = false;
     for (var k = 0; k < statements.length; k++) {
@@ -247,7 +261,10 @@ class Worksheet extends _$Worksheet {
         ),
       );
       await _record(st.sql, started, sw.elapsedMilliseconds, result);
-      if (result is WorksheetFailure) break; // stop-on-error
+      if (result is WorksheetFailure) {
+        if (!continueOnError) break; // stop-on-error (default)
+        continue; // continue-on-error: a failed statement never counts as DDL
+      }
       if (st.kind == StatementKind.ddl) ranDdl = true;
     }
     state = WorksheetScript(outcomes);

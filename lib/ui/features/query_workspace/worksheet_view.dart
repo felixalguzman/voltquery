@@ -175,6 +175,20 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
     );
   }
 
+  Widget _continueOnErrorToggle() {
+    final on = ref.watch(continueOnErrorProvider);
+    return Tooltip(
+      message: on
+          ? 'Continue on error: ON (script runs past failures)'
+          : 'Stop on error (click to continue past failures)',
+      child: ToggleButton(
+        checked: on,
+        onChanged: (v) => ref.read(continueOnErrorProvider.notifier).set(v),
+        child: const Icon(FluentIcons.fast_forward, size: 14),
+      ),
+    );
+  }
+
   Widget _toolbar(String connName) {
     return Container(
       height: 42,
@@ -187,13 +201,18 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
         children: [
           const Icon(FluentIcons.database, size: 14, color: _accent),
           const SizedBox(width: 6),
-          Text(
-            '$connName · SQLite',
-            style: const TextStyle(color: _textMid, fontSize: 12),
+          Flexible(
+            child: Text(
+              '$connName · SQLite',
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: _textMid, fontSize: 12),
+            ),
           ),
           const SizedBox(width: 12),
           Button(onPressed: _openFile, child: const Text('Open…')),
           const Spacer(),
+          _continueOnErrorToggle(),
+          const SizedBox(width: 10),
           FilledButton(onPressed: _run, child: const Text('▶ Run')),
           const SizedBox(width: 6),
           DropDownButton(
