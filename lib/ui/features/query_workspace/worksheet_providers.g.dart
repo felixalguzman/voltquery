@@ -284,7 +284,27 @@ final worksheetSeedsProvider =
     );
 
 typedef _$WorksheetSeeds = Notifier<Map<String, String>>;
-String _$worksheetHash() => r'fdd201207e9176d1d030d1ad62e2b6bc5c4e4671';
+String _$continueOnErrorHash() => r'55541eed319adbd206cb1bc2177f23fd25a8c422';
+
+/// Run-loop error policy (ADR-0007). Default **stop-on-error**; toggled to
+/// continue-on-error from the worksheet toolbar. Global (kept alive) so it
+/// persists across worksheet rebuilds.
+///
+/// Copied from [ContinueOnError].
+@ProviderFor(ContinueOnError)
+final continueOnErrorProvider =
+    NotifierProvider<ContinueOnError, bool>.internal(
+      ContinueOnError.new,
+      name: r'continueOnErrorProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$continueOnErrorHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$ContinueOnError = Notifier<bool>;
+String _$worksheetHash() => r'4a855953f55a6aa8ef24e5afb09fa38cade25937';
 
 abstract class _$Worksheet
     extends BuildlessAutoDisposeNotifier<WorksheetResult> {
