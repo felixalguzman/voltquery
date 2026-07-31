@@ -6,7 +6,9 @@ import '../../../domain/drivers/driver.dart';
 import '../../../domain/drivers/result.dart';
 import '../../../domain/models/connection.dart';
 import '../../../domain/models/engine.dart';
+import '../../../domain/models/history_entry.dart';
 import '../../../domain/models/schema.dart';
+import '../history/history_providers.dart';
 import 'worksheet_runner.dart';
 import 'worksheet_state.dart';
 
@@ -104,10 +106,44 @@ class Worksheet extends _$Worksheet {
   void reset() => state = const WorksheetIdle();
 
   Future<void> run(String sql) async {
-    if (sql.trim().isEmpty) return;
+    final query = sql.trim();
+    if (query.isEmpty) return;
     state = const WorksheetRunning();
+    final started = DateTime.now();
+    final sw = Stopwatch()..start();
     final session = await ref.read(worksheetSessionProvider(worksheetId).future);
-    state = await ref.read(worksheetRunnerProvider).run(session, sql.trim());
+    final result = await ref.read(worksheetRunnerProvider).run(session, query);
+    sw.stop();
+    state = result;
+    await _record(query, started, sw.elapsedMilliseconds, result);
+  }
+
+  Future<void> _record(
+      String sql, DateTime started, int ms, WorksheetResult result) async {
+    final conn = ref.read(currentConnectionProvider);
+    final (HistoryStatus status, int? rowCount, String? errKind, String? errMsg) =
+        switch (result) {
+      WorksheetRows(:final rows) => (HistoryStatus.ok, rows.length, null, null),
+      WorksheetFailure(:final error) => (
+          HistoryStatus.error,
+          null,
+          error.kind.name,
+          error.message
+        ),
+      _ => (HistoryStatus.ok, null, null, null),
+    };
+    await ref.read(historyRepositoryProvider).record(HistoryEntry(
+          connectionName: conn.name,
+          engine: conn.engine.name,
+          databaseName: conn.defaultDatabase,
+          sql: sql,
+          startedAt: started,
+          durationMs: ms,
+          status: status,
+          rowCount: rowCount,
+          errorKind: errKind,
+          errorMessage: errMsg,
+        ));
   }
 }
 
