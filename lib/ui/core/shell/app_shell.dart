@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:panes/panes.dart';
 
 import '../../features/connections/connections_panel.dart';
+import '../../features/connections/host_key_dialog.dart';
 import '../../features/history/history_panel.dart';
 import '../../features/query_workspace/worksheet_providers.dart';
 import '../../features/query_workspace/worksheet_tabs.dart';
@@ -80,6 +81,30 @@ class _AppShellState extends ConsumerState<AppShell> {
       if (!mounted) return;
       final any = _fileMenu.isOpen || _queryMenu.isOpen || _viewMenu.isOpen;
       if (any != _barOpen) setState(() => _barOpen = any);
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // The tunnel refuses an unrecognised bastion unless something can ask the
+    // user about it; registering here is what turns "fail closed" into a
+    // prompt. Deferred a frame so the first build isn't mutating a provider.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(hostKeyPromptProvider.notifier).register(
+        (verdict, fingerprint) async {
+          if (!mounted) return false;
+          final conn = ref.read(currentConnectionProvider);
+          return showHostKeyDialog(
+            context,
+            verdict: verdict,
+            host: conn.options.ssh.host,
+            port: conn.options.ssh.port,
+            fingerprint: fingerprint,
+          );
+        },
+      );
     });
   }
 

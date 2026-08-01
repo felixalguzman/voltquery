@@ -59,6 +59,8 @@ dependencies:
   drift: ^2.31.0
   path: ^1.9.1
   riverpod: ^3.3.1
+  # SHA-256 for SSH host-key fingerprints (the SHA256:… form ssh prints).
+  crypto: ^3.0.0
   cryptography: ^2.9.0
   # SSH tunnelling (#connectivity): local port-forward to a database behind a
   # bastion. Pure Dart, so no platform channel or native ssh binary.
