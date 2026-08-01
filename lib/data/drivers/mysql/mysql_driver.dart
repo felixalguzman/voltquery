@@ -8,6 +8,7 @@ import '../../../domain/drivers/schema_introspector.dart';
 import '../../../domain/models/capabilities.dart';
 import '../../../domain/models/connection.dart';
 import '../../../domain/models/engine.dart';
+import '../../../domain/models/ssl_mode.dart';
 import '../../../domain/models/schema.dart';
 import '../buffered_cursor.dart';
 
@@ -22,6 +23,8 @@ class MysqlDriver implements Driver {
         hasServer: true,
         hasSchemas: false, // MySQL: Database == Schema
         supportsTls: true,
+        // mysql_client hardcodes onBadCertificate: (_) => true.
+        verifiesTlsCertificates: false,
         supportsQueryCancel: false, // not exposed by mysql_client
         supportsSavepoints: true,
         supportsNestedTransactions: false,
@@ -30,6 +33,16 @@ class MysqlDriver implements Driver {
 
   @override
   Future<Session> connect(Connection config, {String? secret}) async {
+    if (config.sslMode == SslMode.verifyFull) {
+      // Refusing beats connecting *and reporting* a verified channel we didn't
+      // verify — that would be a security claim the driver can't back.
+      throw DriverError(
+        DriverErrorKind.unsupported,
+        'mysql_client cannot verify server certificates (it accepts any '
+        'certificate), so "verify full" is not available for MySQL. Use '
+        '"required" for an encrypted but unverified connection.',
+      );
+    }
     try {
       final conn = await my.MySQLConnection.createConnection(
         host: config.host ?? 'localhost',
@@ -37,7 +50,11 @@ class MysqlDriver implements Driver {
         userName: config.username ?? 'root',
         password: secret ?? '',
         databaseName: config.defaultDatabase,
-        secure: false, // TODO(tls): derive from the connection's TLS setting.
+        // mysql_client's TLS is encrypt-only: it calls SecureSocket.secure
+        // with onBadCertificate: (_) => true, so certificates are never
+        // checked. `require` is therefore the strongest mode it can honour —
+        // verifyFull is refused above rather than silently downgraded.
+        secure: config.sslMode.enabled,
       );
       await conn.connect();
       return MysqlSession(config, conn);

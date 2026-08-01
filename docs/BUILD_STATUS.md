@@ -54,7 +54,9 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   `pg_enum`, MySQL `column_type`, or a SQLite `CHECK (col IN (...))`.
 - **Connections** (`connections/`): built-in demo + saved connections (drift),
   switch/add/delete; SQLite file-open; server form (Postgres/MySQL) with an inline
-  **Test connection**.
+  **Test connection** and a **TLS mode** picker (disable / require / verify-full,
+  default *require*). Postgres honours all three and accepts a custom CA PEM;
+  MySQL can only encrypt — see the known gap below.
 - **Credentials vault** (`data/services/secret_store.dart`, ADR-0006): Argon2id →
   AES-256-GCM envelope crypto, master password, locked each launch, header padlock.
   *Deviation:* vault used on all platforms; mac/win keychain deferred.
@@ -91,7 +93,10 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   main isolate) and per-statement **timeout** is not wired — both wait on the
   background-isolate slice. Run / Run-at-cursor / Run-selection, continue-on-error,
   and manual-commit are all done.
-- **TLS** — Postgres/MySQL connect with SSL disabled (`TODO(tls)` in the drivers).
+- **TLS certificate verification on MySQL** — `mysql_client` hardcodes
+  `SecureSocket.secure(onBadCertificate: (_) => true)`, so MySQL TLS is
+  encrypted but never authenticated. The driver refuses `verifyFull` rather
+  than downgrade silently; fixing it properly needs a different MySQL package.
 - mac/win **keychain** adapter for the SecretStore (ADR-0006).
 - `ui/core/theme` (mix tokens) not built; tokens are inlined per widget.
 
@@ -110,8 +115,8 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
    **deferred**. Both pluto and trina build every body column for every visible
    row, so a wide `SELECT *` is the failure mode — `wide_metrics` (5k × 26) is
    seeded for that test. See `docs/research/data-grid-options.md`.
-5. **Connectivity** — SSH tunnel + TLS + keep-alive. Without these VoltQuery
-   can't reach most production/cloud databases.
+5. **Connectivity** — **TLS landed**; SSH tunnel and keep-alive/auto-reconnect
+   remain. Without a tunnel, databases behind a bastion are still unreachable.
 6. Tables/Views folders + large-schema render-cap (#13 tail).
 7. `ui/core/theme` via mix.
 

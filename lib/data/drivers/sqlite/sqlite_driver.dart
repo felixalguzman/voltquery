@@ -21,6 +21,7 @@ class SqliteDriver implements Driver {
         hasServer: false,
         hasSchemas: false,
         supportsTls: false,
+        verifiesTlsCertificates: false,
         supportsQueryCancel: false, // sqlite3_interrupt not exposed
         supportsSavepoints: true, // via raw SAVEPOINT SQL
         supportsNestedTransactions: false,

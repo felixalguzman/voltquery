@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../data/drivers/driver_factory.dart';
 import '../../../domain/drivers/driver_error.dart';
+import '../../../domain/models/ssl_mode.dart';
 import '../../../domain/drivers/result.dart';
 import '../../../domain/models/connection.dart';
 import '../../../domain/models/engine.dart';
@@ -13,8 +14,10 @@ typedef ServerFormResult = ({Connection connection, String password});
 
 /// Connection form for a server engine (Postgres / MySQL) with an inline
 /// **Test connection**. The #14 wizard's server branch.
-Future<ServerFormResult?> showServerConnectionDialog(BuildContext context,
-    {required Engine engine}) {
+Future<ServerFormResult?> showServerConnectionDialog(
+  BuildContext context, {
+  required Engine engine,
+}) {
   return showDialog<ServerFormResult>(
     context: context,
     builder: (_) => _ServerDialog(engine: engine),
@@ -35,21 +38,43 @@ class _ServerDialogState extends State<_ServerDialog> {
   late final _name = TextEditingController(text: _isPg ? 'Postgres' : 'MySQL');
   final _host = TextEditingController(text: 'localhost');
   late final _port = TextEditingController(text: '${_isPg ? 5432 : 3306}');
-  late final _user =
-      TextEditingController(text: _isPg ? 'postgres' : 'root');
+  late final _user = TextEditingController(text: _isPg ? 'postgres' : 'root');
   final _password = TextEditingController();
-  late final _database =
-      TextEditingController(text: _isPg ? 'postgres' : '');
+  late final _database = TextEditingController(text: _isPg ? 'postgres' : '');
+
+  /// Defaults to `require`: encryption should be opted out of, and MySQL 8's
+  /// default auth plugin refuses to authenticate over a plaintext socket.
+  SslMode _ssl = SslMode.require;
+  final _caCert = TextEditingController();
 
   _Test _test = _Test.idle;
   String _testMsg = '';
+
+  /// mysql_client accepts any certificate, so it cannot offer verify-full —
+  /// see Capabilities.verifiesTlsCertificates.
+  bool get _canVerify =>
+      driverFor(widget.engine).capabilities.verifiesTlsCertificates;
+
+  List<SslMode> get _sslModes => [
+    SslMode.disable,
+    SslMode.require,
+    if (_canVerify) SslMode.verifyFull,
+  ];
 
   bool get _isPg => widget.engine == Engine.postgres;
   String get _dbLabel => _isPg ? 'PostgreSQL' : 'MySQL';
 
   @override
   void dispose() {
-    for (final c in [_name, _host, _port, _user, _password, _database]) {
+    for (final c in [
+      _name,
+      _host,
+      _port,
+      _user,
+      _password,
+      _database,
+      _caCert,
+    ]) {
       c.dispose();
     }
     super.dispose();
@@ -65,8 +90,11 @@ class _ServerDialogState extends State<_ServerDialog> {
       port: int.tryParse(_port.text.trim()) ?? (_isPg ? 5432 : 3306),
       username: _user.text.trim(),
       credentialRef: forSave ? id : null,
-      defaultDatabase:
-          _database.text.trim().isEmpty ? null : _database.text.trim(),
+      defaultDatabase: _database.text.trim().isEmpty
+          ? null
+          : _database.text.trim(),
+      sslMode: _ssl,
+      caCertPath: _caCert.text.trim().isEmpty ? null : _caCert.text.trim(),
     );
   }
 
@@ -76,18 +104,23 @@ class _ServerDialogState extends State<_ServerDialog> {
       _testMsg = '';
     });
     try {
-      final session = await driverFor(widget.engine)
-          .connect(_connection(forSave: false), secret: _password.text);
+      final session = await driverFor(
+        widget.engine,
+      ).connect(_connection(forSave: false), secret: _password.text);
       var server = 'Connected';
       try {
         final result = await session.execute('SELECT version()');
         if (result is RowsResult) {
           final rows = await result.cursor.fetch(1);
           final v = rows.first.values.first?.toString();
-          if (v != null && v.isNotEmpty) server = v.split(' ').take(2).join(' ');
+          if (v != null && v.isNotEmpty) {
+            server = v.split(' ').take(2).join(' ');
+          }
           await result.cursor.close();
         }
-      } catch (_) {/* version is best-effort */}
+      } catch (_) {
+        /* version is best-effort */
+      }
       await session.close();
       _setResult(_Test.ok, server);
     } on DriverError catch (e) {
@@ -122,83 +155,147 @@ class _ServerDialogState extends State<_ServerDialog> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _field('Name', _name),
-          Row(children: [
-            Expanded(flex: 3, child: _field('Host', _host)),
-            const SizedBox(width: 10),
-            Expanded(child: _field('Port', _port)),
-          ]),
-          Row(children: [
-            Expanded(child: _field('User', _user)),
-            const SizedBox(width: 10),
-            Expanded(child: _field('Password', _password, obscure: true)),
-          ]),
+          Row(
+            children: [
+              Expanded(flex: 3, child: _field('Host', _host)),
+              const SizedBox(width: 10),
+              Expanded(child: _field('Port', _port)),
+            ],
+          ),
+          Row(
+            children: [
+              Expanded(child: _field('User', _user)),
+              const SizedBox(width: 10),
+              Expanded(child: _field('Password', _password, obscure: true)),
+            ],
+          ),
           _field('Database', _database),
+          _sslField(),
           const SizedBox(height: 6),
           _testRow(),
         ],
       ),
       actions: [
         Button(
-            child: const Text('Cancel'),
-            onPressed: () => Navigator.pop(context)),
+          child: const Text('Cancel'),
+          onPressed: () => Navigator.pop(context),
+        ),
         FilledButton(onPressed: _save, child: const Text('Save & connect')),
       ],
     );
   }
 
-  Widget _testRow() => Row(children: [
-        Button(
-          onPressed: _test == _Test.testing ? null : _runTest,
-          child: const Text('⚡ Test connection'),
-        ),
-        const SizedBox(width: 10),
-        Expanded(child: _status()),
-      ]);
+  Widget _testRow() => Row(
+    children: [
+      Button(
+        onPressed: _test == _Test.testing ? null : _runTest,
+        child: const Text('⚡ Test connection'),
+      ),
+      const SizedBox(width: 10),
+      Expanded(child: _status()),
+    ],
+  );
 
   Widget _status() {
     switch (_test) {
       case _Test.idle:
         return const SizedBox.shrink();
       case _Test.testing:
-        return const Row(children: [
-          SizedBox(width: 12, height: 12, child: ProgressRing(strokeWidth: 2)),
-          SizedBox(width: 8),
-          Text('Testing…',
-              style: TextStyle(color: Color(0xFF9BA1AD), fontSize: 12)),
-        ]);
+        return const Row(
+          children: [
+            SizedBox(
+              width: 12,
+              height: 12,
+              child: ProgressRing(strokeWidth: 2),
+            ),
+            SizedBox(width: 8),
+            Text(
+              'Testing…',
+              style: TextStyle(color: Color(0xFF9BA1AD), fontSize: 12),
+            ),
+          ],
+        );
       case _Test.ok:
-        return Text('✔ $_testMsg',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Color(0xFF6FE39A), fontSize: 12));
+        return Text(
+          '✔ $_testMsg',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Color(0xFF6FE39A), fontSize: 12),
+        );
       case _Test.error:
         // Connection errors are the ones you actually need to read and paste
         // into a search — so the full text is selectable, scrollable rather
         // than clipped, and one click copies it.
-        return Row(children: [
-          Expanded(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 64),
-              child: SingleChildScrollView(
-                child: SelectableText(
-                  '✕ $_testMsg',
-                  style: const TextStyle(
-                      color: Color(0xFFFF6B6B), fontSize: 12),
+        return Row(
+          children: [
+            Expanded(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 64),
+                child: SingleChildScrollView(
+                  child: SelectableText(
+                    '✕ $_testMsg',
+                    style: const TextStyle(
+                      color: Color(0xFFFF6B6B),
+                      fontSize: 12,
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
-          Tooltip(
-            message: 'Copy error',
-            child: IconButton(
-              icon: const Icon(FluentIcons.copy,
-                  size: 12, color: Color(0xFF9BA1AD)),
-              onPressed: () =>
-                  Clipboard.setData(ClipboardData(text: _testMsg)),
+            Tooltip(
+              message: 'Copy error',
+              child: IconButton(
+                icon: const Icon(
+                  FluentIcons.copy,
+                  size: 12,
+                  color: Color(0xFF9BA1AD),
+                ),
+                onPressed: () =>
+                    Clipboard.setData(ClipboardData(text: _testMsg)),
+              ),
             ),
-          ),
-        ]);
+          ],
+        );
     }
+  }
+
+  Widget _sslField() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: InfoLabel(
+        label: 'TLS',
+        labelStyle: const TextStyle(fontSize: 12, color: Color(0xFF9BA1AD)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ComboBox<SslMode>(
+              value: _ssl,
+              isExpanded: true,
+              items: [
+                for (final m in _sslModes)
+                  ComboBoxItem(
+                    value: m,
+                    child: Text(m.label, style: const TextStyle(fontSize: 12)),
+                  ),
+              ],
+              onChanged: (m) => setState(() => _ssl = m ?? _ssl),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _canVerify
+                  ? _ssl.description
+                  : '${_ssl.description}  MySQL cannot verify certificates.',
+              style: const TextStyle(color: Color(0xFF5A6069), fontSize: 10.5),
+            ),
+            // Only meaningful when the certificate is actually checked.
+            if (_ssl == SslMode.verifyFull) ...[
+              const SizedBox(height: 8),
+              _field('CA certificate (optional, PEM)', _caCert),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _field(String label, TextEditingController c, {bool obscure = false}) {

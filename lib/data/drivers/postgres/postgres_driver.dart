@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:postgres/postgres.dart' as pg;
 
 import '../../../domain/drivers/driver.dart';
@@ -7,6 +8,7 @@ import '../../../domain/drivers/schema_introspector.dart';
 import '../../../domain/models/capabilities.dart';
 import '../../../domain/models/connection.dart';
 import '../../../domain/models/engine.dart';
+import '../../../domain/models/ssl_mode.dart';
 import '../../../domain/models/schema.dart';
 
 /// PostgreSQL adapter (ADR-0003) over the `postgres` v3 package. Behind the
@@ -20,6 +22,7 @@ class PostgresDriver implements Driver {
         hasServer: true,
         hasSchemas: true,
         supportsTls: true,
+        verifiesTlsCertificates: true,
         // Postgres CAN cancel, but `postgres` v3.5.12 doesn't expose it on the
         // public Connection API (cancelPendingStatement is internal). Gated off
         // honestly until the package surfaces it.
@@ -40,8 +43,17 @@ class PostgresDriver implements Driver {
           username: config.username,
           password: secret,
         ),
-        // TODO(tls): derive sslMode from the connection's TLS setting.
-        settings: const pg.ConnectionSettings(sslMode: pg.SslMode.disable),
+        settings: pg.ConnectionSettings(
+          sslMode: switch (config.sslMode) {
+            SslMode.disable => pg.SslMode.disable,
+            SslMode.require => pg.SslMode.require,
+            SslMode.verifyFull => pg.SslMode.verifyFull,
+          },
+          // A caller-supplied CA covers self-signed / private-CA servers that
+          // the system trust store doesn't know; null falls back to the system
+          // roots.
+          securityContext: _securityContext(config),
+        ),
       );
       return PostgresSession(config, conn);
     } on pg.PgException catch (e) {
@@ -51,6 +63,13 @@ class PostgresDriver implements Driver {
           cause: e);
     }
   }
+}
+
+/// Trust roots for [SslMode.verifyFull] when a CA file is configured.
+SecurityContext? _securityContext(Connection config) {
+  final ca = config.caCertPath;
+  if (ca == null || ca.isEmpty) return null;
+  return SecurityContext(withTrustedRoots: true)..setTrustedCertificates(ca);
 }
 
 class PostgresSession implements Session {

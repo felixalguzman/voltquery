@@ -36,6 +36,15 @@ class ConnectionRows extends Table {
   TextColumn get credentialRef => text().nullable()();
   TextColumn get sqlitePath => text().nullable()();
   TextColumn get defaultDatabase => text().nullable()();
+
+  /// [SslMode] name. Existing rows migrate to `require` rather than `disable`:
+  /// encryption should be opted out of, not into — and MySQL 8 cannot
+  /// authenticate without it.
+  TextColumn get sslMode =>
+      text().withDefault(const Constant('require'))();
+
+  /// PEM CA bundle for verify-full against a private/self-signed CA.
+  TextColumn get caCertPath => text().nullable()();
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
 
@@ -54,13 +63,17 @@ class LocalStore extends _$LocalStore {
   LocalStore.memory() : super(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) => m.createAll(),
         onUpgrade: (m, from, to) async {
           if (from < 2) await m.createTable(connectionRows);
+          if (from < 3) {
+            await m.addColumn(connectionRows, connectionRows.sslMode);
+            await m.addColumn(connectionRows, connectionRows.caCertPath);
+          }
         },
       );
 }
