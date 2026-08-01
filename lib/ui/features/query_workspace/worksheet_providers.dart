@@ -111,6 +111,20 @@ Future<Session> _openSession(Ref ref, Connection conn) async {
   return session;
 }
 
+/// Seeds the demo database — a small but *representative* schema, not just one
+/// table.
+///
+/// It's deliberately shaped to exercise the app's own features, because the
+/// demo is what you reach for when checking whether something works:
+/// - every [ColumnEditorKind] the grid can render — boolean, date, datetime,
+///   decimal, integer, text, json — so the typed cell editors have something to
+///   edit;
+/// - foreign keys (`orders`→`customers`, `order_items`→both) so the tree's FK
+///   glyphs and, later, FK navigation have real relationships;
+/// - indexes, including a composite and a unique one, for the Indexes group;
+/// - a **view** and a **primary-key-less table**, which are exactly the two
+///   cases the grid must refuse to make editable;
+/// - a NULL in a nullable column, so NULL rendering is visible on first run.
 Future<void> _seedDemoIfEmpty(Session s) async {
   final probe = await s.execute(
     "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='customers'",
@@ -118,18 +132,93 @@ Future<void> _seedDemoIfEmpty(Session s) async {
   final rows = await (probe as RowsResult).cursor.fetch(1);
   await probe.cursor.close();
   if ((rows.first.values.first as int) > 0) return;
-  await s.execute(
-    'CREATE TABLE IF NOT EXISTS customers ('
-    'id INTEGER PRIMARY KEY, name TEXT, email TEXT, total REAL)',
-  );
-  await s.execute(
-    "INSERT INTO customers (name, email, total) VALUES "
-    "('Ada Lovelace','ada@analytical.io',2940.0),"
-    "('Grace Hopper',NULL,2731.5),"
-    "('Alan Turing','a.turing@bletchley.example',1998.99),"
-    "('Katherine Johnson','kj@nasa.gov',1640.0)",
-  );
+
+  for (final ddl in _demoSchema) {
+    await s.execute(ddl);
+  }
+  for (final dml in _demoRows) {
+    await s.execute(dml);
+  }
 }
+
+/// Declared SQLite types are chosen for their *affinity* so
+/// `ColumnEditorResolver` picks a real editor: BOOLEAN → toggle, DATE → date
+/// picker, DATETIME → date+time, REAL/NUMERIC → decimal.
+const _demoSchema = <String>[
+  'CREATE TABLE IF NOT EXISTS customers ('
+      'id INTEGER PRIMARY KEY, '
+      'name TEXT NOT NULL, '
+      'email TEXT, '
+      'total REAL, '
+      'active BOOLEAN NOT NULL DEFAULT 1, '
+      'signed_up DATE, '
+      'notes TEXT)',
+  'CREATE TABLE IF NOT EXISTS products ('
+      'id INTEGER PRIMARY KEY, '
+      'sku TEXT NOT NULL, '
+      'name TEXT NOT NULL, '
+      'price NUMERIC(10,2) NOT NULL, '
+      'in_stock INTEGER NOT NULL DEFAULT 0, '
+      'discontinued BOOLEAN NOT NULL DEFAULT 0)',
+  'CREATE TABLE IF NOT EXISTS orders ('
+      'id INTEGER PRIMARY KEY, '
+      'customer_id INTEGER NOT NULL REFERENCES customers(id), '
+      'placed_at DATETIME NOT NULL, '
+      'status TEXT NOT NULL DEFAULT \'pending\', '
+      'shipped BOOLEAN NOT NULL DEFAULT 0, '
+      'amount REAL NOT NULL)',
+  // Composite primary key — proves multi-column row identity in the grid.
+  'CREATE TABLE IF NOT EXISTS order_items ('
+      'order_id INTEGER NOT NULL REFERENCES orders(id), '
+      'product_id INTEGER NOT NULL REFERENCES products(id), '
+      'quantity INTEGER NOT NULL DEFAULT 1, '
+      'unit_price REAL NOT NULL, '
+      'PRIMARY KEY (order_id, product_id))',
+  // No primary key: the grid must refuse to edit this one.
+  'CREATE TABLE IF NOT EXISTS audit_log ('
+      'at DATETIME NOT NULL, '
+      'action TEXT NOT NULL, '
+      'detail TEXT)',
+  'CREATE INDEX IF NOT EXISTS ix_orders_customer ON orders (customer_id)',
+  'CREATE INDEX IF NOT EXISTS ix_orders_status_placed '
+      'ON orders (status, placed_at)',
+  'CREATE UNIQUE INDEX IF NOT EXISTS ux_products_sku ON products (sku)',
+  // A view: read-only, and gives the tree a second object kind to show.
+  'CREATE VIEW IF NOT EXISTS customer_orders AS '
+      'SELECT c.name AS customer, o.id AS order_id, o.placed_at, o.amount '
+      'FROM orders o JOIN customers c ON c.id = o.customer_id',
+];
+
+const _demoRows = <String>[
+  // `email` NULL on one row so NULL rendering shows up immediately.
+  "INSERT INTO customers (name, email, total, active, signed_up, notes) VALUES "
+      "('Ada Lovelace','ada@analytical.io',2940.0,1,'2024-01-15','First "
+      "programmer'),"
+      "('Grace Hopper',NULL,2731.5,1,'2024-02-02','Coined \"debugging\"'),"
+      "('Alan Turing','a.turing@bletchley.example',1998.99,0,'2024-03-21',NULL),"
+      "('Katherine Johnson','kj@nasa.gov',1640.0,1,'2024-05-09','Orbital "
+      "mechanics')",
+  "INSERT INTO products (sku, name, price, in_stock, discontinued) VALUES "
+      "('KB-01','Mechanical Keyboard',129.99,42,0),"
+      "('MS-02','Trackball Mouse',79.50,17,0),"
+      "('MN-03','27\" Monitor',349.00,8,0),"
+      "('CB-04','USB-C Cable',12.25,0,1)",
+  "INSERT INTO orders (customer_id, placed_at, status, shipped, amount) VALUES "
+      "(1,'2024-06-01 09:15:00','shipped',1,209.49),"
+      "(1,'2024-06-18 14:02:00','pending',0,349.00),"
+      "(2,'2024-06-20 11:30:00','shipped',1,129.99),"
+      "(3,'2024-07-02 16:45:00','cancelled',0,91.75),"
+      "(4,'2024-07-11 08:05:00','pending',0,428.50)",
+  "INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES "
+      "(1,1,1,129.99),(1,2,1,79.50),"
+      "(2,3,1,349.00),"
+      "(3,1,1,129.99),"
+      "(4,2,1,79.50),(4,4,1,12.25),"
+      "(5,3,1,349.00),(5,1,1,79.50)",
+  "INSERT INTO audit_log (at, action, detail) VALUES "
+      "('2024-07-11 08:05:12','order.created','order 5'),"
+      "('2024-07-11 08:05:13','payment.authorized','428.50')",
+];
 
 /// Tables + views of the active connection (via the introspection session).
 @riverpod

@@ -15,6 +15,13 @@ import 'package:voltquery/ui/features/query_workspace/worksheet_providers.dart';
 /// tables, clicking one runs its `SELECT *`, and expanding one lazy-loads its
 /// columns.
 Future<ProviderContainer> _pumpApp(WidgetTester tester) async {
+  // The default 800x600 test surface is too short for the demo schema once a
+  // table is expanded — nodes below the fold simply aren't built, so finders
+  // miss them. Give the tree room instead of scrolling in every test.
+  tester.view.physicalSize = const Size(1400, 1600);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+
   final container = ProviderContainer(overrides: [
     localStoreProvider.overrideWith((ref) {
       final store = LocalStore.memory();
@@ -76,8 +83,14 @@ void main() {
     expect(find.text('email'), findsNothing);
     expect(find.text('total'), findsNothing);
 
-    // Only 'customers' is expandable at the root → its chevron.
-    await tester.tap(find.byIcon(FluentIcons.chevron_right));
+    // The demo now has several tables. They render tables-then-views, each
+    // group in name order (`sqlite_master … ORDER BY name`), so the roots are:
+    //   0 audit_log · 1 customers · 2 order_items · 3 orders · 4 products
+    //   5 customer_orders (view)
+    // Guard that assumption, then tap `customers`' own chevron.
+    expect(find.text('audit_log'), findsOneWidget);
+    expect(find.text('customers'), findsOneWidget);
+    await tester.tap(find.byIcon(FluentIcons.chevron_right).at(1));
     await tester.pumpAndSettle();
 
     // The seeded columns now render (name + type), and expanding did NOT run a
