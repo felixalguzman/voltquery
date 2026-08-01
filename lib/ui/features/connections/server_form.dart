@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/services.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../data/drivers/driver_factory.dart';
@@ -171,10 +172,32 @@ class _ServerDialogState extends State<_ServerDialog> {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(color: Color(0xFF6FE39A), fontSize: 12));
       case _Test.error:
-        return Text('✕ $_testMsg',
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Color(0xFFFF6B6B), fontSize: 12));
+        // Connection errors are the ones you actually need to read and paste
+        // into a search — so the full text is selectable, scrollable rather
+        // than clipped, and one click copies it.
+        return Row(children: [
+          Expanded(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 64),
+              child: SingleChildScrollView(
+                child: SelectableText(
+                  '✕ $_testMsg',
+                  style: const TextStyle(
+                      color: Color(0xFFFF6B6B), fontSize: 12),
+                ),
+              ),
+            ),
+          ),
+          Tooltip(
+            message: 'Copy error',
+            child: IconButton(
+              icon: const Icon(FluentIcons.copy,
+                  size: 12, color: Color(0xFF9BA1AD)),
+              onPressed: () =>
+                  Clipboard.setData(ClipboardData(text: _testMsg)),
+            ),
+          ),
+        ]);
     }
   }
 
