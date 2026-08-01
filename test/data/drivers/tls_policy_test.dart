@@ -3,6 +3,7 @@ import 'package:voltquery/data/drivers/driver_factory.dart';
 import 'package:voltquery/data/drivers/mysql/mysql_driver.dart';
 import 'package:voltquery/domain/drivers/driver_error.dart';
 import 'package:voltquery/domain/models/connection.dart';
+import 'package:voltquery/domain/models/connection_options.dart';
 import 'package:voltquery/domain/models/engine.dart';
 import 'package:voltquery/domain/models/ssl_mode.dart';
 
@@ -59,7 +60,7 @@ void main() {
       name: 'x',
       engine: Engine.mysql,
       host: 'localhost',
-      sslMode: SslMode.verifyFull,
+      options: ConnectionOptions(sslMode: SslMode.verifyFull),
     );
     await expectLater(
       MysqlDriver().connect(c),

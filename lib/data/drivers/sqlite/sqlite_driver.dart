@@ -42,8 +42,12 @@ class SqliteDriver implements Driver {
     // OFF and is *per connection*. Without it a declared FK is documentation
     // only, so an edit pointing at a nonexistent parent row silently succeeds
     // here while the same edit is correctly rejected on Postgres and MySQL.
-    // Enforcing matches what the schema says and what every other engine does.
-    db.execute('PRAGMA foreign_keys = ON');
+    // On by default, but configurable: an existing database may already hold
+    // rows that violate its own constraints, and enforcement would then block
+    // otherwise-valid edits.
+    if (config.options.enforceForeignKeys) {
+      db.execute('PRAGMA foreign_keys = ON');
+    }
     return SqliteSession(config, db);
   }
 }

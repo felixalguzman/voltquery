@@ -1,7 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../../domain/models/connection.dart';
-import '../../domain/models/ssl_mode.dart';
+import '../../domain/models/connection_options.dart';
 import '../../domain/models/engine.dart';
 import '../services/local_store.dart';
 
@@ -30,8 +30,7 @@ class ConnectionRepository {
             credentialRef: Value(c.credentialRef),
             sqlitePath: Value(c.sqlitePath),
             defaultDatabase: Value(c.defaultDatabase),
-            sslMode: Value(c.sslMode.name),
-            caCertPath: Value(c.caCertPath),
+            options: Value(c.options.encode()),
           ),
         );
   }
@@ -49,7 +48,6 @@ class ConnectionRepository {
         credentialRef: r.credentialRef,
         sqlitePath: r.sqlitePath,
         defaultDatabase: r.defaultDatabase,
-        sslMode: SslMode.byName(r.sslMode),
-        caCertPath: r.caCertPath,
+        options: ConnectionOptions.decode(r.options),
       );
 }
