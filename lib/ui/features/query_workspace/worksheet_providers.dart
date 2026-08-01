@@ -14,6 +14,8 @@ import '../../../domain/sql/sql_statement_splitter.dart';
 import '../connections/connection_providers.dart';
 import '../history/history_providers.dart';
 import '../schema_browser/schema_providers.dart';
+import 'grid_edit_buffer.dart';
+import 'grid_editability.dart';
 import 'worksheet_runner.dart';
 import 'worksheet_state.dart';
 
@@ -180,6 +182,35 @@ class WorksheetSeeds extends _$WorksheetSeeds {
 @riverpod
 WorksheetRunner worksheetRunner(Ref ref) => const WorksheetRunner();
 
+/// Pending cell edits for one result grid, keyed `<worksheetId>:<resultIndex>`
+/// so each result sub-tab stages independently.
+///
+/// **keepAlive**: the grid rebuilds as the user types elsewhere; an autoDispose
+/// buffer would silently drop staged edits.
+@Riverpod(keepAlive: true)
+class GridEdits extends _$GridEdits {
+  @override
+  GridEditBuffer build(String gridId) => const GridEditBuffer();
+
+  void stage(StagedEdit edit) => state = state.stage(edit);
+  void discardCell(int rowIndex, String column) =>
+      state = state.discardCell(rowIndex, column);
+  void clear() => state = state.clear();
+}
+
+/// Applies a grid's staged edits: runs each generated statement in order on the
+/// worksheet's own Session, then clears the buffer.
+///
+/// Runs on the *worksheet's* session so it honours the manual-commit toggle —
+/// with manual commit on, the UPDATEs land inside the open transaction and the
+/// user still has to press Commit. Stops at the first failure and reports it.
+class GridEditApplyResult {
+  const GridEditApplyResult({required this.applied, this.error});
+  final int applied;
+  final DriverError? error;
+  bool get ok => error == null;
+}
+
 /// Commands issued from the app shell (menu bar / global shortcuts) that the
 /// **active** Worksheet executes against its own editor + Session. `runSmart` =
 /// selection-else-cursor (the worksheet decides, since only it knows the caret).
@@ -337,6 +368,11 @@ class Worksheet extends _$Worksheet {
         );
       }
       sw.stop();
+      // A row result that maps 1:1 onto one table's rows becomes an *editable*
+      // grid. Resolved per statement because it depends on that statement's SQL.
+      if (result is WorksheetRows) {
+        result = result.withEditability(await _editabilityOf(st.sql));
+      }
       outcomes.add(
         StatementOutcome(
           index: k + 1,
@@ -355,6 +391,48 @@ class Worksheet extends _$Worksheet {
     state = WorksheetScript(outcomes, canceled: _cancelRequested);
     // Any successful DDL may have changed the catalog — drop the tree cache.
     if (ranDdl) ref.invalidate(schemaRepositoryProvider);
+  }
+
+  /// Run the grid's staged edits against this worksheet's Session, in order.
+  ///
+  /// Deliberately on the worksheet's own session, so the manual-commit toggle
+  /// applies: with it on, these land in the open transaction and still need an
+  /// explicit Commit. Stops at the first failure — the remaining statements are
+  /// left staged so the user can fix and retry.
+  Future<GridEditApplyResult> applyGridEdits(List<String> statements) async {
+    if (statements.isEmpty) return const GridEditApplyResult(applied: 0);
+    final session = await ref.read(
+      worksheetSessionProvider(worksheetId).future,
+    );
+    var applied = 0;
+    for (final sql in statements) {
+      try {
+        await session.execute(sql);
+        applied++;
+      } on DriverError catch (e) {
+        return GridEditApplyResult(applied: applied, error: e);
+      } catch (e) {
+        return GridEditApplyResult(
+          applied: applied,
+          error: DriverError(DriverErrorKind.unknown, e.toString()),
+        );
+      }
+    }
+    return GridEditApplyResult(applied: applied);
+  }
+
+  /// Whether the grid for [sql] can write back, and how. Best-effort: any
+  /// failure leaves the grid read-only rather than failing the run.
+  Future<GridEditability?> _editabilityOf(String sql) async {
+    try {
+      final repo = await ref.read(schemaRepositoryProvider.future);
+      return GridEditabilityResolver(
+        engine: ref.read(currentConnectionProvider).engine,
+        repo: repo,
+      ).resolve(sql);
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Commit the open manual transaction (no-op if none). See [ManualCommit].

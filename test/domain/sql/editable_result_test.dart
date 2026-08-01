@@ -97,6 +97,23 @@ void main() {
       expect(pg.analyze('SELECT DISTINCT c FROM t'), isNull);
     });
 
+    test('a bare aggregate with no GROUP BY still collapses the result', () {
+      // Regression: these have no disqualifying *clause*, but the single row
+      // they return corresponds to no row of the table.
+      expect(pg.analyze('SELECT count(*) FROM t'), isNull);
+      expect(pg.analyze('SELECT count(*) AS n FROM customers'), isNull);
+      expect(pg.analyze('SELECT sum(total), avg(total) FROM orders'), isNull);
+      expect(pg.analyze('SELECT max(id) FROM t WHERE a = 1'), isNull);
+      expect(sqlite.analyze('SELECT total(x) FROM t'), isNull);
+    });
+
+    test('a column merely NAMED like an aggregate is fine', () {
+      // `count` as an identifier, not a call.
+      expect(pg.analyze('SELECT count FROM t'), const EditableTarget(table: 't'));
+      expect(pg.analyze('SELECT "max", min FROM t'),
+          const EditableTarget(table: 't'));
+    });
+
     test('set operations', () {
       expect(pg.analyze('SELECT * FROM a UNION SELECT * FROM b'), isNull);
       expect(pg.analyze('SELECT * FROM a INTERSECT SELECT * FROM b'), isNull);

@@ -422,6 +422,137 @@ final class WorksheetRunnerProvider
 
 String _$worksheetRunnerHash() => r'9405638bb3eea57d1e21e8b6c06fac79e78486ae';
 
+/// Pending cell edits for one result grid, keyed `<worksheetId>:<resultIndex>`
+/// so each result sub-tab stages independently.
+///
+/// **keepAlive**: the grid rebuilds as the user types elsewhere; an autoDispose
+/// buffer would silently drop staged edits.
+
+@ProviderFor(GridEdits)
+final gridEditsProvider = GridEditsFamily._();
+
+/// Pending cell edits for one result grid, keyed `<worksheetId>:<resultIndex>`
+/// so each result sub-tab stages independently.
+///
+/// **keepAlive**: the grid rebuilds as the user types elsewhere; an autoDispose
+/// buffer would silently drop staged edits.
+final class GridEditsProvider
+    extends $NotifierProvider<GridEdits, GridEditBuffer> {
+  /// Pending cell edits for one result grid, keyed `<worksheetId>:<resultIndex>`
+  /// so each result sub-tab stages independently.
+  ///
+  /// **keepAlive**: the grid rebuilds as the user types elsewhere; an autoDispose
+  /// buffer would silently drop staged edits.
+  GridEditsProvider._({
+    required GridEditsFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'gridEditsProvider',
+         isAutoDispose: false,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$gridEditsHash();
+
+  @override
+  String toString() {
+    return r'gridEditsProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  GridEdits create() => GridEdits();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(GridEditBuffer value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<GridEditBuffer>(value),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is GridEditsProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$gridEditsHash() => r'e7df2f62a996b1e40a59d572980759fe8fb82383';
+
+/// Pending cell edits for one result grid, keyed `<worksheetId>:<resultIndex>`
+/// so each result sub-tab stages independently.
+///
+/// **keepAlive**: the grid rebuilds as the user types elsewhere; an autoDispose
+/// buffer would silently drop staged edits.
+
+final class GridEditsFamily extends $Family
+    with
+        $ClassFamilyOverride<
+          GridEdits,
+          GridEditBuffer,
+          GridEditBuffer,
+          GridEditBuffer,
+          String
+        > {
+  GridEditsFamily._()
+    : super(
+        retry: null,
+        name: r'gridEditsProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: false,
+      );
+
+  /// Pending cell edits for one result grid, keyed `<worksheetId>:<resultIndex>`
+  /// so each result sub-tab stages independently.
+  ///
+  /// **keepAlive**: the grid rebuilds as the user types elsewhere; an autoDispose
+  /// buffer would silently drop staged edits.
+
+  GridEditsProvider call(String gridId) =>
+      GridEditsProvider._(argument: gridId, from: this);
+
+  @override
+  String toString() => r'gridEditsProvider';
+}
+
+/// Pending cell edits for one result grid, keyed `<worksheetId>:<resultIndex>`
+/// so each result sub-tab stages independently.
+///
+/// **keepAlive**: the grid rebuilds as the user types elsewhere; an autoDispose
+/// buffer would silently drop staged edits.
+
+abstract class _$GridEdits extends $Notifier<GridEditBuffer> {
+  late final _$args = ref.$arg as String;
+  String get gridId => _$args;
+
+  GridEditBuffer build(String gridId);
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<GridEditBuffer, GridEditBuffer>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<GridEditBuffer, GridEditBuffer>,
+              GridEditBuffer,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, () => build(_$args));
+  }
+}
+
 @ProviderFor(WorksheetCommands)
 final worksheetCommandsProvider = WorksheetCommandsProvider._();
 
@@ -816,7 +947,7 @@ final class WorksheetProvider
   }
 }
 
-String _$worksheetHash() => r'c8a895b257d86c32dc44839aa8acda5a1f4543f3';
+String _$worksheetHash() => r'9afb3cd8c7a97c76dc6f3e4df593dcfa18d58767';
 
 /// Per-Worksheet result state (family keyed by WorksheetId).
 

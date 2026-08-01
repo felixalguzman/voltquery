@@ -1,15 +1,14 @@
 import 'package:file_selector/file_selector.dart';
-import 'package:flutter/material.dart' as m;
 import 'package:flutter/services.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:panes/panes.dart';
-import 'package:pluto_grid/pluto_grid.dart';
 import 'package:re_editor/re_editor.dart';
 import 'package:re_highlight/languages/sql.dart';
 import 'package:re_highlight/styles/atom-one-dark.dart';
 
 import '../../../domain/sql/sql_statement_splitter.dart';
+import 'result_grid.dart';
 import 'worksheet_providers.dart';
 import 'worksheet_state.dart';
 
@@ -146,7 +145,10 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
         controller: _panes,
         paneBuilder: (context, id, _) => switch (id) {
           'editor' => _editorPane(connName),
-          'result' => _ResultPane(result: result),
+          'result' => _ResultPane(
+            result: result,
+            worksheetId: widget.worksheetId,
+          ),
           _ => const SizedBox.shrink(),
         },
       ),
@@ -338,8 +340,9 @@ class _SqlEditorShortcuts extends CodeShortcutsActivatorsBuilder {
 }
 
 class _ResultPane extends StatelessWidget {
-  const _ResultPane({required this.result});
+  const _ResultPane({required this.result, required this.worksheetId});
   final WorksheetResult result;
+  final String worksheetId;
 
   @override
   Widget build(BuildContext context) {
@@ -351,19 +354,23 @@ class _ResultPane extends StatelessWidget {
         // A single-statement script renders its one result directly (grid /
         // message / failure); a multi-statement script gets sub-tabs + log.
         WorksheetScript(:final outcomes, :final canceled) =>
-          _scriptBody(outcomes, canceled),
-        _ => _single(result),
+          _scriptBody(outcomes, canceled, worksheetId),
+        _ => _single(result, worksheetId, 0),
       },
     );
   }
 }
 
-Widget _scriptBody(List<StatementOutcome> outcomes, bool canceled) {
+Widget _scriptBody(
+  List<StatementOutcome> outcomes,
+  bool canceled,
+  String worksheetId,
+) {
   final body = outcomes.isEmpty
       ? _centered('Run canceled before any statement ran.')
       : outcomes.length == 1
-          ? _single(outcomes.first.result)
-          : _ScriptView(outcomes: outcomes);
+          ? _single(outcomes.first.result, worksheetId, 0)
+          : _ScriptView(outcomes: outcomes, worksheetId: worksheetId);
   if (!canceled) return body;
   return Column(children: [
     Container(
@@ -378,8 +385,13 @@ Widget _scriptBody(List<StatementOutcome> outcomes, bool canceled) {
 }
 
 /// Renders one statement's payload — the original single-result view.
-Widget _single(WorksheetResult r) => switch (r) {
-  WorksheetRows() => _grid(r),
+Widget _single(WorksheetResult r, String worksheetId, int gridIndex) =>
+    switch (r) {
+  WorksheetRows() => ResultGrid(
+    rows: r,
+    worksheetId: worksheetId,
+    gridId: '$worksheetId:$gridIndex',
+  ),
   WorksheetMessage(:final text) => _banner(
     text,
     color: _ok,
@@ -416,8 +428,9 @@ Widget _banner(String s, {required Color color, required IconData icon}) {
 /// Multi-statement result: a result sub-tab per row-returning statement + a
 /// Messages tab logging every statement's outcome (ADR-0007 / #15).
 class _ScriptView extends StatefulWidget {
-  const _ScriptView({required this.outcomes});
+  const _ScriptView({required this.outcomes, required this.worksheetId});
   final List<StatementOutcome> outcomes;
+  final String worksheetId;
 
   @override
   State<_ScriptView> createState() => _ScriptViewState();
@@ -437,7 +450,12 @@ class _ScriptViewState extends State<_ScriptView> {
 
     final labels = [for (final o in rows) 'Result ${o.index}', 'Messages'];
     final views = <Widget>[
-      for (final o in rows) _grid(o.result as WorksheetRows),
+      for (final (i, o) in rows.indexed)
+        ResultGrid(
+          rows: o.result as WorksheetRows,
+          worksheetId: widget.worksheetId,
+          gridId: '${widget.worksheetId}:$i',
+        ),
       _messagesLog(widget.outcomes),
     ];
     final sel = _tab.clamp(0, views.length - 1);
@@ -563,81 +581,3 @@ Widget _logRow(StatementOutcome o) {
   );
 }
 
-Widget _grid(WorksheetRows r) {
-  final columns = [
-    for (var i = 0; i < r.fields.length; i++)
-      PlutoColumn(
-        title: r.fields[i].name,
-        field: 'c$i',
-        type: PlutoColumnType.text(),
-        enableEditingMode: false,
-      ),
-  ];
-  final rows = [
-    for (final row in r.rows)
-      PlutoRow(
-        cells: {
-          for (var i = 0; i < r.fields.length; i++)
-            'c$i': PlutoCell(value: row.values[i] ?? 'NULL'),
-        },
-      ),
-  ];
-  // pluto_grid needs a Material ancestor (absent under FluentApp).
-  return m.Material(
-    color: _panel,
-    child: Column(
-      children: [
-        Expanded(
-          child: PlutoGrid(
-            key: ValueKey(identityHashCode(r)),
-            columns: columns,
-            rows: rows,
-            configuration: const PlutoGridConfiguration.dark(
-              style: PlutoGridStyleConfig.dark(
-                rowHeight: 28,
-                columnHeight: 32,
-                columnFilterHeight: 32,
-                enableCellBorderHorizontal: false,
-                defaultCellPadding: EdgeInsets.symmetric(horizontal: 10),
-                defaultColumnTitlePadding: EdgeInsets.symmetric(horizontal: 10),
-                cellTextStyle: TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 12.5,
-                  color: Color(0xFFE6E8EC),
-                ),
-                columnTextStyle: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: _textMid,
-                ),
-                gridBackgroundColor: _panel,
-                rowColor: _panel,
-                activatedColor: Color(0xFF1E2A30),
-                borderColor: _hair,
-              ),
-            ),
-            onLoaded: (e) {
-              e.stateManager.setShowColumnFilter(false);
-              // Cell selection + arrow-key / Tab navigation + Ctrl+C copy
-              // (built into pluto_grid). setKeepFocus keeps the grid's focus
-              // node active so key events register after a cell is selected.
-              e.stateManager.setSelectingMode(PlutoGridSelectingMode.cell);
-              e.stateManager.setKeepFocus(true);
-            },
-          ),
-        ),
-        Container(
-          height: 26,
-          alignment: Alignment.centerLeft,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          color: _bg,
-          child: Text(
-            '${r.rows.length} row(s) · ${r.durationMs} ms'
-            '${r.capped ? ' · capped' : ''}',
-            style: const TextStyle(color: _textMid, fontSize: 11),
-          ),
-        ),
-      ],
-    ),
-  );
-}
