@@ -191,11 +191,18 @@ class _PostgresIntrospector implements SchemaIntrospector {
     final keys = await _keyColumns(schemaName, table.name);
     final r = await _conn.execute(
       pg.Sql.named(
-          'SELECT column_name, data_type, is_nullable, ordinal_position, column_default '
+          'SELECT column_name, data_type, is_nullable, ordinal_position, '
+          '       column_default, udt_name '
           'FROM information_schema.columns WHERE table_schema = @s AND table_name = @t '
           'ORDER BY ordinal_position'),
       parameters: {'s': schemaName, 't': table.name},
     );
+    // `data_type` is 'USER-DEFINED' for enums; the real type name is udt_name.
+    final enumTypes = {
+      for (final row in r)
+        if (row[1] == 'USER-DEFINED' && row[5] != null) row[5] as String,
+    };
+    final enums = await _enumValues(enumTypes);
     return [
       for (final row in r)
         ColumnInfo(
@@ -206,8 +213,29 @@ class _PostgresIntrospector implements SchemaIntrospector {
           isForeignKey: keys.fk.contains(row[0]),
           ordinal: (row[3] as int) - 1,
           defaultValue: row[4]?.toString(),
+          enumOptions: enums[row[5]] ?? const [],
         ),
     ];
+  }
+
+  /// Label lists for the given enum type names, in declared sort order — the
+  /// permitted values a grid dropdown offers. One round-trip for all of them.
+  Future<Map<String, List<String>>> _enumValues(Set<String> typeNames) async {
+    if (typeNames.isEmpty) return const {};
+    final r = await _conn.execute(
+      pg.Sql.named(
+        // string_agg, not array_agg — the postgres package hands back array_agg
+        // as UndecodedBytes (same trap as indexes()).
+        "SELECT t.typname, string_agg(e.enumlabel, ',' ORDER BY e.enumsortorder) "
+        'FROM pg_type t JOIN pg_enum e ON e.enumtypid = t.oid '
+        'WHERE t.typname = ANY(@names) GROUP BY t.typname',
+      ),
+      parameters: {'names': typeNames.toList()},
+    );
+    return {
+      for (final row in r)
+        row[0] as String: (row[1] as String).split(','),
+    };
   }
 
   /// PK + FK column-name sets for a table (one round-trip via the constraint

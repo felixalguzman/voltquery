@@ -86,8 +86,7 @@ class GridEditabilityResolver {
           c.name.toLowerCase(): resolver.resolve(
             c.dataType,
             nullable: c.nullable,
-            // TODO(grid): enum value lists need a per-engine catalog read
-            // (pg_enum / column_type). Until then enums edit as free text.
+            enumOptions: c.enumOptions,
           ),
       },
     );

@@ -390,7 +390,7 @@ Widget _single(WorksheetResult r, String worksheetId, int gridIndex) =>
   WorksheetRows() => ResultGrid(
     rows: r,
     worksheetId: worksheetId,
-    gridId: '$worksheetId:$gridIndex',
+    gridId: '$worksheetId:$gridIndex:${identityHashCode(r)}',
   ),
   WorksheetMessage(:final text) => _banner(
     text,
@@ -454,7 +454,8 @@ class _ScriptViewState extends State<_ScriptView> {
         ResultGrid(
           rows: o.result as WorksheetRows,
           worksheetId: widget.worksheetId,
-          gridId: '${widget.worksheetId}:$i',
+          gridId: '${widget.worksheetId}:$i:'
+              '${identityHashCode(o.result)}',
         ),
       _messagesLog(widget.outcomes),
     ];

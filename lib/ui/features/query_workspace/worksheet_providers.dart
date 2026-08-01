@@ -495,16 +495,33 @@ class Worksheet extends _$Worksheet {
     );
     var applied = 0;
     for (final sql in statements) {
+      // Grid edits are real statements the user ran — they belong in history
+      // exactly like a typed UPDATE, so they're auditable and re-runnable.
+      final started = DateTime.now();
+      final sw = Stopwatch()..start();
       try {
-        await session.execute(sql);
+        final result = await session.execute(sql);
+        sw.stop();
         applied++;
+        await _record(
+          sql,
+          started,
+          sw.elapsedMilliseconds,
+          result is CommandResult
+              ? WorksheetMessage('${result.affectedRows} row(s) affected')
+              : const WorksheetIdle(),
+        );
       } on DriverError catch (e) {
+        sw.stop();
+        await _record(sql, started, sw.elapsedMilliseconds,
+            WorksheetFailure(e));
         return GridEditApplyResult(applied: applied, error: e);
       } catch (e) {
-        return GridEditApplyResult(
-          applied: applied,
-          error: DriverError(DriverErrorKind.unknown, e.toString()),
-        );
+        sw.stop();
+        final err = DriverError(DriverErrorKind.unknown, e.toString());
+        await _record(sql, started, sw.elapsedMilliseconds,
+            WorksheetFailure(err));
+        return GridEditApplyResult(applied: applied, error: err);
       }
     }
     return GridEditApplyResult(applied: applied);
