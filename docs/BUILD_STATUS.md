@@ -97,6 +97,16 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   `SecureSocket.secure(onBadCertificate: (_) => true)`, so MySQL TLS is
   encrypted but never authenticated. The driver refuses `verifyFull` rather
   than downgrade silently; fixing it properly needs a different MySQL package.
+- **SQLite foreign-key enforcement is hardcoded on.** `PRAGMA foreign_keys`
+  defaults OFF per connection, which made a declared FK unenforced — a grid edit
+  pointing at a nonexistent parent row was written silently, where Postgres and
+  MySQL reject it. Now enabled at connect; should become a per-connection
+  property once the properties panel exists.
+- **No client-side FK validation.** `ColumnInfo.isForeignKey` is a bool with no
+  target, so we can't check a value before sending it, offer a parent-row
+  picker, or navigate to the referenced row (a P2 item in
+  `docs/research/feature-gaps.md`). Storing the referenced table/column would
+  unlock all three.
 - mac/win **keychain** adapter for the SecretStore (ADR-0006).
 - `ui/core/theme` (mix tokens) not built; tokens are inlined per widget.
 
@@ -115,10 +125,15 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
    **deferred**. Both pluto and trina build every body column for every visible
    row, so a wide `SELECT *` is the failure mode — `wide_metrics` (5k × 26) is
    seeded for that test. See `docs/research/data-grid-options.md`.
-5. **Connectivity** — **TLS landed**; SSH tunnel and keep-alive/auto-reconnect
+5. **Connection properties panel** — tabbed dialog (General / Security / SSH /
+   Advanced) over a `ConnectionOptions` model with a JSON bag for the long tail,
+   so per-connection settings stop crowding one flat form. First tenants: TLS
+   (move), a prod/dev **colour tag**, and **SQLite FK enforcement** (currently
+   hardcoded ON in the driver — see below).
+6. **Connectivity** — **TLS landed**; SSH tunnel and keep-alive/auto-reconnect
    remain. Without a tunnel, databases behind a bastion are still unreachable.
-6. Tables/Views folders + large-schema render-cap (#13 tail).
-7. `ui/core/theme` via mix.
+7. Tables/Views folders + large-schema render-cap (#13 tail).
+8. `ui/core/theme` via mix.
 
 See `docs/research/feature-gaps.md` (parity) and `docs/research/differentiators.md`
 (offense) for the surveyed backlog these were picked from.

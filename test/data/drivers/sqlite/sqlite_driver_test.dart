@@ -145,6 +145,25 @@ void main() {
     expect(autoDdl, contains('"a"'));
   });
 
+  test('foreign keys are enforced (the pragma defaults OFF)', () async {
+    await session.execute('CREATE TABLE parent (id INTEGER PRIMARY KEY)');
+    await session.execute('CREATE TABLE child ('
+        'id INTEGER PRIMARY KEY, '
+        'parent_id INTEGER REFERENCES parent(id))');
+    await session.execute('INSERT INTO parent (id) VALUES (1)');
+
+    // A valid reference is fine...
+    await session.execute('INSERT INTO child (id, parent_id) VALUES (1, 1)');
+
+    // ...and a dangling one must be refused. Without `PRAGMA foreign_keys=ON`
+    // SQLite accepts this silently, so a grid edit pointing at a row that
+    // doesn't exist would be written without complaint.
+    await expectLater(
+      () => session.execute('INSERT INTO child (id, parent_id) VALUES (2, 999)'),
+      throwsA(isA<DriverError>()),
+    );
+  });
+
   test('SQLite capabilities: no server, no schemas, no query-cancel', () {
     expect(driver.engine, Engine.sqlite);
     final c = driver.capabilities;

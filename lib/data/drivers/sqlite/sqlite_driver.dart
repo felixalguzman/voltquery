@@ -38,6 +38,12 @@ class SqliteDriver implements Driver {
       final p when p.startsWith('file:') => sq.sqlite3.open(p, uri: true),
       final p => sq.sqlite3.open(p),
     };
+    // SQLite does not enforce foreign keys unless asked — the pragma defaults
+    // OFF and is *per connection*. Without it a declared FK is documentation
+    // only, so an edit pointing at a nonexistent parent row silently succeeds
+    // here while the same edit is correctly rejected on Postgres and MySQL.
+    // Enforcing matches what the schema says and what every other engine does.
+    db.execute('PRAGMA foreign_keys = ON');
     return SqliteSession(config, db);
   }
 }
