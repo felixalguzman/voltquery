@@ -76,6 +76,7 @@ const _pgCaps = Capabilities(
   hasServer: true,
   hasSchemas: true,
   supportsTls: true,
+  verifiesTlsCertificates: true,
   supportsQueryCancel: false,
   supportsSavepoints: true,
   supportsNestedTransactions: false,

@@ -8,6 +8,7 @@ import '../../../domain/drivers/schema_introspector.dart';
 import '../../../domain/models/capabilities.dart';
 import '../../../domain/models/connection.dart';
 import '../../../domain/models/engine.dart';
+import '../../../domain/models/ssl_mode.dart';
 import '../../../domain/models/schema.dart';
 import '../buffered_cursor.dart';
 
@@ -20,8 +21,15 @@ class MysqlDriver implements Driver {
   @override
   Capabilities get capabilities => const Capabilities(
         hasServer: true,
-        hasSchemas: false, // MySQL: Database == Schema
+        // In MySQL, SCHEMA and DATABASE are synonyms — information_schema.
+        // schemata *is* the database list. Reporting true means the tree shows
+        // databases at the root, so a connection with no default database is
+        // still browsable (and any database can be reached, not just the
+        // default one).
+        hasSchemas: true,
         supportsTls: true,
+        // mysql_client hardcodes onBadCertificate: (_) => true.
+        verifiesTlsCertificates: false,
         supportsQueryCancel: false, // not exposed by mysql_client
         supportsSavepoints: true,
         supportsNestedTransactions: false,
@@ -30,6 +38,16 @@ class MysqlDriver implements Driver {
 
   @override
   Future<Session> connect(Connection config, {String? secret}) async {
+    if (config.sslMode == SslMode.verifyFull) {
+      // Refusing beats connecting *and reporting* a verified channel we didn't
+      // verify — that would be a security claim the driver can't back.
+      throw DriverError(
+        DriverErrorKind.unsupported,
+        'mysql_client cannot verify server certificates (it accepts any '
+        'certificate), so "verify full" is not available for MySQL. Use '
+        '"required" for an encrypted but unverified connection.',
+      );
+    }
     try {
       final conn = await my.MySQLConnection.createConnection(
         host: config.host ?? 'localhost',
@@ -37,7 +55,11 @@ class MysqlDriver implements Driver {
         userName: config.username ?? 'root',
         password: secret ?? '',
         databaseName: config.defaultDatabase,
-        secure: false, // TODO(tls): derive from the connection's TLS setting.
+        // mysql_client's TLS is encrypt-only: it calls SecureSocket.secure
+        // with onBadCertificate: (_) => true, so certificates are never
+        // checked. `require` is therefore the strongest mode it can honour —
+        // verifyFull is refused above rather than silently downgraded.
+        secure: config.sslMode.enabled,
       );
       await conn.connect();
       return MysqlSession(config, conn);
@@ -110,7 +132,12 @@ class MysqlSession implements Session {
   Future<void> close() async => _conn.close();
 }
 
-/// MySQL introspection via `information_schema` scoped to the current DATABASE().
+/// MySQL introspection via `information_schema`.
+///
+/// MySQL treats SCHEMA and DATABASE as synonyms, so the schema level *is* the
+/// database list — which is what lets a connection with no default database
+/// still be browsed, and any database be reached rather than only the default.
+/// Lookups fall back to `DATABASE()` when no schema is supplied.
 class _MysqlIntrospector implements SchemaIntrospector {
   _MysqlIntrospector(this._conn);
 
@@ -124,19 +151,33 @@ class _MysqlIntrospector implements SchemaIntrospector {
   }
 
   @override
-  Future<List<SchemaInfo>> schemas(DatabaseInfo database) async =>
-      const []; // MySQL has no schema level (Capabilities.hasSchemas == false)
+  Future<List<SchemaInfo>> schemas(DatabaseInfo database) async {
+    // System databases are listed rather than hidden: filtering them out
+    // without a "show system objects" toggle would silently remove the only
+    // way to reach them.
+    final rs = await _conn.execute('SELECT schema_name FROM '
+        'information_schema.schemata ORDER BY schema_name');
+    return [for (final r in rs.rows) SchemaInfo(r.colAt(0) ?? '')];
+  }
 
   @override
   Future<List<TableInfo>> tables(SchemaInfo schema) async {
+    // COALESCE so an empty schema name still means "the session's database",
+    // which keeps a connection that *does* have a default database working.
     final rs = await _conn.execute(
-        'SELECT table_name, table_type FROM information_schema.tables '
-        'WHERE table_schema = DATABASE() ORDER BY table_name');
+      'SELECT table_name, table_type FROM information_schema.tables '
+      'WHERE table_schema = COALESCE(NULLIF(:s, \'\'), DATABASE()) '
+      'ORDER BY table_name',
+      {'s': schema.name},
+    );
     return [
       for (final r in rs.rows)
         TableInfo(
           name: r.colAt(0) ?? '',
           kind: r.colAt(1) == 'VIEW' ? ObjectKind.view : ObjectKind.table,
+          // Carried so columns()/indexes() can qualify the lookup — two
+          // databases may hold same-named tables.
+          schema: schema.name,
         ),
     ];
   }
@@ -144,25 +185,35 @@ class _MysqlIntrospector implements SchemaIntrospector {
   @override
   Future<List<ColumnInfo>> columns(TableInfo table) async {
     final keys = await _conn.execute(
-      'SELECT column_name, constraint_name, referenced_table_name '
+      'SELECT column_name, constraint_name, referenced_table_name, '
+      '       referenced_column_name, referenced_table_schema '
       'FROM information_schema.key_column_usage '
-      'WHERE table_schema = DATABASE() AND table_name = :t',
-      {'t': table.name},
+      'WHERE table_schema = COALESCE(NULLIF(:s, \'\'), DATABASE()) '
+      'AND table_name = :t',
+      {'s': table.schema, 't': table.name},
     );
     final pk = <String>{};
-    final fk = <String>{};
+    final fkRefs = <String, ColumnRef>{};
     for (final r in keys.rows) {
       final col = r.colAt(0) ?? '';
       if (r.colAt(1) == 'PRIMARY') pk.add(col);
-      if (r.colAt(2) != null) fk.add(col); // referenced_table_name set → FK
+      final refTable = r.colAt(2); // set only for a foreign key
+      if (refTable != null) {
+        fkRefs[col] = ColumnRef(
+          table: refTable,
+          column: r.colAt(3) ?? '',
+          schema: r.colAt(4) ?? '',
+        );
+      }
     }
     final rs = await _conn.execute(
       'SELECT column_name, data_type, is_nullable, ordinal_position, '
       '       column_default, column_type '
       'FROM information_schema.columns '
-      'WHERE table_schema = DATABASE() AND table_name = :t '
+      'WHERE table_schema = COALESCE(NULLIF(:s, \'\'), DATABASE()) '
+      'AND table_name = :t '
       'ORDER BY ordinal_position',
-      {'t': table.name},
+      {'s': table.schema, 't': table.name},
     );
     return [
       for (final r in rs.rows)
@@ -175,7 +226,8 @@ class _MysqlIntrospector implements SchemaIntrospector {
               : (r.colAt(1) ?? ''),
           nullable: r.colAt(2) == 'YES',
           isPrimaryKey: pk.contains(r.colAt(0)),
-          isForeignKey: fk.contains(r.colAt(0)),
+          isForeignKey: fkRefs.containsKey(r.colAt(0)),
+          references: fkRefs[r.colAt(0)],
           ordinal: (int.tryParse(r.colAt(3) ?? '') ?? 1) - 1,
           defaultValue: r.colAt(4),
           enumOptions: parseMysqlEnumOptions(r.colAt(5)),
@@ -188,9 +240,10 @@ class _MysqlIntrospector implements SchemaIntrospector {
     final rs = await _conn.execute(
       'SELECT index_name, non_unique, column_name, seq_in_index '
       'FROM information_schema.statistics '
-      'WHERE table_schema = DATABASE() AND table_name = :t '
+      'WHERE table_schema = COALESCE(NULLIF(:s, \'\'), DATABASE()) '
+      'AND table_name = :t '
       'ORDER BY index_name, seq_in_index',
-      {'t': table.name},
+      {'s': table.schema, 't': table.name},
     );
     // Rows are one-per-column; fold them into one IndexInfo per index_name,
     // preserving column order (seq_in_index).
@@ -217,8 +270,10 @@ class _MysqlIntrospector implements SchemaIntrospector {
   Future<String> tableDdl(TableInfo table) async {
     // MySQL reprints the full DDL; column 1 is 'Create Table' / 'Create View'.
     final what = table.kind == ObjectKind.view ? 'VIEW' : 'TABLE';
-    final rs =
-        await _conn.execute('SHOW CREATE $what ${_ident(table.name)}');
+    // Qualify by database — the tree can now browse databases other than the
+    // session's default, where an unqualified name would resolve wrongly (or
+    // not at all).
+    final rs = await _conn.execute('SHOW CREATE $what ${_qualified(table)}');
     final ddl = rs.rows.isEmpty ? null : rs.rows.first.colAt(1);
     if (ddl == null || ddl.isEmpty) {
       return '-- No stored DDL for ${table.name}';
@@ -231,12 +286,17 @@ class _MysqlIntrospector implements SchemaIntrospector {
     // MySQL has no SHOW CREATE INDEX — reconstruct from the index's columns.
     final cols = index.columns.map(_ident).join(', ');
     if (index.name == 'PRIMARY') {
-      return 'ALTER TABLE ${_ident(table.name)} ADD PRIMARY KEY ($cols);';
+      return 'ALTER TABLE ${_qualified(table)} ADD PRIMARY KEY ($cols);';
     }
     final unique = index.unique ? 'UNIQUE ' : '';
     return 'CREATE ${unique}INDEX ${_ident(index.name)} '
-        'ON ${_ident(table.name)} ($cols);';
+        'ON ${_qualified(table)} ($cols);';
   }
+
+  /// `db`.`table` when the table carries a database, else the bare name.
+  String _qualified(TableInfo table) => table.schema.isEmpty
+      ? _ident(table.name)
+      : '${_ident(table.schema)}.${_ident(table.name)}';
 
   /// Backtick-quote a MySQL identifier (escaping embedded backticks).
   String _ident(String id) => '`${id.replaceAll('`', '``')}`';

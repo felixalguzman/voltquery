@@ -146,6 +146,14 @@ void main() {
     expect(byName['customer_id']!.isForeignKey, isTrue);
     expect(byName['id']!.isPrimaryKey, isTrue);
     expect(byName['amount']!.isForeignKey, isFalse);
+
+    // The *target* is what makes validation, a parent-row picker and FK
+    // navigation possible — a bare bool can't drive any of them.
+    final ref = byName['customer_id']!.references;
+    expect(ref, isNotNull);
+    expect(ref!.table, 'customers');
+    expect(ref.column, 'id');
+    expect(byName['amount']!.references, isNull);
   });
 
   group('applying staged edits', () {

@@ -5,6 +5,7 @@ import 'package:voltquery/domain/sql/sql_statement_splitter.dart';
 /// The dialect-aware statement splitter (ADR-0007) — the pure seam behind
 /// multi-statement Run. Exercised across quoting/comment/dialect edge cases.
 void main() {
+  _identifierQuoting();
   List<String> split(String sql, [SqlDialect d = SqlDialect.postgres]) =>
       SqlStatementSplitter(d).split(sql).map((s) => s.sql).toList();
 
@@ -184,6 +185,35 @@ SELECT 3;''';
       expect(SqlDialect.of(Engine.postgres), SqlDialect.postgres);
       expect(SqlDialect.of(Engine.mysql), SqlDialect.mysql);
       expect(SqlDialect.of(Engine.sqlite), SqlDialect.sqlite);
+    });
+  });
+}
+
+/// Identifier quoting is dialect-specific and shared by everything that
+/// *generates* SQL (the schema tree's SELECTs, DmlBuilder's UPDATEs), so a
+/// regression here breaks MySQL everywhere at once.
+void _identifierQuoting() {
+  group('identifier quoting', () {
+    test('mysql uses backticks, others double quotes', () {
+      // A double-quoted name is a string literal on MySQL unless ANSI_QUOTES
+      // is on — `SELECT * FROM "t"` is a syntax error there.
+      expect(SqlDialect.mysql.quoteIdentifier('t'), '`t`');
+      expect(SqlDialect.postgres.quoteIdentifier('t'), '"t"');
+      expect(SqlDialect.sqlite.quoteIdentifier('t'), '"t"');
+    });
+
+    test('embedded quote characters are escaped', () {
+      expect(SqlDialect.mysql.quoteIdentifier('a`b'), '`a``b`');
+      expect(SqlDialect.postgres.quoteIdentifier('a"b'), '"a""b"');
+    });
+
+    test('qualify prefixes the schema when there is one', () {
+      expect(SqlDialect.mysql.qualify('agente', schema: 'avasure'),
+          '`avasure`.`agente`');
+      expect(SqlDialect.postgres.qualify('orders', schema: 'public'),
+          '"public"."orders"');
+      expect(SqlDialect.sqlite.qualify('t'), '"t"');
+      expect(SqlDialect.mysql.qualify('t', schema: ''), '`t`');
     });
   });
 }

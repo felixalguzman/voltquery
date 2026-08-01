@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../domain/drivers/driver_error.dart';
 import '../../../domain/models/schema.dart';
+import '../../../domain/sql/sql_statement_splitter.dart';
 import '../../core/menu/context_menu.dart';
 import '../query_workspace/worksheet_providers.dart';
 import 'schema_providers.dart';
@@ -233,11 +234,17 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
   /// Open [t] in a **new** worksheet tab (never clobbering the current editor).
   /// [run] = Preview Data (auto-run); false = Open in Editor (load only).
   void _openTable(TableInfo t, {required bool run}) {
-    final name = t.name.replaceAll('"', '""');
+    // Quote for the *connection's* dialect: MySQL reads "t" as a string
+    // literal unless ANSI_QUOTES is on, so a double-quoted name is a syntax
+    // error there. Qualify with the owning schema/database too — the tree can
+    // browse outside the session's default, where a bare name would silently
+    // resolve against the wrong one.
+    final dialect = SqlDialect.of(ref.read(currentConnectionProvider).engine);
+    final target = dialect.qualify(t.name, schema: t.schema);
     final id = ref.read(worksheetTabsProvider.notifier).add();
     ref
         .read(worksheetSeedsProvider.notifier)
-        .put(id, 'SELECT * FROM "$name" LIMIT 200;', autoRun: run);
+        .put(id, 'SELECT * FROM $target LIMIT 200;', autoRun: run);
   }
 
   List<TreeViewItem> _columnItems(List<ColumnInfo> cols) => [
@@ -265,6 +272,12 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
               actions: [
                 MenuAction('Copy Name', () => _copy(c.name),
                     icon: FluentIcons.copy),
+                if (c.references case final ref?)
+                  MenuAction(
+                    'Copy Referenced Table',
+                    () => _copy(ref.table),
+                    icon: FluentIcons.link,
+                  ),
               ],
               child: LayoutBuilder(builder: (context, cons) {
                 return Row(children: [
@@ -278,13 +291,20 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(c.dataType,
+                    // A FK shows what it points at — the glyph alone said a
+                    // reference existed but never where it went.
+                    child: Text(
+                        c.references == null
+                            ? c.dataType
+                            : '→ ${c.references}',
                         overflow: TextOverflow.ellipsis,
                         softWrap: false,
                         maxLines: 1,
                         textAlign: TextAlign.right,
-                        style: const TextStyle(
-                            color: _textLo,
+                        style: TextStyle(
+                            color: c.references == null
+                                ? _textLo
+                                : const Color(0xFFB98CFF),
                             fontSize: 10.5,
                             fontFamily: 'monospace')),
                   ),

@@ -11,6 +11,7 @@ class Capabilities {
     required this.hasServer,
     required this.hasSchemas,
     required this.supportsTls,
+    required this.verifiesTlsCertificates,
     required this.supportsQueryCancel,
     required this.supportsSavepoints,
     required this.supportsNestedTransactions,
@@ -23,6 +24,15 @@ class Capabilities {
   /// True for Postgres; MySQL folds Schema into Database; SQLite has neither.
   final bool hasSchemas;
   final bool supportsTls;
+
+  /// Whether the driver can actually *verify* a server certificate.
+  ///
+  /// False for MySQL: `mysql_client` hardcodes
+  /// `SecureSocket.secure(onBadCertificate: (_) => true)`, so its TLS is
+  /// encrypted but unauthenticated. Offering "verify full" there would be a
+  /// security claim the driver cannot honour, so the UI hides it and the driver
+  /// refuses it outright rather than downgrading silently.
+  final bool verifiesTlsCertificates;
 
   /// Postgres only — see [Session.cancelActive].
   final bool supportsQueryCancel;

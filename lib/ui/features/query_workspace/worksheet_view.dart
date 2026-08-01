@@ -258,7 +258,7 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
           const SizedBox(width: 6),
           Flexible(
             child: Text(
-              '$connName · SQLite',
+              '$connName · ${ref.watch(currentConnectionProvider).engine.label}',
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(color: _textMid, fontSize: 12),
             ),

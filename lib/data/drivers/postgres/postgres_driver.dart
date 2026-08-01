@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:postgres/postgres.dart' as pg;
 
 import '../../../domain/drivers/driver.dart';
@@ -7,6 +8,7 @@ import '../../../domain/drivers/schema_introspector.dart';
 import '../../../domain/models/capabilities.dart';
 import '../../../domain/models/connection.dart';
 import '../../../domain/models/engine.dart';
+import '../../../domain/models/ssl_mode.dart';
 import '../../../domain/models/schema.dart';
 
 /// PostgreSQL adapter (ADR-0003) over the `postgres` v3 package. Behind the
@@ -20,6 +22,7 @@ class PostgresDriver implements Driver {
         hasServer: true,
         hasSchemas: true,
         supportsTls: true,
+        verifiesTlsCertificates: true,
         // Postgres CAN cancel, but `postgres` v3.5.12 doesn't expose it on the
         // public Connection API (cancelPendingStatement is internal). Gated off
         // honestly until the package surfaces it.
@@ -40,8 +43,17 @@ class PostgresDriver implements Driver {
           username: config.username,
           password: secret,
         ),
-        // TODO(tls): derive sslMode from the connection's TLS setting.
-        settings: const pg.ConnectionSettings(sslMode: pg.SslMode.disable),
+        settings: pg.ConnectionSettings(
+          sslMode: switch (config.sslMode) {
+            SslMode.disable => pg.SslMode.disable,
+            SslMode.require => pg.SslMode.require,
+            SslMode.verifyFull => pg.SslMode.verifyFull,
+          },
+          // A caller-supplied CA covers self-signed / private-CA servers that
+          // the system trust store doesn't know; null falls back to the system
+          // roots.
+          securityContext: _securityContext(config),
+        ),
       );
       return PostgresSession(config, conn);
     } on pg.PgException catch (e) {
@@ -51,6 +63,13 @@ class PostgresDriver implements Driver {
           cause: e);
     }
   }
+}
+
+/// Trust roots for [SslMode.verifyFull] when a CA file is configured.
+SecurityContext? _securityContext(Connection config) {
+  final ca = config.caCertPath;
+  if (ca == null || ca.isEmpty) return null;
+  return SecurityContext(withTrustedRoots: true)..setTrustedCertificates(ca);
 }
 
 class PostgresSession implements Session {
@@ -210,7 +229,8 @@ class _PostgresIntrospector implements SchemaIntrospector {
           dataType: row[1] as String,
           nullable: (row[2] as String) == 'YES',
           isPrimaryKey: keys.pk.contains(row[0]),
-          isForeignKey: keys.fk.contains(row[0]),
+          isForeignKey: keys.fk.containsKey(row[0]),
+          references: keys.fk[row[0]],
           ordinal: (row[3] as int) - 1,
           defaultValue: row[4]?.toString(),
           enumOptions: enums[row[5]] ?? const [],
@@ -240,28 +260,39 @@ class _PostgresIntrospector implements SchemaIntrospector {
 
   /// PK + FK column-name sets for a table (one round-trip via the constraint
   /// catalog). Powers the key glyphs in the schema tree.
-  Future<({Set<String> pk, Set<String> fk})> _keyColumns(
+  Future<({Set<String> pk, Map<String, ColumnRef> fk})> _keyColumns(
       String schema, String table) async {
     final r = await _conn.execute(
       pg.Sql.named(
-        'SELECT kcu.column_name, tc.constraint_type '
+        'SELECT kcu.column_name, tc.constraint_type, '
+        '       ccu.table_schema, ccu.table_name, ccu.column_name '
         'FROM information_schema.table_constraints tc '
         'JOIN information_schema.key_column_usage kcu '
         '  ON kcu.constraint_name = tc.constraint_name '
         '  AND kcu.constraint_schema = tc.constraint_schema '
+        // constraint_column_usage names the *referenced* column of a FK; it's
+        // absent (hence the LEFT JOIN) for a primary key.
+        'LEFT JOIN information_schema.constraint_column_usage ccu '
+        '  ON ccu.constraint_name = tc.constraint_name '
+        '  AND ccu.constraint_schema = tc.constraint_schema '
+        "  AND tc.constraint_type = 'FOREIGN KEY' "
         "WHERE tc.constraint_type IN ('PRIMARY KEY','FOREIGN KEY') "
         'AND tc.table_schema = @s AND tc.table_name = @t',
       ),
       parameters: {'s': schema, 't': table},
     );
     final pk = <String>{};
-    final fk = <String>{};
+    final fk = <String, ColumnRef>{};
     for (final row in r) {
       final col = row[0] as String;
       if (row[1] == 'PRIMARY KEY') {
         pk.add(col);
-      } else {
-        fk.add(col);
+      } else if (row[3] != null) {
+        fk[col] = ColumnRef(
+          table: row[3]! as String,
+          column: (row[4] as String?) ?? '',
+          schema: (row[2] as String?) ?? '',
+        );
       }
     }
     return (pk: pk, fk: fk);

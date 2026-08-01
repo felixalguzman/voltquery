@@ -1033,7 +1033,7 @@ final class WorksheetTabsProvider
   }
 }
 
-String _$worksheetTabsHash() => r'b6f02373969814b18c88a5a038191d40b0053309';
+String _$worksheetTabsHash() => r'c105f6dbbaf1a250e8cdbe104722dbe97f0b47b9';
 
 abstract class _$WorksheetTabs extends $Notifier<WorksheetTabsState> {
   WorksheetTabsState build();

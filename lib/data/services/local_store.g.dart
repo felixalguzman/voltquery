@@ -759,6 +759,29 @@ class $ConnectionRowsTable extends ConnectionRows
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _sslModeMeta = const VerificationMeta(
+    'sslMode',
+  );
+  @override
+  late final GeneratedColumn<String> sslMode = GeneratedColumn<String>(
+    'ssl_mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('require'),
+  );
+  static const VerificationMeta _caCertPathMeta = const VerificationMeta(
+    'caCertPath',
+  );
+  @override
+  late final GeneratedColumn<String> caCertPath = GeneratedColumn<String>(
+    'ca_cert_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -782,6 +805,8 @@ class $ConnectionRowsTable extends ConnectionRows
     credentialRef,
     sqlitePath,
     defaultDatabase,
+    sslMode,
+    caCertPath,
     createdAt,
   ];
   @override
@@ -859,6 +884,21 @@ class $ConnectionRowsTable extends ConnectionRows
         ),
       );
     }
+    if (data.containsKey('ssl_mode')) {
+      context.handle(
+        _sslModeMeta,
+        sslMode.isAcceptableOrUnknown(data['ssl_mode']!, _sslModeMeta),
+      );
+    }
+    if (data.containsKey('ca_cert_path')) {
+      context.handle(
+        _caCertPathMeta,
+        caCertPath.isAcceptableOrUnknown(
+          data['ca_cert_path']!,
+          _caCertPathMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -910,6 +950,14 @@ class $ConnectionRowsTable extends ConnectionRows
         DriftSqlType.string,
         data['${effectivePrefix}default_database'],
       ),
+      sslMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ssl_mode'],
+      )!,
+      caCertPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ca_cert_path'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -933,6 +981,14 @@ class ConnectionRow extends DataClass implements Insertable<ConnectionRow> {
   final String? credentialRef;
   final String? sqlitePath;
   final String? defaultDatabase;
+
+  /// [SslMode] name. Existing rows migrate to `require` rather than `disable`:
+  /// encryption should be opted out of, not into — and MySQL 8 cannot
+  /// authenticate without it.
+  final String sslMode;
+
+  /// PEM CA bundle for verify-full against a private/self-signed CA.
+  final String? caCertPath;
   final DateTime createdAt;
   const ConnectionRow({
     required this.id,
@@ -944,6 +1000,8 @@ class ConnectionRow extends DataClass implements Insertable<ConnectionRow> {
     this.credentialRef,
     this.sqlitePath,
     this.defaultDatabase,
+    required this.sslMode,
+    this.caCertPath,
     required this.createdAt,
   });
   @override
@@ -970,6 +1028,10 @@ class ConnectionRow extends DataClass implements Insertable<ConnectionRow> {
     if (!nullToAbsent || defaultDatabase != null) {
       map['default_database'] = Variable<String>(defaultDatabase);
     }
+    map['ssl_mode'] = Variable<String>(sslMode);
+    if (!nullToAbsent || caCertPath != null) {
+      map['ca_cert_path'] = Variable<String>(caCertPath);
+    }
     map['created_at'] = Variable<DateTime>(createdAt);
     return map;
   }
@@ -993,6 +1055,10 @@ class ConnectionRow extends DataClass implements Insertable<ConnectionRow> {
       defaultDatabase: defaultDatabase == null && nullToAbsent
           ? const Value.absent()
           : Value(defaultDatabase),
+      sslMode: Value(sslMode),
+      caCertPath: caCertPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(caCertPath),
       createdAt: Value(createdAt),
     );
   }
@@ -1012,6 +1078,8 @@ class ConnectionRow extends DataClass implements Insertable<ConnectionRow> {
       credentialRef: serializer.fromJson<String?>(json['credentialRef']),
       sqlitePath: serializer.fromJson<String?>(json['sqlitePath']),
       defaultDatabase: serializer.fromJson<String?>(json['defaultDatabase']),
+      sslMode: serializer.fromJson<String>(json['sslMode']),
+      caCertPath: serializer.fromJson<String?>(json['caCertPath']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
     );
   }
@@ -1028,6 +1096,8 @@ class ConnectionRow extends DataClass implements Insertable<ConnectionRow> {
       'credentialRef': serializer.toJson<String?>(credentialRef),
       'sqlitePath': serializer.toJson<String?>(sqlitePath),
       'defaultDatabase': serializer.toJson<String?>(defaultDatabase),
+      'sslMode': serializer.toJson<String>(sslMode),
+      'caCertPath': serializer.toJson<String?>(caCertPath),
       'createdAt': serializer.toJson<DateTime>(createdAt),
     };
   }
@@ -1042,6 +1112,8 @@ class ConnectionRow extends DataClass implements Insertable<ConnectionRow> {
     Value<String?> credentialRef = const Value.absent(),
     Value<String?> sqlitePath = const Value.absent(),
     Value<String?> defaultDatabase = const Value.absent(),
+    String? sslMode,
+    Value<String?> caCertPath = const Value.absent(),
     DateTime? createdAt,
   }) => ConnectionRow(
     id: id ?? this.id,
@@ -1057,6 +1129,8 @@ class ConnectionRow extends DataClass implements Insertable<ConnectionRow> {
     defaultDatabase: defaultDatabase.present
         ? defaultDatabase.value
         : this.defaultDatabase,
+    sslMode: sslMode ?? this.sslMode,
+    caCertPath: caCertPath.present ? caCertPath.value : this.caCertPath,
     createdAt: createdAt ?? this.createdAt,
   );
   ConnectionRow copyWithCompanion(ConnectionRowsCompanion data) {
@@ -1076,6 +1150,10 @@ class ConnectionRow extends DataClass implements Insertable<ConnectionRow> {
       defaultDatabase: data.defaultDatabase.present
           ? data.defaultDatabase.value
           : this.defaultDatabase,
+      sslMode: data.sslMode.present ? data.sslMode.value : this.sslMode,
+      caCertPath: data.caCertPath.present
+          ? data.caCertPath.value
+          : this.caCertPath,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
   }
@@ -1092,6 +1170,8 @@ class ConnectionRow extends DataClass implements Insertable<ConnectionRow> {
           ..write('credentialRef: $credentialRef, ')
           ..write('sqlitePath: $sqlitePath, ')
           ..write('defaultDatabase: $defaultDatabase, ')
+          ..write('sslMode: $sslMode, ')
+          ..write('caCertPath: $caCertPath, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
@@ -1108,6 +1188,8 @@ class ConnectionRow extends DataClass implements Insertable<ConnectionRow> {
     credentialRef,
     sqlitePath,
     defaultDatabase,
+    sslMode,
+    caCertPath,
     createdAt,
   );
   @override
@@ -1123,6 +1205,8 @@ class ConnectionRow extends DataClass implements Insertable<ConnectionRow> {
           other.credentialRef == this.credentialRef &&
           other.sqlitePath == this.sqlitePath &&
           other.defaultDatabase == this.defaultDatabase &&
+          other.sslMode == this.sslMode &&
+          other.caCertPath == this.caCertPath &&
           other.createdAt == this.createdAt);
 }
 
@@ -1136,6 +1220,8 @@ class ConnectionRowsCompanion extends UpdateCompanion<ConnectionRow> {
   final Value<String?> credentialRef;
   final Value<String?> sqlitePath;
   final Value<String?> defaultDatabase;
+  final Value<String> sslMode;
+  final Value<String?> caCertPath;
   final Value<DateTime> createdAt;
   final Value<int> rowid;
   const ConnectionRowsCompanion({
@@ -1148,6 +1234,8 @@ class ConnectionRowsCompanion extends UpdateCompanion<ConnectionRow> {
     this.credentialRef = const Value.absent(),
     this.sqlitePath = const Value.absent(),
     this.defaultDatabase = const Value.absent(),
+    this.sslMode = const Value.absent(),
+    this.caCertPath = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -1161,6 +1249,8 @@ class ConnectionRowsCompanion extends UpdateCompanion<ConnectionRow> {
     this.credentialRef = const Value.absent(),
     this.sqlitePath = const Value.absent(),
     this.defaultDatabase = const Value.absent(),
+    this.sslMode = const Value.absent(),
+    this.caCertPath = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -1176,6 +1266,8 @@ class ConnectionRowsCompanion extends UpdateCompanion<ConnectionRow> {
     Expression<String>? credentialRef,
     Expression<String>? sqlitePath,
     Expression<String>? defaultDatabase,
+    Expression<String>? sslMode,
+    Expression<String>? caCertPath,
     Expression<DateTime>? createdAt,
     Expression<int>? rowid,
   }) {
@@ -1189,6 +1281,8 @@ class ConnectionRowsCompanion extends UpdateCompanion<ConnectionRow> {
       if (credentialRef != null) 'credential_ref': credentialRef,
       if (sqlitePath != null) 'sqlite_path': sqlitePath,
       if (defaultDatabase != null) 'default_database': defaultDatabase,
+      if (sslMode != null) 'ssl_mode': sslMode,
+      if (caCertPath != null) 'ca_cert_path': caCertPath,
       if (createdAt != null) 'created_at': createdAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -1204,6 +1298,8 @@ class ConnectionRowsCompanion extends UpdateCompanion<ConnectionRow> {
     Value<String?>? credentialRef,
     Value<String?>? sqlitePath,
     Value<String?>? defaultDatabase,
+    Value<String>? sslMode,
+    Value<String?>? caCertPath,
     Value<DateTime>? createdAt,
     Value<int>? rowid,
   }) {
@@ -1217,6 +1313,8 @@ class ConnectionRowsCompanion extends UpdateCompanion<ConnectionRow> {
       credentialRef: credentialRef ?? this.credentialRef,
       sqlitePath: sqlitePath ?? this.sqlitePath,
       defaultDatabase: defaultDatabase ?? this.defaultDatabase,
+      sslMode: sslMode ?? this.sslMode,
+      caCertPath: caCertPath ?? this.caCertPath,
       createdAt: createdAt ?? this.createdAt,
       rowid: rowid ?? this.rowid,
     );
@@ -1252,6 +1350,12 @@ class ConnectionRowsCompanion extends UpdateCompanion<ConnectionRow> {
     if (defaultDatabase.present) {
       map['default_database'] = Variable<String>(defaultDatabase.value);
     }
+    if (sslMode.present) {
+      map['ssl_mode'] = Variable<String>(sslMode.value);
+    }
+    if (caCertPath.present) {
+      map['ca_cert_path'] = Variable<String>(caCertPath.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -1273,6 +1377,8 @@ class ConnectionRowsCompanion extends UpdateCompanion<ConnectionRow> {
           ..write('credentialRef: $credentialRef, ')
           ..write('sqlitePath: $sqlitePath, ')
           ..write('defaultDatabase: $defaultDatabase, ')
+          ..write('sslMode: $sslMode, ')
+          ..write('caCertPath: $caCertPath, ')
           ..write('createdAt: $createdAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -1619,6 +1725,8 @@ typedef $$ConnectionRowsTableCreateCompanionBuilder =
       Value<String?> credentialRef,
       Value<String?> sqlitePath,
       Value<String?> defaultDatabase,
+      Value<String> sslMode,
+      Value<String?> caCertPath,
       Value<DateTime> createdAt,
       Value<int> rowid,
     });
@@ -1633,6 +1741,8 @@ typedef $$ConnectionRowsTableUpdateCompanionBuilder =
       Value<String?> credentialRef,
       Value<String?> sqlitePath,
       Value<String?> defaultDatabase,
+      Value<String> sslMode,
+      Value<String?> caCertPath,
       Value<DateTime> createdAt,
       Value<int> rowid,
     });
@@ -1688,6 +1798,16 @@ class $$ConnectionRowsTableFilterComposer
 
   ColumnFilters<String> get defaultDatabase => $composableBuilder(
     column: $table.defaultDatabase,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sslMode => $composableBuilder(
+    column: $table.sslMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get caCertPath => $composableBuilder(
+    column: $table.caCertPath,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1751,6 +1871,16 @@ class $$ConnectionRowsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get sslMode => $composableBuilder(
+    column: $table.sslMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get caCertPath => $composableBuilder(
+    column: $table.caCertPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -1799,6 +1929,14 @@ class $$ConnectionRowsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get sslMode =>
+      $composableBuilder(column: $table.sslMode, builder: (column) => column);
+
+  GeneratedColumn<String> get caCertPath => $composableBuilder(
+    column: $table.caCertPath,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 }
@@ -1843,6 +1981,8 @@ class $$ConnectionRowsTableTableManager
                 Value<String?> credentialRef = const Value.absent(),
                 Value<String?> sqlitePath = const Value.absent(),
                 Value<String?> defaultDatabase = const Value.absent(),
+                Value<String> sslMode = const Value.absent(),
+                Value<String?> caCertPath = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ConnectionRowsCompanion(
@@ -1855,6 +1995,8 @@ class $$ConnectionRowsTableTableManager
                 credentialRef: credentialRef,
                 sqlitePath: sqlitePath,
                 defaultDatabase: defaultDatabase,
+                sslMode: sslMode,
+                caCertPath: caCertPath,
                 createdAt: createdAt,
                 rowid: rowid,
               ),
@@ -1869,6 +2011,8 @@ class $$ConnectionRowsTableTableManager
                 Value<String?> credentialRef = const Value.absent(),
                 Value<String?> sqlitePath = const Value.absent(),
                 Value<String?> defaultDatabase = const Value.absent(),
+                Value<String> sslMode = const Value.absent(),
+                Value<String?> caCertPath = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ConnectionRowsCompanion.insert(
@@ -1881,6 +2025,8 @@ class $$ConnectionRowsTableTableManager
                 credentialRef: credentialRef,
                 sqlitePath: sqlitePath,
                 defaultDatabase: defaultDatabase,
+                sslMode: sslMode,
+                caCertPath: caCertPath,
                 createdAt: createdAt,
                 rowid: rowid,
               ),
