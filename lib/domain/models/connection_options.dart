@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'ssh_config.dart';
 import 'ssl_mode.dart';
 
 /// Per-connection settings that aren't part of *reaching* the server.
@@ -21,6 +22,7 @@ class ConnectionOptions {
     this.colorTag,
     this.readOnly = false,
     this.connectTimeoutSeconds = 15,
+    this.ssh = const SshConfig(),
     this.driverProperties = const {},
   });
 
@@ -52,6 +54,10 @@ class ConnectionOptions {
 
   final int connectTimeoutSeconds;
 
+  /// SSH tunnel settings. Disabled by default; when enabled the driver connects
+  /// to a local forwarded port instead of the server directly.
+  final SshConfig ssh;
+
   /// Engine-specific pass-through settings, applied verbatim by the driver.
   final Map<String, String> driverProperties;
 
@@ -62,6 +68,7 @@ class ConnectionOptions {
     int? colorTag,
     bool? readOnly,
     int? connectTimeoutSeconds,
+    SshConfig? ssh,
     Map<String, String>? driverProperties,
   }) =>
       ConnectionOptions(
@@ -72,6 +79,7 @@ class ConnectionOptions {
         readOnly: readOnly ?? this.readOnly,
         connectTimeoutSeconds:
             connectTimeoutSeconds ?? this.connectTimeoutSeconds,
+        ssh: ssh ?? this.ssh,
         driverProperties: driverProperties ?? this.driverProperties,
       );
 
@@ -82,6 +90,7 @@ class ConnectionOptions {
         if (colorTag != null) 'colorTag': colorTag,
         'readOnly': readOnly,
         'connectTimeoutSeconds': connectTimeoutSeconds,
+        if (ssh.enabled) 'ssh': ssh.toJson(),
         if (driverProperties.isNotEmpty) 'driverProperties': driverProperties,
       };
 
@@ -97,6 +106,10 @@ class ConnectionOptions {
       colorTag: json['colorTag'] as int?,
       readOnly: json['readOnly'] as bool? ?? false,
       connectTimeoutSeconds: json['connectTimeoutSeconds'] as int? ?? 15,
+      ssh: switch (json['ssh']) {
+        final Map<String, Object?> m => SshConfig.fromJson(m),
+        _ => const SshConfig(),
+      },
       driverProperties: switch (json['driverProperties']) {
         final Map<String, Object?> m => {
             for (final e in m.entries) e.key: '${e.value}',

@@ -60,6 +60,9 @@ dependencies:
   path: ^1.9.1
   riverpod: ^3.3.1
   cryptography: ^2.9.0
+  # SSH tunnelling (#connectivity): local port-forward to a database behind a
+  # bastion. Pure Dart, so no platform channel or native ssh binary.
+  dartssh2: ^2.22.5
   simple_icons: ^16.23.0
   # menu bar (#21/#55) + node context menus (#53); needs Flutter >= 3.44.4.
   # Pinned to a git ref, NOT ^0.1.5 from pub.dev: the published 0.1.5 tarball
