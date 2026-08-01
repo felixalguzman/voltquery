@@ -85,10 +85,12 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 
 1. NavigationView rail + grid keyboard cell nav (#21 remainder).
 2. Background isolate for the SQLite driver — unblocks true Cancel + timeouts.
-3. **Grid write-path** — inline cell editing + row add/delete/clone + "Copy as
-   SQL" + a staged-DML review panel. The biggest parity gap (see
-   `docs/research/feature-gaps.md`); the manual-commit/tx work already built the
-   safety story it needs.
+3. **Grid write-path** *(in progress)* — inline cell editing + row add/delete/
+   clone + "Copy as SQL" + a staged-DML review panel. The biggest parity gap
+   (see `docs/research/feature-gaps.md`); the manual-commit/tx work already
+   built the safety story it needs. **Domain layer landed** (`EditableResult
+   Analyzer`, `ColumnEditorResolver`, `DmlBuilder`); next is the grid wiring
+   (typed editors + change buffer + review panel), then row insert/delete.
 4. **Connectivity** — SSH tunnel + TLS + keep-alive. Without these VoltQuery
    can't reach most production/cloud databases.
 5. Tables/Views folders + large-schema render-cap (#13 tail).
