@@ -63,7 +63,12 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   selectable, copyable error. Saved connections are **editable** — the same
   dialog reopens prefilled, keeping the id so the vault entry and history stay
   attached — with right-click Edit / Duplicate / Copy Name / Delete. Deleting
-  removes the stored password too.
+  removes the stored password too. **SSH tunnelling** (dartssh2) forwards a
+  loopback port to the database as seen from the bastion, with password or
+  private-key auth; the tunnel's lifetime is tied to the Session, and its
+  secrets live in the vault like any other. Connection failures are explained
+  in plain language with a one-click fix where one exists (`DriverErrorHelper`),
+  raw driver text behind a Details toggle.
 - **Credentials vault** (`data/services/secret_store.dart`, ADR-0006): Argon2id →
   AES-256-GCM envelope crypto, master password, locked each launch, header padlock.
   *Deviation:* vault used on all platforms; mac/win keychain deferred.
@@ -109,6 +114,10 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   nothing consumes it: checking a value before sending it, a parent-row picker,
   and FK navigation (P2 in `docs/research/feature-gaps.md`) all remain to build.
   The metadata that blocked them is in place.
+- **SSH host-key verification is not implemented.** The tunnel authenticates
+  *to* the bastion but does not verify the bastion's identity against
+  known_hosts, so it is exposed to an active MITM on that hop. Multi-hop / jump
+  chains are also unsupported.
 - mac/win **keychain** adapter for the SecretStore (ADR-0006).
 - `ui/core/theme` (mix tokens) not built; tokens are inlined per widget.
 
@@ -127,9 +136,9 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
    **deferred**. Both pluto and trina build every body column for every visible
    row, so a wide `SELECT *` is the failure mode — `wide_metrics` (5k × 26) is
    seeded for that test. See `docs/research/data-grid-options.md`.
-5. **Connectivity** — **TLS landed**; SSH tunnel and keep-alive/auto-reconnect
-   remain. Without a tunnel, databases behind a bastion are still unreachable.
-   The connection dialog already has an (inert) SSH tab waiting for it.
+5. **Connectivity** — **TLS and SSH tunnelling landed**; keep-alive /
+   auto-reconnect remains, as does multi-hop (jump-host chains) and known-hosts
+   verification.
 7. Tables/Views folders + large-schema render-cap (#13 tail).
 8. `ui/core/theme` via mix.
 

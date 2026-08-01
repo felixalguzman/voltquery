@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../data/drivers/driver_factory.dart';
+import '../../../data/services/ssh_tunnel.dart';
 import '../../../domain/drivers/driver.dart';
 import '../../../domain/drivers/driver_error.dart';
 import '../../../domain/drivers/result.dart';
@@ -97,19 +98,56 @@ Future<Session> worksheetSession(Ref ref, String worksheetId) async {
 Future<Session> _openSession(Ref ref, Connection conn) async {
   var disposed = false;
   ref.onDispose(() => disposed = true);
-  final secret = conn.credentialRef == null
+  final store = conn.credentialRef == null && !conn.options.ssh.isUsable
       ? null
-      : await (await ref.read(
-          secretStoreProvider.future,
-        )).read(conn.credentialRef!);
-  final session = await driverFor(conn.engine).connect(conn, secret: secret);
+      : await ref.read(secretStoreProvider.future);
+  Future<String?> secretFor(String? credentialRef) async =>
+      credentialRef == null ? null : store?.read(credentialRef);
+
+  final secret = await secretFor(conn.credentialRef);
+
+  // With a tunnel, the driver connects to a loopback port and knows nothing
+  // about SSH — the target host/port are resolved on the far side, so a
+  // `localhost` database address means "localhost as the bastion sees it".
+  SshTunnel? tunnel;
+  var target = conn;
+  if (conn.options.ssh.isUsable) {
+    final ssh = conn.options.ssh;
+    tunnel = await SshTunnel.open(
+      config: ssh,
+      targetHost: conn.host ?? 'localhost',
+      targetPort: conn.port ?? _defaultPort(conn.engine),
+      password: await secretFor(ssh.passwordRef),
+      passphrase: await secretFor(ssh.passphraseRef),
+      timeout: Duration(seconds: conn.options.connectTimeoutSeconds),
+    );
+    // Registered immediately, so a failure *after* this point still tears the
+    // tunnel down rather than leaking an authenticated SSH session.
+    ref.onDispose(tunnel.close);
+    target = conn.copyWith(host: '127.0.0.1', port: tunnel.localPort);
+  }
+
+  final Session session;
+  try {
+    session = await driverFor(conn.engine).connect(target, secret: secret);
+  } catch (_) {
+    await tunnel?.close();
+    rethrow;
+  }
   if (disposed) {
     await session.close();
+    await tunnel?.close();
     throw StateError('session disposed before connect completed');
   }
   ref.onDispose(session.close);
   return session;
 }
+
+int _defaultPort(Engine engine) => switch (engine) {
+      Engine.postgres => 5432,
+      Engine.mysql => 3306,
+      Engine.sqlite => 0,
+    };
 
 /// Seeds the demo database — a small but *representative* schema, not just one
 /// table.

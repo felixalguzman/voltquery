@@ -6,6 +6,7 @@ import '../../../data/drivers/driver_factory.dart';
 import '../../../domain/drivers/driver_error.dart';
 import '../../../domain/drivers/driver_error_help.dart';
 import '../../../domain/models/connection_options.dart';
+import '../../../domain/models/ssh_config.dart';
 import '../../../domain/models/ssl_mode.dart';
 import '../../../domain/drivers/result.dart';
 import '../../../domain/models/connection.dart';
@@ -16,7 +17,12 @@ import '../../../domain/models/engine.dart';
 /// [password] is null when editing and the field was left untouched — meaning
 /// "keep the stored secret". An empty string is a real (if unwise) password, so
 /// the two cases can't be collapsed.
-typedef ServerFormResult = ({Connection connection, String? password});
+typedef ServerFormResult = ({
+  Connection connection,
+  String? password,
+  String? sshPassword,
+  String? sshPassphrase,
+});
 
 /// Connection form for a server engine (Postgres / MySQL) with an inline
 /// **Test connection**. The #14 wizard's server branch.
@@ -71,6 +77,17 @@ class _ServerDialogState extends State<_ServerDialog> {
       _existing?.options ?? const ConnectionOptions();
   late final _caCert =
       TextEditingController(text: _existing?.options.caCertPath ?? '');
+
+  late final _sshHost =
+      TextEditingController(text: _existing?.options.ssh.host ?? '');
+  late final _sshPort =
+      TextEditingController(text: '${_existing?.options.ssh.port ?? 22}');
+  late final _sshUser =
+      TextEditingController(text: _existing?.options.ssh.username ?? '');
+  final _sshPassword = TextEditingController();
+  late final _sshKeyPath = TextEditingController(
+      text: _existing?.options.ssh.privateKeyPath ?? '');
+  final _sshPassphrase = TextEditingController();
   int _tab = 0;
 
   SslMode get _ssl => _options.sslMode;
@@ -107,6 +124,12 @@ class _ServerDialogState extends State<_ServerDialog> {
       _password,
       _database,
       _caCert,
+      _sshHost,
+      _sshPort,
+      _sshUser,
+      _sshPassword,
+      _sshKeyPath,
+      _sshPassphrase,
     ]) {
       c.dispose();
     }
@@ -130,6 +153,12 @@ class _ServerDialogState extends State<_ServerDialog> {
           : _database.text.trim(),
       options: _options.copyWith(
         caCertPath: _caCert.text.trim().isEmpty ? null : _caCert.text.trim(),
+        // Vault keys derived from the connection id, so they travel with it and
+        // are removed with it. The secrets themselves never touch the options.
+        ssh: _options.ssh.copyWith(
+          passwordRef: '$id/ssh-password',
+          passphraseRef: '$id/ssh-passphrase',
+        ),
       ),
     );
   }
@@ -186,12 +215,15 @@ class _ServerDialogState extends State<_ServerDialog> {
   }
 
   void _save() {
+    // Same rule for every secret: untouched while editing means "keep what's
+    // stored", which null expresses and an empty string cannot.
+    String? entered(TextEditingController c) =>
+        _isEdit && c.text.isEmpty ? null : c.text;
     Navigator.pop(context, (
       connection: _connection(forSave: true),
-      // Editing with the field untouched means "keep the stored secret". An
-      // empty string is a real password, so null is the only way to say
-      // "unchanged" without silently wiping the vault entry.
-      password: _isEdit && _password.text.isEmpty ? null : _password.text,
+      password: entered(_password),
+      sshPassword: entered(_sshPassword),
+      sshPassphrase: entered(_sshPassphrase),
     ));
   }
 
@@ -480,15 +512,95 @@ class _ServerDialogState extends State<_ServerDialog> {
         ],
       );
 
-  Widget _sshTab() => const Padding(
-        padding: EdgeInsets.symmetric(vertical: 24),
-        child: Text(
-          'SSH tunnelling is not implemented yet.\n\n'
-          'It will live here: host, port, user, key file or password, and an '
-          'optional jump host.',
-          style: TextStyle(color: Color(0xFF9BA1AD), fontSize: 12),
+  Widget _sshTab() {
+    final ssh = _options.ssh;
+    void update(SshConfig next) =>
+        setState(() => _options = _options.copyWith(ssh: next));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Checkbox(
+          checked: ssh.enabled,
+          onChanged: (v) => update(ssh.copyWith(enabled: v ?? false)),
+          content: const Text('Connect through an SSH tunnel',
+              style: TextStyle(fontSize: 12)),
         ),
-      );
+        const Padding(
+          padding: EdgeInsets.only(left: 26, top: 2, bottom: 8),
+          child: Text(
+            'The database host and port above are resolved on the far side of '
+            'the tunnel — "localhost" means localhost as the bastion sees it.',
+            style: TextStyle(color: Color(0xFF5A6069), fontSize: 10.5),
+          ),
+        ),
+        if (ssh.enabled) ...[
+          Row(children: [
+            Expanded(
+              flex: 3,
+              child: _plainField('SSH host', _sshHost,
+                  onChanged: (v) => update(ssh.copyWith(host: v.trim()))),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _plainField('Port', _sshPort,
+                  onChanged: (v) => update(
+                      ssh.copyWith(port: int.tryParse(v.trim()) ?? 22))),
+            ),
+          ]),
+          _plainField('SSH user', _sshUser,
+              onChanged: (v) => update(ssh.copyWith(username: v.trim()))),
+          InfoLabel(
+            label: 'Authentication',
+            labelStyle:
+                const TextStyle(fontSize: 12, color: Color(0xFF9BA1AD)),
+            child: ComboBox<SshAuthMode>(
+              value: ssh.authMode,
+              isExpanded: true,
+              items: [
+                for (final m in SshAuthMode.values)
+                  ComboBoxItem(
+                    value: m,
+                    child: Text(m.label, style: const TextStyle(fontSize: 12)),
+                  ),
+              ],
+              onChanged: (m) =>
+                  update(ssh.copyWith(authMode: m ?? ssh.authMode)),
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (ssh.authMode == SshAuthMode.password)
+            _plainField('SSH password', _sshPassword, obscure: true)
+          else ...[
+            _plainField('Private key file', _sshKeyPath,
+                onChanged: (v) =>
+                    update(ssh.copyWith(privateKeyPath: v.trim()))),
+            _plainField('Key passphrase (if any)', _sshPassphrase,
+                obscure: true),
+          ],
+        ],
+      ],
+    );
+  }
+
+  /// A labelled text field that reports changes — the SSH fields write straight
+  /// into the options object rather than being read back at save time, so the
+  /// enabled/auth-mode branches above always reflect what's typed.
+  Widget _plainField(String label, TextEditingController c,
+      {bool obscure = false, ValueChanged<String>? onChanged}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: InfoLabel(
+        label: label,
+        labelStyle: const TextStyle(fontSize: 12, color: Color(0xFF9BA1AD)),
+        child: TextBox(
+          controller: c,
+          obscureText: obscure,
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
 
   Widget _advancedTab() => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

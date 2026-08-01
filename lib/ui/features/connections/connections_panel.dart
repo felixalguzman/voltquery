@@ -234,11 +234,21 @@ class ConnectionsPanel extends ConsumerWidget {
     final password = result.password;
     final ref_ = result.connection.credentialRef;
 
-    if (password != null && ref_ != null) {
+    final ssh = result.connection.options.ssh;
+    final writes = <String, String>{
+      if (password != null && ref_ != null) ref_: password,
+      if (result.sshPassword case final p? when ssh.passwordRef != null)
+        ssh.passwordRef!: p,
+      if (result.sshPassphrase case final p? when ssh.passphraseRef != null)
+        ssh.passphraseRef!: p,
+    };
+    if (writes.isNotEmpty) {
       final store = await ref.read(secretStoreProvider.future);
       if (!context.mounted) return;
       if (!await _unlockVault(context, ref, store)) return;
-      await store.write(ref_, password);
+      for (final e in writes.entries) {
+        await store.write(e.key, e.value);
+      }
     }
     await ref.read(connectionRepositoryProvider).save(result.connection);
     if (activate) {
@@ -375,11 +385,19 @@ class ConnectionsPanel extends ConsumerWidget {
     await ref.read(connectionRepositoryProvider).delete(c.id);
     // Drop the vault entry too. Removing the connection while leaving its
     // password behind orphans a secret nothing can reach or clean up.
-    final credentialRef = c.credentialRef;
-    if (credentialRef != null) {
+    final refs = [
+      c.credentialRef,
+      c.options.ssh.passwordRef,
+      c.options.ssh.passphraseRef,
+    ].nonNulls;
+    if (refs.isNotEmpty) {
       try {
         final store = await ref.read(secretStoreProvider.future);
-        if (!store.isLocked) await store.delete(credentialRef);
+        if (!store.isLocked) {
+          for (final r in refs) {
+            await store.delete(r);
+          }
+        }
       } catch (_) {
         // A locked or unreadable vault must not block removing the connection;
         // the row is already gone and that's what the user asked for.
