@@ -286,16 +286,25 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
       type: _plutoType(editor),
       enableEditingMode: canEdit,
       readOnly: !canEdit,
-      renderer: (ctx) => _CellView(
-        gridId: widget.gridId,
-        rowIndex: ctx.rowIdx,
-        column: name,
-        colIndex: i,
-        editor: editor,
-        editable: _editable && !isPk,
-        rows: widget.rows,
-        onStage: _stage,
-      ),
+      // A read-only grid can never have a staged edit, so its cells don't need
+      // to subscribe to anything — that's the whole cost avoided on the common
+      // browse-a-big-table path.
+      renderer: _editable
+          ? (ctx) => _CellView(
+                gridId: widget.gridId,
+                rowIndex: ctx.rowIdx,
+                column: name,
+                colIndex: i,
+                editor: editor,
+                editable: !isPk,
+                rows: widget.rows,
+                onStage: _stage,
+              )
+          : (ctx) => _StaticCell(
+                value: ctx.rowIdx < widget.rows.rows.length
+                    ? widget.rows.rows[ctx.rowIdx].values[i]
+                    : null,
+              ),
     );
   }
 
@@ -493,6 +502,38 @@ class _ReviewDialog extends StatelessWidget {
   }
 }
 
+/// A cell in a read-only grid: no provider subscription at all, since nothing
+/// can ever stage an edit here. Keeps the browse-a-large-table path cheap.
+class _StaticCell extends StatelessWidget {
+  const _StaticCell({required this.value});
+
+  final Object? value;
+
+  @override
+  Widget build(BuildContext context) {
+    if (value == null) {
+      return const Text(
+        'NULL',
+        style: TextStyle(
+          color: _textLo,
+          fontSize: 11.5,
+          fontFamily: 'monospace',
+          fontStyle: FontStyle.italic,
+        ),
+      );
+    }
+    return Text(
+      '$value',
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(
+        color: _text,
+        fontSize: 12.5,
+        fontFamily: 'monospace',
+      ),
+    );
+  }
+}
+
 /// One grid cell.
 ///
 /// It **watches the edit buffer itself**. pluto takes its `columns` list once
@@ -528,7 +569,12 @@ class _CellView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final staged = ref.watch(gridEditsProvider(gridId)).at(rowIndex, column);
+    // `select` down to *this* cell's entry. Watching the whole buffer meant a
+    // single staged edit rebuilt every visible cell, which is the sort of thing
+    // that shows up as scroll jank on a large result.
+    final staged = ref.watch(
+      gridEditsProvider(gridId).select((b) => b.at(rowIndex, column)),
+    );
     final value = staged != null ? staged.newValue : _original;
     final isDirty = staged != null;
 
