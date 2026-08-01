@@ -44,10 +44,11 @@ packages:
   base_menu:
     dependency: "direct main"
     description:
-      name: base_menu
-      sha256: c621736f94680263eb5a80e97214e8d7239041f2ebe5cd97d7fd0113daa83811
-      url: "https://pub.dev"
-    source: hosted
+      path: "."
+      ref: "56ef34b03e5edd45e56f113d96ee950259e05798"
+      resolved-ref: "56ef34b03e5edd45e56f113d96ee950259e05798"
+      url: "https://github.com/davidhicks980/base_menu"
+    source: git
     version: "0.1.5"
   boolean_selector:
     dependency: transitive

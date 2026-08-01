@@ -62,7 +62,16 @@ dependencies:
   riverpod: ^2.6.1
   cryptography: ^2.9.0
   simple_icons: ^16.23.0
-  base_menu: ^0.1.5 # menu bar + (soon) node context menus (#53); needs Flutter >= 3.44.4
+  # menu bar (#21/#55) + node context menus (#53); needs Flutter >= 3.44.4.
+  # Pinned to a git ref, NOT ^0.1.5 from pub.dev: the published 0.1.5 tarball
+  # declares `workspace: [gallery]` but omits the gallery/ member, which aborts
+  # pub's package-graph load → `dart run build_runner` fails. The git clone
+  # includes gallery/, so the workspace resolves and codegen works. Repin/switch
+  # back to a hosted version once upstream publishes a fix.
+  base_menu:
+    git:
+      url: https://github.com/davidhicks980/base_menu
+      ref: 56ef34b03e5edd45e56f113d96ee950259e05798
 
 dev_dependencies:
   flutter_test:

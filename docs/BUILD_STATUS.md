@@ -85,9 +85,11 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 
 1. NavigationView rail + grid keyboard cell nav (#21 remainder).
 2. Background isolate for the SQLite driver — unblocks true Cancel + timeouts.
-3. Tables/Views folders + large-schema render-cap (#13 tail).
-4. Postgres/MySQL TLS.
-5. `ui/core/theme` via mix.
+3. **Riverpod 2→3 + analyzer 9 toolchain bump** — unblocks `build_runner` under
+   Dart 3.12 / base_menu's dot-shorthand (see the codegen note in *Run it*).
+4. Tables/Views folders + large-schema render-cap (#13 tail).
+5. Postgres/MySQL TLS.
+6. `ui/core/theme` via mix.
 
 ## Run it
 
@@ -97,14 +99,21 @@ flutter run -d linux    # full rebuild after pulling; not hot reload for new plu
 Linux prereq: `keybinder-3.0` (hotkey_manager) — see README. After a `git pull`
 that changed providers/drift: `dart run build_runner build --delete-conflicting-outputs`.
 
-> **⚠ codegen blocked by base_menu 0.1.5**: its published `pubspec.yaml` declares
-> `workspace: [gallery]` (an example package it doesn't ship), which aborts pub's
-> package-graph load — so `dart run build_runner` / `flutter pub run build_runner`
-> fail with *"No workspace packages matching `gallery`"*. `flutter pub get`,
-> `analyze` and `test` are unaffected. Workaround until upstream fixes it: delete
-> the two `workspace:` lines from
-> `~/.pub-cache/hosted/pub.dev/base_menu-0.1.5/pubspec.yaml`, then run codegen.
-> (For small provider changes the `*.g.dart` delta can be hand-applied instead.)
+> **⚠ codegen (`build_runner`) has two walls right now** — `flutter pub get`,
+> `analyze` and `test` are all fine; only `dart run build_runner` is affected.
+> 1. **base_menu pubspec** — 0.1.5 (and repo `main`) declare `workspace:
+>    [gallery]` but the pub.dev tarball omits `gallery/`, aborting pub's
+>    package-graph load (*"No workspace packages matching `gallery`"*). **Fixed**
+>    by pinning base_menu to a **git ref** (see `pubspec.yaml`) — the git clone
+>    includes `gallery/`, so the workspace resolves.
+> 2. **analyzer 7.6.0** (pinned transitively by riverpod_generator 2.6.4 /
+>    source_gen 2 / drift_dev 2.28) can't serialize Dart **dot-shorthand** —
+>    which base_menu's source uses (`.ltr`, `.deferToChild`, …). `build_runner`
+>    then throws `Missing implementation of visitDotShorthandPropertyAccess`
+>    (SEVERE) and stalls. Fixing this needs analyzer ≥8, which drags in a
+>    **Riverpod 2→3 + source_gen 4 + drift_dev 2.31 bump** — a dedicated
+>    migration slice (see Next candidates). Until then, hand-apply the `*.g.dart`
+>    delta for small provider changes (e.g. `WorksheetSeeds` in this slice).
 
 ### Live test connections (local Docker)
 
