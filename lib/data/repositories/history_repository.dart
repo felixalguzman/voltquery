@@ -25,6 +25,13 @@ class HistoryRepository {
         ));
   }
 
+  /// Remove one entry (the history row menu's Delete).
+  Future<void> delete(int id) =>
+      (_db.delete(_db.historyRows)..where((t) => t.id.equals(id))).go();
+
+  /// Remove every entry. Confirmed in the UI — there is no undo.
+  Future<void> clear() => _db.delete(_db.historyRows).go();
+
   Stream<List<HistoryEntry>> watchRecent(int limit) {
     final q = _db.select(_db.historyRows)
       ..orderBy([(t) => OrderingTerm.desc(t.startedAt)])

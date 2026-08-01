@@ -766,10 +766,29 @@ class WorksheetTabs extends _$WorksheetTabs {
   void select(String id) =>
       state = WorksheetTabsState(ids: state.ids, activeId: id);
 
-  void close(String id) {
-    if (state.ids.length == 1) return;
-    final ids = state.ids.where((i) => i != id).toList();
-    final active = state.activeId == id ? ids.last : state.activeId;
+  void close(String id) => _keep(state.ids.where((i) => i != id).toList());
+
+  /// Close every tab but [id] — the tab menu's "Close Others".
+  void closeOthers(String id) => _keep([id]);
+
+  /// Close everything to the right of [id].
+  void closeToRight(String id) {
+    final at = state.ids.indexOf(id);
+    if (at < 0) return;
+    _keep(state.ids.sublist(0, at + 1));
+  }
+
+  /// True when [id] has tabs after it — lets the menu disable a no-op entry.
+  bool hasTabsRightOf(String id) {
+    final at = state.ids.indexOf(id);
+    return at >= 0 && at < state.ids.length - 1;
+  }
+
+  /// Never leave the workspace with zero tabs: an empty tab strip has no way
+  /// back. Also keeps the active tab valid when it was one of the closed ones.
+  void _keep(List<String> ids) {
+    if (ids.isEmpty) return;
+    final active = ids.contains(state.activeId) ? state.activeId : ids.last;
     state = WorksheetTabsState(ids: ids, activeId: active);
   }
 }

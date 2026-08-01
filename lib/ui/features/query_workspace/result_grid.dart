@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart' as m;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pluto_grid/pluto_grid.dart';
@@ -7,7 +8,11 @@ import 'package:re_highlight/languages/sql.dart';
 import 'package:re_highlight/styles/atom-one-dark.dart';
 
 import '../../../domain/models/column_editor.dart';
+import '../../../domain/drivers/result.dart';
+import '../../../domain/sql/dml_builder.dart';
+import '../../../domain/sql/editable_result.dart';
 import '../../../domain/sql/sql_statement_splitter.dart';
+import '../../core/menu/context_menu.dart';
 import 'grid_edit_buffer.dart';
 import 'grid_editability.dart';
 import 'worksheet_providers.dart';
@@ -47,6 +52,8 @@ class ResultGrid extends ConsumerStatefulWidget {
 
 class _ResultGridState extends ConsumerState<ResultGrid> {
   GridEditability? get _edit => widget.rows.editability;
+  SqlDialect get _dialect =>
+      SqlDialect.of(ref.read(currentConnectionProvider).engine);
   bool get _editable => _edit != null;
 
   /// Field key for column [i] — pluto needs a stable string key per column,
@@ -299,6 +306,8 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
                 editable: !isPk,
                 rows: widget.rows,
                 onStage: _stage,
+                dialect: _dialect,
+                editability: _edit,
               )
           : (ctx) => _StaticCell(
                 value: ctx.rowIdx < widget.rows.rows.length
@@ -552,6 +561,8 @@ class _CellView extends ConsumerWidget {
     required this.editable,
     required this.rows,
     required this.onStage,
+    required this.dialect,
+    this.editability,
   });
 
   final String gridId;
@@ -562,6 +573,8 @@ class _CellView extends ConsumerWidget {
   final bool editable;
   final WorksheetRows rows;
   final void Function(int rowIndex, String column, Object? value) onStage;
+  final SqlDialect dialect;
+  final GridEditability? editability;
 
   Object? get _original => rowIndex < rows.rows.length
       ? rows.rows[rowIndex].values[colIndex]
@@ -578,13 +591,14 @@ class _CellView extends ConsumerWidget {
     final value = staged != null ? staged.newValue : _original;
     final isDirty = staged != null;
 
-    final Widget body = switch (editor?.kind) {
+    final Widget inner = switch (editor?.kind) {
       ColumnEditorKind.boolean => _boolBody(context, value, isDirty),
       ColumnEditorKind.date ||
       ColumnEditorKind.dateTime =>
         _dateBody(context, value, isDirty),
       _ => _textBody(value, isDirty),
     };
+    final body = ContextMenuRegion(actions: _actions(value), child: inner);
 
     if (!isDirty) return body;
     // Hovering a changed cell shows what it was — the staged value replaced the
@@ -607,6 +621,75 @@ class _CellView extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  /// Cell + row actions. "Copy as SQL" and "Set NULL" live here rather than in
+  /// a toolbar because they are per-cell operations — and Set NULL is the only
+  /// way to reach a deliberate NULL, since empty text input on a nullable
+  /// column is ambiguous.
+  List<MenuAction> _actions(Object? value) {
+    final row = rowIndex < rows.rows.length ? rows.rows[rowIndex] : null;
+    return [
+      MenuAction(
+        'Copy Cell',
+        () => _copy(value == null ? '' : '$value'),
+        icon: FluentIcons.copy,
+      ),
+      MenuAction(
+        'Copy Row',
+        () => _copy(_rowTsv(row)),
+        icon: FluentIcons.table,
+      ),
+      MenuAction(
+        'Copy Column Name',
+        () => _copy(column),
+        icon: FluentIcons.text_field,
+      ),
+      MenuAction.divider,
+      MenuAction(
+        'Copy Row as INSERT',
+        () => _copy(_rowInsert(row)),
+        icon: FluentIcons.code,
+      ),
+      if (editable) ...[
+        MenuAction.divider,
+        MenuAction(
+          'Set NULL',
+          () => onStage(rowIndex, column, null),
+          icon: FluentIcons.circle_ring,
+        ),
+        MenuAction(
+          'Revert Cell',
+          () => onStage(rowIndex, column, _original),
+          icon: FluentIcons.undo,
+        ),
+      ],
+    ];
+  }
+
+  void _copy(String text) => Clipboard.setData(ClipboardData(text: text));
+
+  /// Tab-separated — what spreadsheets expect on paste.
+  String _rowTsv(ResultRow? row) {
+    if (row == null) return '';
+    return row.values.map((v) => v == null ? '' : '$v').join('\t');
+  }
+
+  /// A reusable INSERT for this row, quoted for the connection's dialect.
+  String _rowInsert(ResultRow? row) {
+    if (row == null) return '';
+    final target =
+        editability?.target ?? const EditableTarget(table: 'table_name');
+    final cells = [
+      for (var i = 0; i < rows.fields.length; i++)
+        CellEdit(
+          rows.fields[i].name,
+          row.values[i],
+          editability?.editorFor(rows.fields[i].name) ??
+              const ColumnEditor(kind: ColumnEditorKind.text, nullable: true),
+        ),
+    ];
+    return DmlBuilder(dialect).insert(target, cells) ?? '';
   }
 
   static String _display(Object? v) => v == null ? 'NULL' : '$v';

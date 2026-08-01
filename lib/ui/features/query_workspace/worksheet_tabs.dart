@@ -1,6 +1,8 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/menu/context_menu.dart';
+
 import 'worksheet_providers.dart';
 import 'worksheet_view.dart';
 
@@ -72,8 +74,27 @@ class WorksheetTabBar extends ConsumerWidget {
   Widget _tab(WorksheetTabsState tabs, WorksheetTabs ctrl, int i) {
     final id = tabs.ids[i];
     final active = id == tabs.activeId;
-    return GestureDetector(
-      onTap: () => ctrl.select(id),
+    final only = tabs.ids.length == 1;
+    return ContextMenuRegion(
+      actions: [
+        MenuAction(
+          'Close',
+          () => only ? null : ctrl.close(id),
+          icon: FluentIcons.chrome_close,
+        ),
+        MenuAction(
+          'Close Others',
+          () => only ? null : ctrl.closeOthers(id),
+          icon: FluentIcons.clear_selection,
+        ),
+        MenuAction(
+          'Close to the Right',
+          () => ctrl.closeToRight(id),
+          icon: FluentIcons.forward,
+        ),
+      ],
+      child: GestureDetector(
+        onTap: () => ctrl.select(id),
       child: Container(
         padding: const EdgeInsets.only(left: 12, right: 6),
         decoration: BoxDecoration(
@@ -98,6 +119,7 @@ class WorksheetTabBar extends ConsumerWidget {
           else
             const SizedBox(width: 8),
         ]),
+        ),
       ),
     );
   }
