@@ -136,6 +136,18 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 See `docs/research/feature-gaps.md` (parity) and `docs/research/differentiators.md`
 (offense) for the surveyed backlog these were picked from.
 
+### Agreed but not built
+
+**Remember expanded schema-tree nodes per connection** (design settled
+2026-08-01): persist expanded *paths* (`schema/table`, `schema/table/Indexes`)
+rather than node identities, so they survive schema changes; restore on every
+connect, **breadth-first and capped** (~50 nodes) so a large saved state
+degrades to "most of it" instead of stalling the tree behind a burst of catalog
+queries; silently prune paths that no longer resolve. Stored as **UI state in
+its own table, not in `ConnectionOptions`** — it's per-machine ephemera, not
+something you'd want in an exported or shared connection. Expansion only;
+selection and scroll position aren't worth the complexity.
+
 ## Run it
 
 ```
