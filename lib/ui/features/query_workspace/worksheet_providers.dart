@@ -139,12 +139,66 @@ Future<void> _seedDemoIfEmpty(Session s) async {
   for (final dml in _demoRows) {
     await s.execute(dml);
   }
+  for (final bulk in _demoBulk) {
+    await s.execute(bulk);
+  }
 }
+
+/// Bulk rows for performance testing, generated **inside SQLite** with a
+/// recursive CTE.
+///
+/// Deliberately not built in Dart (nor with a data-faker package): generating
+/// tens of thousands of rows in the app and issuing that many INSERTs costs
+/// seconds of startup, while `INSERT ... SELECT` over a generated series is a
+/// single statement in milliseconds. The values only need to be varied and
+/// plausible, not individually realistic — a faker would earn its place in a
+/// user-facing mock-data generator, not here.
+final _demoBulk = <String>[
+  // 50k event rows spread over ~a year, with varied levels, sources and
+  // durations so sorting and filtering have something to chew on.
+  '''
+INSERT INTO events (occurred_at, level, source, message, duration_ms, ok)
+WITH RECURSIVE seq(n) AS (
+  SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 50000
+)
+SELECT
+  datetime('2025-01-01 00:00:00', '+' || (n * 37 % 525600) || ' minutes'),
+  CASE n % 17
+    WHEN 0 THEN 'error'
+    WHEN 1 THEN 'warn'
+    WHEN 2 THEN 'debug'
+    ELSE 'info'
+  END,
+  'svc-' || (n % 12),
+  CASE n % 5
+    WHEN 0 THEN 'request completed'
+    WHEN 1 THEN 'cache miss'
+    WHEN 2 THEN 'retry scheduled'
+    WHEN 3 THEN 'connection reused'
+    ELSE 'batch flushed'
+  END || ' #' || n,
+  (n * 7919) % 2500,
+  CASE WHEN n % 17 = 0 THEN 0 ELSE 1 END
+FROM seq
+''',
+  // 5k rows x 24 numeric columns.
+  '''
+INSERT INTO wide_metrics
+WITH RECURSIVE seq(n) AS (
+  SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 5000
+)
+SELECT n,
+  datetime('2025-06-01 00:00:00', '+' || n || ' minutes'),
+  '''
+      '''${List.generate(24, (i) => "(n * ${(i + 3) * 13} % 1000) / 10.0").join(',\n  ')}
+FROM seq
+''',
+];
 
 /// Declared SQLite types are chosen for their *affinity* so
 /// `ColumnEditorResolver` picks a real editor: BOOLEAN → toggle, DATE → date
 /// picker, DATETIME → date+time, REAL/NUMERIC → decimal.
-const _demoSchema = <String>[
+final _demoSchema = <String>[
   'CREATE TABLE IF NOT EXISTS customers ('
       'id INTEGER PRIMARY KEY, '
       'name TEXT NOT NULL, '
@@ -186,6 +240,25 @@ const _demoSchema = <String>[
   'CREATE INDEX IF NOT EXISTS ix_orders_status_placed '
       'ON orders (status, placed_at)',
   'CREATE UNIQUE INDEX IF NOT EXISTS ux_products_sku ON products (sku)',
+  // Bulk tables for performance work — see [_demoBulk] for why they're
+  // generated in SQL rather than row by row.
+  'CREATE TABLE IF NOT EXISTS events ('
+      'id INTEGER PRIMARY KEY, '
+      'occurred_at DATETIME NOT NULL, '
+      'level TEXT NOT NULL '
+      'CHECK (level IN (\'debug\',\'info\',\'warn\',\'error\')), '
+      'source TEXT NOT NULL, '
+      'message TEXT NOT NULL, '
+      'duration_ms INTEGER NOT NULL, '
+      'ok BOOLEAN NOT NULL)',
+  'CREATE INDEX IF NOT EXISTS ix_events_occurred ON events (occurred_at)',
+  'CREATE INDEX IF NOT EXISTS ix_events_level_source ON events (level, source)',
+  // A deliberately wide table: exercises horizontal scrolling and column
+  // layout, which row count alone never stresses.
+  'CREATE TABLE IF NOT EXISTS wide_metrics ('
+      'id INTEGER PRIMARY KEY, '
+      'captured_at DATETIME NOT NULL, '
+      '${List.generate(24, (i) => 'm${i + 1} REAL NOT NULL').join(', ')})',
   // A view: read-only, and gives the tree a second object kind to show.
   'CREATE VIEW IF NOT EXISTS customer_orders AS '
       'SELECT c.name AS customer, o.id AS order_id, o.placed_at, o.amount '

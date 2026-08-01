@@ -198,6 +198,35 @@ void main() {
     });
   });
 
+  test('the demo seeds bulk tables for performance work', () async {
+    final session = await container.read(introspectionSessionProvider.future);
+
+    Future<int> count(String table) async {
+      final res = await session.execute('SELECT count(*) FROM $table');
+      final rows = await (res as RowsResult).cursor.fetch(1);
+      await res.cursor.close();
+      return rows.first.values.first! as int;
+    }
+
+    // Generated in SQL with a recursive CTE, not row by row — seeding this
+    // volume from Dart would cost seconds of startup.
+    expect(await count('events'), 50000);
+    expect(await count('wide_metrics'), 5000);
+
+    // Wide on purpose: column layout and horizontal scrolling aren't stressed
+    // by row count alone.
+    final cols = await session.schema.columns(
+      const TableInfo(name: 'wide_metrics', kind: ObjectKind.table),
+    );
+    expect(cols.length, 26); // id + captured_at + m1..m24
+
+    // Still editable despite the size, and its CHECK constraint is a dropdown.
+    final e = await _editabilityOf(container, 'SELECT * FROM events LIMIT 100');
+    expect(e, isNotNull);
+    expect(e!.editorFor('level')!.options,
+        ['debug', 'info', 'warn', 'error']);
+  });
+
   test('a projection missing the PK yields no row identity', () async {
     final e = await _editabilityOf(container, 'SELECT name FROM customers');
     // The table itself is editable...

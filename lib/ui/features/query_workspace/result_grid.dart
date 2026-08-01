@@ -2,6 +2,9 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/material.dart' as m;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pluto_grid/pluto_grid.dart';
+import 'package:re_editor/re_editor.dart';
+import 'package:re_highlight/languages/sql.dart';
+import 'package:re_highlight/styles/atom-one-dark.dart';
 
 import '../../../domain/models/column_editor.dart';
 import '../../../domain/sql/sql_statement_splitter.dart';
@@ -115,17 +118,30 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
       _invalid(field.name, problem);
       return;
     }
-    ref.read(gridEditsProvider(widget.gridId).notifier).stage(
-          StagedEdit(
-            rowIndex: e.rowIdx,
-            column: field.name,
-            oldValue: original,
-            newValue: value,
-          ),
-        );
+    // pluto commits a cell edit from TextCellState.dispose() — i.e. while the
+    // widget tree is being finalized — and Riverpod (rightly) asserts against
+    // mutating a provider during a build. Defer to the next microtask so the
+    // frame can finish first.
+    final edit = StagedEdit(
+      rowIndex: e.rowIdx,
+      column: field.name,
+      oldValue: original,
+      newValue: value,
+    );
+    Future.microtask(() {
+      if (!mounted) return;
+      ref.read(gridEditsProvider(widget.gridId).notifier).stage(edit);
+    });
   }
 
   void _invalid(String column, String problem) {
+    // Same reason as above: this can be reached from a dispose-time commit.
+    Future.microtask(() {
+      if (mounted) _showInvalid(column, problem);
+    });
+  }
+
+  void _showInvalid(String column, String problem) {
     displayInfoBar(
       context,
       builder: (context, close) => InfoBar(
@@ -288,6 +304,12 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
   void _stage(int rowIndex, String column, Object? newValue) {
     final colIndex = widget.rows.fields.indexWhere((f) => f.name == column);
     if (colIndex < 0) return;
+    final editor = _edit?.editorFor(column);
+    final problem = editor?.validate(newValue);
+    if (problem != null) {
+      _invalid(column, problem);
+      return;
+    }
     ref.read(gridEditsProvider(widget.gridId).notifier).stage(
           StagedEdit(
             rowIndex: rowIndex,
@@ -436,13 +458,20 @@ class _ReviewDialog extends StatelessWidget {
                 border: Border.all(color: _hair),
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: SingleChildScrollView(
-                child: SelectableText(
+              // Read-only CodeEditor rather than plain text: this is SQL the
+              // user is being asked to vet, and the same highlighting as the
+              // main editor makes it far quicker to scan.
+              child: CodeEditor(
+                readOnly: true,
+                controller: CodeLineEditingController.fromText(
                   statements.join('\n'),
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 12,
-                    color: _text,
+                ),
+                style: CodeEditorStyle(
+                  fontSize: 12.5,
+                  backgroundColor: _bg,
+                  codeTheme: CodeHighlightTheme(
+                    languages: {'sql': CodeHighlightThemeMode(mode: langSql)},
+                    theme: atomOneDarkTheme,
                   ),
                 ),
               ),
