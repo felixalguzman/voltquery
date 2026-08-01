@@ -121,6 +121,66 @@ void main() {
     expect(pg.resolve('text', nullable: true).isReadOnly, isFalse);
   });
 
+  group('validation', () {
+    ColumnEditor ed(ColumnEditorKind k,
+            {bool nullable = true, List<String> options = const []}) =>
+        ColumnEditor(kind: k, nullable: nullable, options: options);
+
+    test('NOT NULL is enforced, nullable accepts null', () {
+      expect(ed(ColumnEditorKind.text, nullable: false).validate(null),
+          isNotNull);
+      expect(ed(ColumnEditorKind.text).validate(null), isNull);
+    });
+
+    test('numbers reject non-numeric input', () {
+      expect(ed(ColumnEditorKind.integer).validate('42'), isNull);
+      expect(ed(ColumnEditorKind.integer).validate('abc'), isNotNull);
+      expect(ed(ColumnEditorKind.integer).validate('4.5'), isNotNull);
+      expect(ed(ColumnEditorKind.decimal).validate('4.5'), isNull);
+      expect(ed(ColumnEditorKind.decimal).validate('-3'), isNull);
+      expect(ed(ColumnEditorKind.decimal).validate('1; DROP TABLE t'),
+          isNotNull);
+    });
+
+    test('booleans accept the spellings engines use', () {
+      for (final v in ['true', 'false', 't', 'f', '0', '1', 'YES']) {
+        expect(ed(ColumnEditorKind.boolean).validate(v), isNull, reason: v);
+      }
+      expect(ed(ColumnEditorKind.boolean).validate('maybe'), isNotNull);
+    });
+
+    test('dates must parse', () {
+      expect(ed(ColumnEditorKind.date).validate('2026-08-01'), isNull);
+      expect(
+          ed(ColumnEditorKind.dateTime).validate('2026-08-01 14:30:00'), isNull);
+      expect(ed(ColumnEditorKind.date).validate('01/08/2026'), isNotNull);
+      expect(ed(ColumnEditorKind.date).validate('not a date'), isNotNull);
+    });
+
+    test('enums are restricted to their options', () {
+      final e = ed(ColumnEditorKind.enumeration, options: ['a', 'b']);
+      expect(e.validate('a'), isNull);
+      expect(e.validate('c'), isNotNull);
+      // With no known options we can't judge — let the engine decide.
+      expect(ed(ColumnEditorKind.enumeration).validate('anything'), isNull);
+    });
+
+    test('json is structurally checked, not fully parsed', () {
+      expect(ed(ColumnEditorKind.json).validate('{"a": 1}'), isNull);
+      expect(ed(ColumnEditorKind.json).validate('[1, 2]'), isNull);
+      expect(ed(ColumnEditorKind.json).validate('"str"'), isNull);
+      expect(ed(ColumnEditorKind.json).validate('42'), isNull);
+      expect(ed(ColumnEditorKind.json).validate('{"a": 1'), isNotNull);
+      expect(ed(ColumnEditorKind.json).validate('nonsense'), isNotNull);
+      // A brace inside a string must not be counted as structure.
+      expect(ed(ColumnEditorKind.json).validate('{"a": "}"}'), isNull);
+    });
+
+    test('text defers to the engine', () {
+      expect(ed(ColumnEditorKind.text).validate('anything at all'), isNull);
+    });
+  });
+
   test('case and padding are irrelevant', () {
     expect(kindOf(pg, '  BOOLEAN  '), ColumnEditorKind.boolean);
     expect(kindOf(mysql, 'DateTime'), ColumnEditorKind.dateTime);

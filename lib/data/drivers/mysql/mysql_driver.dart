@@ -157,7 +157,8 @@ class _MysqlIntrospector implements SchemaIntrospector {
       if (r.colAt(2) != null) fk.add(col); // referenced_table_name set → FK
     }
     final rs = await _conn.execute(
-      'SELECT column_name, data_type, is_nullable, ordinal_position, column_default '
+      'SELECT column_name, data_type, is_nullable, ordinal_position, '
+      '       column_default, column_type '
       'FROM information_schema.columns '
       'WHERE table_schema = DATABASE() AND table_name = :t '
       'ORDER BY ordinal_position',
@@ -167,12 +168,17 @@ class _MysqlIntrospector implements SchemaIntrospector {
       for (final r in rs.rows)
         ColumnInfo(
           name: r.colAt(0) ?? '',
-          dataType: r.colAt(1) ?? '',
+          // data_type is the bare name ('enum'); column_type carries the
+          // full declaration ("enum('a','b')") — needed for tinyint(1) too.
+          dataType: r.colAt(1) == 'tinyint'
+              ? (r.colAt(5) ?? r.colAt(1) ?? '')
+              : (r.colAt(1) ?? ''),
           nullable: r.colAt(2) == 'YES',
           isPrimaryKey: pk.contains(r.colAt(0)),
           isForeignKey: fk.contains(r.colAt(0)),
           ordinal: (int.tryParse(r.colAt(3) ?? '') ?? 1) - 1,
           defaultValue: r.colAt(4),
+          enumOptions: parseMysqlEnumOptions(r.colAt(5)),
         ),
     ];
   }
@@ -247,4 +253,42 @@ DriverError _mapMysqlError(my.MySQLServerException e) {
   };
   return DriverError(kind, e.message,
       nativeCode: e.errorCode.toString(), cause: e);
+}
+
+/// `enum('small','large')` / `set('a','b')` -> the permitted values.
+/// Doubled quotes inside a label are MySQL's escape (`'it''s'`).
+List<String> parseMysqlEnumOptions(String? columnType) {
+  if (columnType == null) return const [];
+  final lower = columnType.toLowerCase();
+  if (!lower.startsWith('enum(') && !lower.startsWith('set(')) {
+    return const [];
+  }
+  final open = columnType.indexOf('(');
+  final close = columnType.lastIndexOf(')');
+  if (open < 0 || close <= open) return const [];
+  final body = columnType.substring(open + 1, close);
+
+  final out = <String>[];
+  final buf = StringBuffer();
+  var inLiteral = false;
+  for (var i = 0; i < body.length; i++) {
+    final c = body[i];
+    if (!inLiteral) {
+      if (c == "'") inLiteral = true;
+      continue; // skip separators/whitespace between literals
+    }
+    if (c == "'") {
+      if (i + 1 < body.length && body[i + 1] == "'") {
+        buf.write("'"); // escaped quote, still inside
+        i++;
+        continue;
+      }
+      out.add(buf.toString());
+      buf.clear();
+      inLiteral = false;
+      continue;
+    }
+    buf.write(c);
+  }
+  return out;
 }

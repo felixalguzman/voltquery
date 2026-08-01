@@ -142,6 +142,7 @@ class _SqliteSchemaIntrospector implements SchemaIntrospector {
     final fk = _db.select("PRAGMA foreign_key_list('$name')");
     final fkCols = {for (final r in fk) r['from'] as String};
     final rs = _db.select("PRAGMA table_info('$name')");
+    final checks = _checkEnums(table.name);
     return [
       for (final row in rs)
         ColumnInfo(
@@ -152,8 +153,23 @@ class _SqliteSchemaIntrospector implements SchemaIntrospector {
           isForeignKey: fkCols.contains(row['name']),
           ordinal: row['cid'] as int,
           defaultValue: row['dflt_value']?.toString(),
+          enumOptions: checks[row['name']] ?? const [],
         ),
     ];
+  }
+
+  /// SQLite has **no ENUM type**; the idiom is a check constraint —
+  /// `status TEXT CHECK (status IN ('pending','shipped'))`. Reading those value
+  /// lists out of the stored DDL lets the grid offer the same validating
+  /// dropdown it gives a Postgres enum or a MySQL `enum(...)`.
+  Map<String, List<String>> _checkEnums(String table) {
+    final rs = _db.select(
+      "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?",
+      [table],
+    );
+    final ddl = rs.isEmpty ? null : rs.first['sql'] as String?;
+    if (ddl == null) return const {};
+    return parseSqliteCheckEnums(ddl);
   }
 
   @override
@@ -257,4 +273,54 @@ class _SqliteResultCursor implements ResultCursor {
 
   @override
   Future<void> close() async => _stmt.close();
+}
+
+/// Extracts `col IN ('a','b')` value lists from a CREATE TABLE statement's
+/// CHECK constraints — SQLite's stand-in for an enum type.
+///
+/// Deliberately narrow: it matches the common
+/// `CHECK (col IN ('x','y'))` / `CHECK(col in('x'))` shapes and ignores
+/// anything more involved (expressions, OR-chains, ranges), because a wrong
+/// value list would show the user a dropdown that silently omits legal values.
+Map<String, List<String>> parseSqliteCheckEnums(String ddl) {
+  final out = <String, List<String>>{};
+  final pattern = RegExp(
+    // CHECK ( [ "col" | `col` | col ] IN ( 'a', 'b' ) )
+    r'''CHECK\s*\(\s*(?:"([^"]+)"|`([^`]+)`|\[([^\]]+)\]|(\w+))\s+IN\s*\(([^)]*)\)''',
+    caseSensitive: false,
+  );
+  for (final m in pattern.allMatches(ddl)) {
+    final column = m.group(1) ?? m.group(2) ?? m.group(3) ?? m.group(4);
+    if (column == null) continue;
+    final values = _sqliteStringList(m.group(5) ?? '');
+    if (values.isNotEmpty) out[column] = values;
+  }
+  return out;
+}
+
+/// `'a', 'b''c'` -> [a, b'c]. Doubling is SQLite's quote escape.
+List<String> _sqliteStringList(String body) {
+  final out = <String>[];
+  final buf = StringBuffer();
+  var inLiteral = false;
+  for (var i = 0; i < body.length; i++) {
+    final c = body[i];
+    if (!inLiteral) {
+      if (c == "'") inLiteral = true;
+      continue;
+    }
+    if (c == "'") {
+      if (i + 1 < body.length && body[i + 1] == "'") {
+        buf.write("'");
+        i++;
+        continue;
+      }
+      out.add(buf.toString());
+      buf.clear();
+      inLiteral = false;
+      continue;
+    }
+    buf.write(c);
+  }
+  return out;
 }

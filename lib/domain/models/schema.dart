@@ -41,6 +41,7 @@ class ColumnInfo {
     required this.isForeignKey,
     required this.ordinal,
     this.defaultValue,
+    this.enumOptions = const [],
   });
 
   final String name;
@@ -50,6 +51,11 @@ class ColumnInfo {
   final bool isForeignKey;
   final int ordinal;
   final String? defaultValue;
+
+  /// The permitted values when the column's type is an enumeration — a Postgres
+  /// enum type (`pg_enum`) or a MySQL `enum(...)` column. Empty otherwise.
+  /// Lets the grid offer a validating dropdown instead of free text.
+  final List<String> enumOptions;
 }
 
 class IndexInfo {

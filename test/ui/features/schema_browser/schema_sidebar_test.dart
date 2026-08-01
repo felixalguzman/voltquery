@@ -116,6 +116,7 @@ void main() {
           "INSERT INTO ddl_made_me VALUES (1, 'x');"
           'SELECT * FROM customers;'
           'SELECT * FROM ddl_made_me;',
+          run: true,
         );
     await tester.pumpAndSettle();
 

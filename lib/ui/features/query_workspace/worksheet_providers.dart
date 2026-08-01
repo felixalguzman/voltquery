@@ -139,12 +139,66 @@ Future<void> _seedDemoIfEmpty(Session s) async {
   for (final dml in _demoRows) {
     await s.execute(dml);
   }
+  for (final bulk in _demoBulk) {
+    await s.execute(bulk);
+  }
 }
+
+/// Bulk rows for performance testing, generated **inside SQLite** with a
+/// recursive CTE.
+///
+/// Deliberately not built in Dart (nor with a data-faker package): generating
+/// tens of thousands of rows in the app and issuing that many INSERTs costs
+/// seconds of startup, while `INSERT ... SELECT` over a generated series is a
+/// single statement in milliseconds. The values only need to be varied and
+/// plausible, not individually realistic — a faker would earn its place in a
+/// user-facing mock-data generator, not here.
+final _demoBulk = <String>[
+  // 50k event rows spread over ~a year, with varied levels, sources and
+  // durations so sorting and filtering have something to chew on.
+  '''
+INSERT INTO events (occurred_at, level, source, message, duration_ms, ok)
+WITH RECURSIVE seq(n) AS (
+  SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 50000
+)
+SELECT
+  datetime('2025-01-01 00:00:00', '+' || (n * 37 % 525600) || ' minutes'),
+  CASE n % 17
+    WHEN 0 THEN 'error'
+    WHEN 1 THEN 'warn'
+    WHEN 2 THEN 'debug'
+    ELSE 'info'
+  END,
+  'svc-' || (n % 12),
+  CASE n % 5
+    WHEN 0 THEN 'request completed'
+    WHEN 1 THEN 'cache miss'
+    WHEN 2 THEN 'retry scheduled'
+    WHEN 3 THEN 'connection reused'
+    ELSE 'batch flushed'
+  END || ' #' || n,
+  (n * 7919) % 2500,
+  CASE WHEN n % 17 = 0 THEN 0 ELSE 1 END
+FROM seq
+''',
+  // 5k rows x 24 numeric columns.
+  '''
+INSERT INTO wide_metrics
+WITH RECURSIVE seq(n) AS (
+  SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 5000
+)
+SELECT n,
+  datetime('2025-06-01 00:00:00', '+' || n || ' minutes'),
+  '''
+      '''${List.generate(24, (i) => "(n * ${(i + 3) * 13} % 1000) / 10.0").join(',\n  ')}
+FROM seq
+''',
+];
 
 /// Declared SQLite types are chosen for their *affinity* so
 /// `ColumnEditorResolver` picks a real editor: BOOLEAN → toggle, DATE → date
 /// picker, DATETIME → date+time, REAL/NUMERIC → decimal.
-const _demoSchema = <String>[
+final _demoSchema = <String>[
   'CREATE TABLE IF NOT EXISTS customers ('
       'id INTEGER PRIMARY KEY, '
       'name TEXT NOT NULL, '
@@ -164,7 +218,10 @@ const _demoSchema = <String>[
       'id INTEGER PRIMARY KEY, '
       'customer_id INTEGER NOT NULL REFERENCES customers(id), '
       'placed_at DATETIME NOT NULL, '
-      'status TEXT NOT NULL DEFAULT \'pending\', '
+      // SQLite has no ENUM; a CHECK ... IN is the idiom, and the introspector
+      // reads it back so this column gets a validating dropdown.
+      'status TEXT NOT NULL DEFAULT \'pending\' '
+      'CHECK (status IN (\'pending\',\'shipped\',\'cancelled\')), '
       'shipped BOOLEAN NOT NULL DEFAULT 0, '
       'amount REAL NOT NULL)',
   // Composite primary key — proves multi-column row identity in the grid.
@@ -183,6 +240,25 @@ const _demoSchema = <String>[
   'CREATE INDEX IF NOT EXISTS ix_orders_status_placed '
       'ON orders (status, placed_at)',
   'CREATE UNIQUE INDEX IF NOT EXISTS ux_products_sku ON products (sku)',
+  // Bulk tables for performance work — see [_demoBulk] for why they're
+  // generated in SQL rather than row by row.
+  'CREATE TABLE IF NOT EXISTS events ('
+      'id INTEGER PRIMARY KEY, '
+      'occurred_at DATETIME NOT NULL, '
+      'level TEXT NOT NULL '
+      'CHECK (level IN (\'debug\',\'info\',\'warn\',\'error\')), '
+      'source TEXT NOT NULL, '
+      'message TEXT NOT NULL, '
+      'duration_ms INTEGER NOT NULL, '
+      'ok BOOLEAN NOT NULL)',
+  'CREATE INDEX IF NOT EXISTS ix_events_occurred ON events (occurred_at)',
+  'CREATE INDEX IF NOT EXISTS ix_events_level_source ON events (level, source)',
+  // A deliberately wide table: exercises horizontal scrolling and column
+  // layout, which row count alone never stresses.
+  'CREATE TABLE IF NOT EXISTS wide_metrics ('
+      'id INTEGER PRIMARY KEY, '
+      'captured_at DATETIME NOT NULL, '
+      '${List.generate(24, (i) => 'm${i + 1} REAL NOT NULL').join(', ')})',
   // A view: read-only, and gives the tree a second object kind to show.
   'CREATE VIEW IF NOT EXISTS customer_orders AS '
       'SELECT c.name AS customer, o.id AS order_id, o.placed_at, o.amount '
@@ -227,13 +303,26 @@ Future<List<TableInfo>> schemaTables(Ref ref) async {
   return session.schema.tables(const SchemaInfo(''));
 }
 
-/// A query the sidebar asks the *active* worksheet to load + run.
+/// SQL handed to the *active* worksheet, plus whether it should run.
+///
+/// History requests are **load-only**: history now contains the UPDATEs that
+/// grid edits generate, and re-executing one on a click would be destructive.
+class QueryRequest {
+  const QueryRequest(this.sql, {this.run = false});
+  final String sql;
+  final bool run;
+}
+
+/// A query the sidebar or history asks the *active* worksheet to load.
 @riverpod
 class RequestedQuery extends _$RequestedQuery {
   @override
-  String? build() => null;
+  QueryRequest? build() => null;
 
-  void request(String sql) => state = sql;
+  /// [run] defaults to false — loading is the safe default; a caller that
+  /// really means "execute this now" has to say so.
+  void request(String sql, {bool run = false}) =>
+      state = QueryRequest(sql, run: run);
   void clear() => state = null;
 }
 
@@ -294,8 +383,21 @@ class GridEdits extends _$GridEdits {
 /// with manual commit on, the UPDATEs land inside the open transaction and the
 /// user still has to press Commit. Stops at the first failure and reports it.
 class GridEditApplyResult {
-  const GridEditApplyResult({required this.applied, this.error});
+  const GridEditApplyResult({
+    required this.applied,
+    this.rowsAffected = 0,
+    this.error,
+  });
+
+  /// Statements that ran successfully. Zero on failure — the whole batch is
+  /// rolled back, so nothing was applied.
   final int applied;
+
+  /// Rows the engine actually changed, summed across the statements. Can differ
+  /// from [applied]: a row deleted by someone else since the result was read
+  /// matches nothing and reports 0.
+  final int rowsAffected;
+
   final DriverError? error;
   bool get ok => error == null;
 }
@@ -493,21 +595,67 @@ class Worksheet extends _$Worksheet {
     final session = await ref.read(
       worksheetSessionProvider(worksheetId).future,
     );
+    // One statement per edited row, so each stays readable in the review panel
+    // — but they must land together. Without a transaction, a failure partway
+    // through leaves the earlier rows already committed and the rest not.
+    // Skipped when a manual-commit transaction is already open: the edits join
+    // that one, and the user's own Commit/Rollback governs.
+    final ownTx = !ref.read(worksheetTxProvider(worksheetId));
+    if (ownTx) await session.begin();
+
     var applied = 0;
+    var rowsAffected = 0;
     for (final sql in statements) {
+      // Grid edits are real statements the user ran — they belong in history
+      // exactly like a typed UPDATE, so they're auditable and re-runnable.
+      final started = DateTime.now();
+      final sw = Stopwatch()..start();
       try {
-        await session.execute(sql);
+        final result = await session.execute(sql);
+        sw.stop();
         applied++;
-      } on DriverError catch (e) {
-        return GridEditApplyResult(applied: applied, error: e);
-      } catch (e) {
-        return GridEditApplyResult(
-          applied: applied,
-          error: DriverError(DriverErrorKind.unknown, e.toString()),
+        final affected = result is CommandResult ? result.affectedRows : null;
+        rowsAffected += affected ?? 0;
+        await _record(
+          sql,
+          started,
+          sw.elapsedMilliseconds,
+          WorksheetMessage('${affected ?? 0} row(s) affected'),
+          affectedRows: affected,
         );
+      } on DriverError catch (e) {
+        sw.stop();
+        await _record(sql, started, sw.elapsedMilliseconds,
+            WorksheetFailure(e));
+        if (ownTx) await _rollbackQuietly(session);
+        return GridEditApplyResult(applied: 0, error: e);
+      } catch (e) {
+        sw.stop();
+        final err = DriverError(DriverErrorKind.unknown, e.toString());
+        await _record(sql, started, sw.elapsedMilliseconds,
+            WorksheetFailure(err));
+        if (ownTx) await _rollbackQuietly(session);
+        return GridEditApplyResult(applied: 0, error: err);
       }
     }
-    return GridEditApplyResult(applied: applied);
+    if (ownTx) {
+      try {
+        await session.commit();
+      } on DriverError catch (e) {
+        return GridEditApplyResult(applied: 0, error: e);
+      }
+    }
+    return GridEditApplyResult(applied: applied, rowsAffected: rowsAffected);
+  }
+
+  /// Best-effort rollback — the caller is already reporting the real failure,
+  /// and a rollback error would only mask it.
+  Future<void> _rollbackQuietly(Session session) async {
+    try {
+      await session.rollback();
+    } catch (_) {
+      // Nothing useful to do; the original error is what the user needs.
+    }
   }
 
   /// Whether the grid for [sql] can write back, and how. Best-effort: any
@@ -548,8 +696,12 @@ class Worksheet extends _$Worksheet {
     String sql,
     DateTime started,
     int ms,
-    WorksheetResult result,
-  ) async {
+    WorksheetResult result, {
+    /// Row count for results that aren't [WorksheetRows] — a DML statement's
+    /// affected-row count, which the switch below can't recover from a
+    /// [WorksheetMessage].
+    int? affectedRows,
+  }) async {
     final conn = ref.read(currentConnectionProvider);
     final (
       HistoryStatus status,
@@ -564,7 +716,7 @@ class Worksheet extends _$Worksheet {
         error.kind.name,
         error.message,
       ),
-      _ => (HistoryStatus.ok, null, null, null),
+      _ => (HistoryStatus.ok, affectedRows, null, null),
     };
     await ref
         .read(historyRepositoryProvider)
