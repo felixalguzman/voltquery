@@ -151,6 +151,14 @@ See `docs/research/feature-gaps.md` (parity) and `docs/research/differentiators.
 
 ### Agreed but not built
 
+**Type-to-filter across the app** (asked for 2026-08-01): start typing to narrow
+the schema tree, query history, and the table-info Columns/DDL tabs. Each of
+those is already a list the user scans by eye, and the schema tree in particular
+is unusable by scrolling once a database has hundreds of tables. Wants one
+shared filter widget rather than three, and should match on substring rather
+than prefix (column names are prefix-heavy: `secuencia_`, `ven_`).
+
+
 **Remember expanded schema-tree nodes per connection** (design settled
 2026-08-01): persist expanded *paths* (`schema/table`, `schema/table/Indexes`)
 rather than node identities, so they survive schema changes; restore on every

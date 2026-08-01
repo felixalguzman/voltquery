@@ -174,7 +174,19 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
             MenuAction('Table Info…', () => _showInfo(t),
                 icon: FluentIcons.info),
           ],
-          child: Text(t.name, overflow: TextOverflow.ellipsis, style: _mono),
+          child: Builder(builder: (context) {
+            // The table you last opened stays marked, so after scrolling a few
+            // hundred rows you can still see where you were.
+            final isCurrent = _lastOpened == _keyOf(t);
+            return Text(
+              t.name,
+              overflow: TextOverflow.ellipsis,
+              style: isCurrent
+                  ? _mono.copyWith(
+                      color: _accent, fontWeight: FontWeight.w600)
+                  : _mono,
+            );
+          }),
         ),
         lazy: true,
         // Columns show immediately on expand; indexes hang under a lazy folder.
@@ -247,7 +259,13 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
 
   /// Open [t] in a **new** worksheet tab (never clobbering the current editor).
   /// [run] = Preview Data (auto-run); false = Open in Editor (load only).
+  /// Identity of the last table opened from the tree.
+  String? _lastOpened;
+
+  static String _keyOf(TableInfo t) => '${t.schema}.${t.name}';
+
   void _openTable(TableInfo t, {required bool run}) {
+    setState(() => _lastOpened = _keyOf(t));
     // Quote for the *connection's* dialect: MySQL reads "t" as a string
     // literal unless ANSI_QUOTES is on, so a double-quoted name is a syntax
     // error there. Qualify with the owning schema/database too — the tree can
@@ -436,14 +454,114 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
     final roots = _roots;
     if (roots == null) return const _Spinner();
     if (roots.isEmpty) return const _Message('(empty schema)', color: _textLo);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-      child: TreeView(
-        controller: _controller,
-        selectionMode: TreeViewSelectionMode.none,
-        shrinkWrap: false,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Which expanded root you're inside, pinned while you scroll. In a
+        // schema with hundreds of tables the header scrolls away immediately,
+        // and collapsing it meant scrolling all the way back up to find it.
+        if (_stickyRoot case final root?) _stickyHeader(root),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (n) {
+                if (n is ScrollUpdateNotification ||
+                    n is ScrollEndNotification) {
+                  _updateSticky(n.metrics.pixels);
+                }
+                return false;
+              },
+              child: TreeView(
+                controller: _controller,
+                selectionMode: TreeViewSelectionMode.none,
+                shrinkWrap: false,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Rows are a fixed height in fluent's TreeView, so the node at the top of the
+  /// viewport is just an index into the flattened visible list — no layout
+  /// measurement needed.
+  static const _rowHeight = 28.0;
+
+  void _updateSticky(double pixels) {
+    final roots = _roots;
+    if (roots == null) return;
+    final flat = <(TreeViewItem, TreeViewItem)>[]; // (node, its root)
+    void walk(TreeViewItem node, TreeViewItem root) {
+      flat.add((node, root));
+      if (!node.expanded) return;
+      for (final c in node.children) {
+        walk(c, root);
+      }
+    }
+
+    for (final r in roots) {
+      walk(r, r);
+    }
+
+    final index = (pixels / _rowHeight).floor();
+    // Only a *descendant* needs the reminder; sitting on the root itself
+    // already shows it.
+    final root = index > 0 && index < flat.length ? flat[index].$2 : null;
+    final showFor = (root != null && flat[index].$1 != root) ? root : null;
+    if (showFor != _stickyRoot) setState(() => _stickyRoot = showFor);
+  }
+
+  TreeViewItem? _stickyRoot;
+
+  Widget _stickyHeader(TreeViewItem root) {
+    final label = _labelOf(root) ?? '';
+    return GestureDetector(
+      // Tapping collapses it — the reason you were scrolling back up.
+      onTap: () {
+        setState(() {
+          root.expanded = false;
+          _stickyRoot = null;
+        });
+      },
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Container(
+          height: 24,
+          padding: const EdgeInsets.only(left: 8, right: 6),
+          decoration: const BoxDecoration(
+            color: Color(0xFF1B1E24),
+            border: Border(bottom: BorderSide(color: _hair)),
+          ),
+          child: Row(children: [
+            const Icon(FluentIcons.chevron_down, size: 8, color: _textLo),
+            const SizedBox(width: 8),
+            const Icon(FluentIcons.database, size: 11, color: _textMid),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(label,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: _textMid, fontSize: 11.5, fontFamily: 'monospace')),
+            ),
+            const Text('collapse',
+                style: TextStyle(color: _textLo, fontSize: 9.5)),
+          ]),
+        ),
       ),
     );
+  }
+
+  /// The text a node renders, dug out of the ContextMenuRegion we wrap it in.
+  static String? _labelOf(TreeViewItem node) {
+    final content = node.content;
+    if (content is ContextMenuRegion) {
+      final child = content.child;
+      if (child is Text) return child.data;
+    }
+    if (content is Text) return content.data;
+    return null;
   }
 }
 
