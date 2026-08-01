@@ -66,6 +66,23 @@ class _AppShellState extends ConsumerState<AppShell> {
   final _queryMenu = MenuController();
   final _viewMenu = MenuController();
 
+  /// True while any top menu is open — then hovering a sibling switches to it
+  /// (standard menubar). When nothing is open, hover does nothing.
+  bool _barOpen = false;
+
+  void _onMenuOpen() {
+    if (!_barOpen) setState(() => _barOpen = true);
+  }
+
+  void _onMenuClose() {
+    // On a hover-switch one closes as another opens; settle before checking.
+    Future.microtask(() {
+      if (!mounted) return;
+      final any = _fileMenu.isOpen || _queryMenu.isOpen || _viewMenu.isOpen;
+      if (any != _barOpen) setState(() => _barOpen = any);
+    });
+  }
+
   void _newTab() => ref.read(worksheetTabsProvider.notifier).add();
   void _dispatch(WorksheetCommand c) =>
       ref.read(worksheetCommandsProvider.notifier).dispatch(c);
@@ -172,9 +189,11 @@ class _AppShellState extends ConsumerState<AppShell> {
       MenuController controller, String title, List<_MenuAction> actions) {
     return BaseSubmenu(
       controller: controller,
-      // Click to open/close; do NOT open on hover.
-      requestOpenOnPointerEnter: false,
+      // Click opens; once the bar is active, hovering a sibling switches to it.
+      requestOpenOnPointerEnter: _barOpen,
       requestCloseOnPointerExit: false,
+      onOpen: _onMenuOpen,
+      onClose: _onMenuClose,
       onPressed: () =>
           controller.isOpen ? controller.close() : controller.open(),
       menu: DecoratedBox(
