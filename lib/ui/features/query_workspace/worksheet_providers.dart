@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:riverpod/riverpod.dart' show Ref;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../data/drivers/driver_factory.dart';
@@ -249,9 +248,11 @@ class Worksheet extends _$Worksheet {
     // Keep this worksheet's Session alive for the worksheet's lifetime
     // (ADR-0004). Without this, a one-off `read` on the autoDispose session
     // provider disposes it mid-connect — fine for instant SQLite, but it races
-    // slow (network) connects. `.select((_) => null)` keeps it alive without
-    // rebuilding this notifier when the session's AsyncValue changes.
-    ref.watch(worksheetSessionProvider(worksheetId).select((_) => null));
+    // slow (network) connects. `listen` (not `watch`) subscribes — which holds
+    // the dependency alive — without rebuilding this notifier when the
+    // session's AsyncValue changes. Riverpod 3 dropped `.select` on functional
+    // async providers, which is how this used to be expressed.
+    ref.listen(worksheetSessionProvider(worksheetId), (_, _) {});
     return const WorksheetIdle();
   }
 

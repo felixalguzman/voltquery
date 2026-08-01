@@ -47,19 +47,18 @@ dependencies:
   # DB drivers (spec: ADR-0003). SQLite driver = raw sqlite3 (not drift).
   postgres: ^3.5.0
   mysql_client: ^0.0.27
-  sqlite3: ^2.4.5
+  sqlite3: ^3.5.0
   sqlite3_flutter_libs: ^0.5.24
   # State (Riverpod, ADR-0004) + immutable models. 2.x line for stable codegen.
-  flutter_riverpod: ^2.6.1
-  riverpod_annotation: ^2.6.1
-  freezed_annotation: ^2.4.4
+  flutter_riverpod: ^3.3.1
+  riverpod_annotation: ^4.0.2
   path_provider: ^2.1.4
   uuid: ^4.5.0
   panes: ^1.3.0
   file_selector: ^1.1.0
-  drift: ^2.19.0
+  drift: ^2.31.0
   path: ^1.9.1
-  riverpod: ^2.6.1
+  riverpod: ^3.3.1
   cryptography: ^2.9.0
   simple_icons: ^16.23.0
   # menu bar (#21/#55) + node context menus (#53); needs Flutter >= 3.44.4.
@@ -83,11 +82,12 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
-  # codegen (ADR-0004): @riverpod providers + freezed models. Run: dart run build_runner build
-  build_runner: ^2.4.13
-  riverpod_generator: ^2.6.1
-  freezed: ^2.5.7
-  drift_dev: ^2.19.0
+  # codegen (ADR-0004): @riverpod providers + drift. Run: dart run build_runner build
+  # (freezed was dropped in the Riverpod 3 bump — it was never actually used;
+  #  re-add freezed + freezed_annotation if the model TODOs are ever taken up.)
+  build_runner: ^2.15.1
+  riverpod_generator: ^4.0.3
+  drift_dev: ^2.31.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

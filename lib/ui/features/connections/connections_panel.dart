@@ -38,8 +38,9 @@ class ConnectionsPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final saved = ref.watch(savedConnectionsProvider).valueOrNull ??
-        const <Connection>[];
+    // Riverpod 3: `value` is the nullable accessor; `valueOrNull` is gone.
+    final saved =
+        ref.watch(savedConnectionsProvider).value ?? const <Connection>[];
     final activeId = ref.watch(currentConnectionProvider).id;
     final unlocked = ref.watch(vaultLockProvider);
 

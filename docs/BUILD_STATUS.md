@@ -85,11 +85,17 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 
 1. NavigationView rail + grid keyboard cell nav (#21 remainder).
 2. Background isolate for the SQLite driver — unblocks true Cancel + timeouts.
-3. **Riverpod 2→3 + analyzer 9 toolchain bump** — unblocks `build_runner` under
-   Dart 3.12 / base_menu's dot-shorthand (see the codegen note in *Run it*).
-4. Tables/Views folders + large-schema render-cap (#13 tail).
-5. Postgres/MySQL TLS.
+3. **Grid write-path** — inline cell editing + row add/delete/clone + "Copy as
+   SQL" + a staged-DML review panel. The biggest parity gap (see
+   `docs/research/feature-gaps.md`); the manual-commit/tx work already built the
+   safety story it needs.
+4. **Connectivity** — SSH tunnel + TLS + keep-alive. Without these VoltQuery
+   can't reach most production/cloud databases.
+5. Tables/Views folders + large-schema render-cap (#13 tail).
 6. `ui/core/theme` via mix.
+
+See `docs/research/feature-gaps.md` (parity) and `docs/research/differentiators.md`
+(offense) for the surveyed backlog these were picked from.
 
 ## Run it
 
@@ -99,21 +105,37 @@ flutter run -d linux    # full rebuild after pulling; not hot reload for new plu
 Linux prereq: `keybinder-3.0` (hotkey_manager) — see README. After a `git pull`
 that changed providers/drift: `dart run build_runner build --delete-conflicting-outputs`.
 
-> **⚠ codegen (`build_runner`) has two walls right now** — `flutter pub get`,
-> `analyze` and `test` are all fine; only `dart run build_runner` is affected.
-> 1. **base_menu pubspec** — 0.1.5 (and repo `main`) declare `workspace:
->    [gallery]` but the pub.dev tarball omits `gallery/`, aborting pub's
->    package-graph load (*"No workspace packages matching `gallery`"*). **Fixed**
->    by pinning base_menu to a **git ref** (see `pubspec.yaml`) — the git clone
->    includes `gallery/`, so the workspace resolves.
-> 2. **analyzer 7.6.0** (pinned transitively by riverpod_generator 2.6.4 /
->    source_gen 2 / drift_dev 2.28) can't serialize Dart **dot-shorthand** —
->    which base_menu's source uses (`.ltr`, `.deferToChild`, …). `build_runner`
->    then throws `Missing implementation of visitDotShorthandPropertyAccess`
->    (SEVERE) and stalls. Fixing this needs analyzer ≥8, which drags in a
->    **Riverpod 2→3 + source_gen 4 + drift_dev 2.31 bump** — a dedicated
->    migration slice (see Next candidates). Until then, hand-apply the `*.g.dart`
->    delta for small provider changes (e.g. `WorksheetSeeds` in this slice).
+Codegen works normally again — both of the walls that briefly blocked it after
+base_menu landed are cleared (kept here because the *causes* still bite anyone
+on an older lockfile):
+
+1. **base_menu pubspec** — 0.1.5 (and repo `main`) declare `workspace: [gallery]`
+   but the pub.dev tarball omits `gallery/`, aborting pub's package-graph load
+   (*"No workspace packages matching `gallery`"*). Fixed by pinning base_menu to
+   a **git ref** in `pubspec.yaml` — a git clone includes `gallery/`, so the
+   workspace resolves. Revisit if upstream publishes a fixed release.
+2. **analyzer 7.6.0** couldn't serialize Dart **dot-shorthand** (which
+   base_menu's source uses), throwing `Missing implementation of
+   visitDotShorthandPropertyAccess`. Fixed by the **Riverpod 2→3 / analyzer 12**
+   bump — see *Toolchain* below.
+
+### Toolchain
+
+Dart **3.12.2** / Flutter **3.44.8**. Codegen stack after the Riverpod 3 bump:
+`analyzer` 12, `riverpod` + `flutter_riverpod` 3.3, `riverpod_generator` 4,
+`source_gen` 4, `drift`/`drift_dev` 2.34, `build_runner` 2.15, `sqlite3` 3.5.
+`freezed` was **dropped** — it was in the pubspec but never used (no `@freezed`,
+no `*.freezed.dart`); re-add it if the `TODO(build)` model comments are taken up.
+
+Riverpod 3 migration notes (for anyone touching providers):
+- `AsyncValue.valueOrNull` → **`.value`** (nullable accessor).
+- `.select()` is gone on functional async providers; use `ref.listen(p, (_, _) {})`
+  to depend-without-rebuilding (that's the worksheet-session keep-alive).
+- `Override` now comes from `package:flutter_riverpod/misc.dart`.
+- A one-off `container.read(p.future)` on an **autoDispose** provider disposes it
+  as the read returns — for a stream provider that lands mid-loading and throws.
+  Hold a `container.listen(...)` subscription across the await (tests only; the
+  app watches these providers).
 
 ### Live test connections (local Docker)
 
