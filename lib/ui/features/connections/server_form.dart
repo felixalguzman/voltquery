@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../data/drivers/driver_factory.dart';
 import '../../../domain/drivers/driver_error.dart';
+import '../../../domain/drivers/driver_error_help.dart';
 import '../../../domain/models/connection_options.dart';
 import '../../../domain/models/ssl_mode.dart';
 import '../../../domain/drivers/result.dart';
@@ -76,6 +77,11 @@ class _ServerDialogState extends State<_ServerDialog> {
 
   _Test _test = _Test.idle;
   String _testMsg = '';
+
+  /// Kept alongside the message so the failure can be explained, not just
+  /// reprinted.
+  DriverError? _error;
+  bool _showRaw = false;
 
   /// mysql_client accepts any certificate, so it cannot offer verify-full —
   /// see Capabilities.verifiesTlsCertificates.
@@ -154,18 +160,29 @@ class _ServerDialogState extends State<_ServerDialog> {
       await session.close();
       _setResult(_Test.ok, server);
     } on DriverError catch (e) {
-      _setResult(_Test.error, '${e.kind.name}: ${e.message}');
+      _setResult(_Test.error, '${e.kind.name}: ${e.message}', error: e);
     } catch (e) {
       _setResult(_Test.error, e.toString());
     }
   }
 
-  void _setResult(_Test test, String msg) {
+  void _setResult(_Test test, String msg, {DriverError? error}) {
     if (!mounted) return;
     setState(() {
       _test = test;
       _testMsg = msg;
+      _error = error;
+      _showRaw = false;
     });
+  }
+
+  /// Applies a suggested fix and immediately retries — the point of offering it
+  /// is to save the trip through the Security tab.
+  void _applyRemedy(ErrorRemedy remedy) {
+    final mode = DriverErrorHelper.modeFor(remedy);
+    if (mode == null) return;
+    setState(() => _options = _options.copyWith(sslMode: mode));
+    _runTest();
   }
 
   void _save() {
@@ -250,37 +267,93 @@ class _ServerDialogState extends State<_ServerDialog> {
           style: const TextStyle(color: Color(0xFF6FE39A), fontSize: 12),
         );
       case _Test.error:
-        // Connection errors are the ones you actually need to read and paste
-        // into a search — so the full text is selectable, scrollable rather
-        // than clipped, and one click copies it.
-        return Row(
+        // The driver's own text explains the failure to whoever wrote the
+        // driver, not to the person looking at this dialog — the postgres
+        // package answers "no SSL" by naming a Dart constructor. Lead with what
+        // to do; keep the raw message one click away for searching.
+        final help = DriverErrorHelper(widget.engine).help(
+          _error ?? DriverError(DriverErrorKind.unknown, _testMsg),
+        );
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 64),
-                child: SingleChildScrollView(
-                  child: SelectableText(
-                    '✕ $_testMsg',
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(top: 1, right: 6),
+                  child: Icon(FluentIcons.error_badge,
+                      size: 12, color: Color(0xFFFF6B6B)),
+                ),
+                Expanded(
+                  child: Text(
+                    help.headline,
                     style: const TextStyle(
-                      color: Color(0xFFFF6B6B),
-                      fontSize: 12,
+                        color: Color(0xFFFF6B6B), fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+            if (help.hint case final hint?)
+              Padding(
+                padding: const EdgeInsets.only(left: 18, top: 3),
+                child: Text(
+                  hint,
+                  style: const TextStyle(
+                      color: Color(0xFF9BA1AD), fontSize: 11),
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.only(left: 18, top: 6),
+              child: Row(
+                children: [
+                  // A fix we can apply beats an instruction to go and apply it.
+                  if (help.remedy case final remedy?) ...[
+                    Button(
+                      onPressed: () => _applyRemedy(remedy),
+                      child: Text(help.remedyLabel ?? 'Fix',
+                          style: const TextStyle(fontSize: 11)),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  HoverButton(
+                    onPressed: () => setState(() => _showRaw = !_showRaw),
+                    builder: (context, states) => Text(
+                      _showRaw ? 'Hide details' : 'Details',
+                      style: const TextStyle(
+                          color: Color(0xFF2FE6FF), fontSize: 11),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Tooltip(
+                    message: 'Copy error',
+                    child: IconButton(
+                      icon: const Icon(FluentIcons.copy,
+                          size: 12, color: Color(0xFF9BA1AD)),
+                      onPressed: () =>
+                          Clipboard.setData(ClipboardData(text: _testMsg)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (_showRaw)
+              Padding(
+                padding: const EdgeInsets.only(left: 18, top: 4),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 72),
+                  child: SingleChildScrollView(
+                    child: SelectableText(
+                      _testMsg,
+                      style: const TextStyle(
+                          color: Color(0xFF5A6069),
+                          fontSize: 10.5,
+                          fontFamily: 'monospace'),
                     ),
                   ),
                 ),
               ),
-            ),
-            Tooltip(
-              message: 'Copy error',
-              child: IconButton(
-                icon: const Icon(
-                  FluentIcons.copy,
-                  size: 12,
-                  color: Color(0xFF9BA1AD),
-                ),
-                onPressed: () =>
-                    Clipboard.setData(ClipboardData(text: _testMsg)),
-              ),
-            ),
           ],
         );
     }
