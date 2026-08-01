@@ -1,6 +1,7 @@
 import '../../../domain/drivers/driver_error.dart';
 import '../../../domain/drivers/result.dart';
 import '../../../domain/sql/sql_statement_splitter.dart';
+import 'grid_editability.dart';
 
 /// The outcome of running SQL in a Worksheet — grid-ready.
 ///
@@ -26,6 +27,7 @@ class WorksheetRows extends WorksheetResult {
     required this.rows,
     required this.durationMs,
     required this.capped,
+    this.editability,
   });
 
   final List<ResultField> fields;
@@ -34,6 +36,18 @@ class WorksheetRows extends WorksheetResult {
 
   /// True when the render cap was hit (more rows exist than were fetched).
   final bool capped;
+
+  /// Set when this result maps 1:1 onto one table's rows, so the grid can write
+  /// back. Null → read-only (a join, an aggregate, a table with no PK…).
+  final GridEditability? editability;
+
+  WorksheetRows withEditability(GridEditability? value) => WorksheetRows(
+        fields: fields,
+        rows: rows,
+        durationMs: durationMs,
+        capped: capped,
+        editability: value,
+      );
 }
 
 /// A non-row statement (DML/DDL) — shown in the messages area.

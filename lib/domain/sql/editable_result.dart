@@ -55,6 +55,18 @@ class EditableResultAnalyzer {
     'values',
   };
 
+  /// Aggregate functions. A bare `SELECT count(*) FROM t` has no GROUP BY yet
+  /// still collapses the table to a single row that corresponds to no row of
+  /// it — so the clause check above can't catch this on its own.
+  ///
+  /// Rejecting windowed aggregates (`count(*) OVER ()`, which *is* 1:1) as
+  /// collateral is the safe direction to be wrong in.
+  static const _aggregates = {
+    'count', 'sum', 'avg', 'min', 'max', 'total', 'group_concat', 'string_agg',
+    'array_agg', 'json_agg', 'jsonb_agg', 'stddev', 'stddev_pop', 'stddev_samp',
+    'variance', 'var_pop', 'var_samp', 'bool_and', 'bool_or', 'every', //
+  };
+
   /// Returns the writable target for [sql], or null when the result must stay
   /// read-only.
   EditableTarget? analyze(String sql) {
@@ -75,6 +87,16 @@ class EditableResultAnalyzer {
       if (word == 'from' && fromIndex == -1) fromIndex = i;
     }
     if (fromIndex == -1) return null; // `SELECT 1` — nothing to write back to
+
+    // An aggregate in the projection collapses the result set — but only at
+    // depth 0: `SELECT id, (SELECT count(*) FROM o) FROM c` aggregates *inside*
+    // a scalar subquery and still yields one row per row of `c`.
+    for (var i = 1; i < fromIndex; i++) {
+      if (tokens[i].depth != 0) continue;
+      if (!_aggregates.contains(tokens[i].text.toLowerCase())) continue;
+      // Only a *call* aggregates — a column merely named `count` does not.
+      if (i + 1 < tokens.length && tokens[i + 1].isOpenParen) return null;
+    }
 
     // The FROM entry: an optionally-qualified identifier, then either the end,
     // an alias, or a clause keyword. A `(` right after FROM is a derived table.
