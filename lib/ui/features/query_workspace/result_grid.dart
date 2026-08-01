@@ -50,15 +50,6 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
   /// and result columns can repeat names (`SELECT id, id`).
   static String _fieldKey(int i) => 'c$i';
 
-  /// The value a cell currently shows: the staged edit if dirty, else what was
-  /// read from the database.
-  Object? _effective(GridEditBuffer buf, int rowIndex, int colIndex) {
-    final name = widget.rows.fields[colIndex].name;
-    final staged = buf.at(rowIndex, name);
-    if (staged != null) return staged.newValue;
-    return widget.rows.rows[rowIndex].values[colIndex];
-  }
-
   /// A row's primary-key values **as originally read** — never the staged ones,
   /// or an edit would address the row by a value that isn't in the table yet.
   Map<String, Object?>? _pkValues(int rowIndex) {
@@ -167,7 +158,7 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
       await displayInfoBar(
         context,
         builder: (context, close) => InfoBar(
-          title: Text('${result.applied} row(s) updated'),
+          title: Text('${result.rowsAffected} row(s) updated'),
           severity: InfoBarSeverity.success,
           onClose: close,
         ),
@@ -258,227 +249,23 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
       type: _plutoType(editor),
       enableEditingMode: canEdit,
       readOnly: !canEdit,
-      renderer: (ctx) => _cell(ctx, i, name, buf),
-    );
-  }
-
-  /// Renders a cell: NULL as a dim placeholder (never the string "NULL"),
-  /// booleans as a real toggle, and a dirty cell with an accent bar plus a
-  /// hover tooltip showing `old → new`.
-  Widget _cell(
-    PlutoColumnRendererContext ctx,
-    int colIndex,
-    String name,
-    GridEditBuffer buf,
-  ) {
-    final rowIndex = ctx.rowIdx;
-    final staged = buf.at(rowIndex, name);
-    final value = _effective(buf, rowIndex, colIndex);
-    final isDirty = staged != null;
-    final editor = _edit?.editorFor(name);
-
-    Widget body;
-    if (editor?.kind == ColumnEditorKind.boolean) {
-      body = _boolCell(rowIndex, name, value, editor!, isDirty);
-    } else if (editor?.kind == ColumnEditorKind.date ||
-        editor?.kind == ColumnEditorKind.dateTime) {
-      body = _dateCell(rowIndex, name, value, editor!, isDirty);
-    } else if (value == null) {
-      body = const Text(
-        'NULL',
-        style: TextStyle(
-          color: _textLo,
-          fontSize: 11.5,
-          fontFamily: 'monospace',
-          fontStyle: FontStyle.italic,
-        ),
-      );
-    } else {
-      body = Text(
-        '$value',
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: isDirty ? _dirty : _text,
-          fontSize: 12.5,
-          fontFamily: 'monospace',
-        ),
-      );
-    }
-
-    if (!isDirty) return body;
-    // Hovering a changed cell shows what it was — the staged value replaced the
-    // old one on screen, so this is the only way back to it before applying.
-    return Tooltip(
-      message: '${_display(staged.oldValue)}  →  ${_display(staged.newValue)}',
-      child: Row(
-        children: [
-          Container(width: 2, height: 16, color: _dirty),
-          const SizedBox(width: 6),
-          Flexible(child: body),
-        ],
+      renderer: (ctx) => _CellView(
+        gridId: widget.gridId,
+        rowIndex: ctx.rowIdx,
+        column: name,
+        colIndex: i,
+        editor: editor,
+        editable: _editable && !isPk,
+        rows: widget.rows,
+        onStage: _stage,
       ),
     );
   }
 
-  static String _display(Object? v) => v == null ? 'NULL' : '$v';
-
-  /// A clickable toggle for boolean columns. pluto has no boolean editor, and a
-  /// text cell showing `true` / `0` (engines disagree) was both ugly and
-  /// error-prone — so the cell itself stages the flip.
-  Widget _boolCell(
-    int rowIndex,
-    String name,
-    Object? value,
-    ColumnEditor editor,
-    bool isDirty,
-  ) {
-    final on = _truthy(value);
-    final isNull = value == null;
-    final canEdit = _editable && !(_edit?.isPrimaryKey(name) ?? false);
-
-    final visual = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          isNull
-              ? FluentIcons.checkbox_indeterminate
-              : on
-                  ? FluentIcons.checkbox_composite
-                  : FluentIcons.checkbox,
-          size: 13,
-          color: isNull
-              ? _textLo
-              : isDirty
-                  ? _dirty
-                  : (on ? _accent : _textMid),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          isNull ? 'NULL' : (on ? 'true' : 'false'),
-          style: TextStyle(
-            color: isNull
-                ? _textLo
-                : isDirty
-                    ? _dirty
-                    : _textMid,
-            fontSize: 11.5,
-            fontFamily: 'monospace',
-            fontStyle: isNull ? FontStyle.italic : FontStyle.normal,
-          ),
-        ),
-      ],
-    );
-    if (!canEdit) return visual;
-
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      // Cycles false -> true -> (NULL when the column allows it) -> false.
-      onTap: () => _stage(rowIndex, name, _nextBool(value, editor)),
-      child: MouseRegion(cursor: SystemMouseCursors.click, child: visual),
-    );
-  }
-
-  /// A date / datetime cell: the value as stored, plus a calendar button that
-  /// opens a real picker. The cell is still a text column underneath, so typing
-  /// an exact value remains possible — the picker is for when you'd rather not.
-  Widget _dateCell(
-    int rowIndex,
-    String name,
-    Object? value,
-    ColumnEditor editor,
-    bool isDirty,
-  ) {
-    final canEdit = _editable && !(_edit?.isPrimaryKey(name) ?? false);
-    final label = value == null
-        ? const Text(
-            'NULL',
-            style: TextStyle(
-              color: _textLo,
-              fontSize: 11.5,
-              fontFamily: 'monospace',
-              fontStyle: FontStyle.italic,
-            ),
-          )
-        : Text(
-            '$value',
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: isDirty ? _dirty : _text,
-              fontSize: 12.5,
-              fontFamily: 'monospace',
-            ),
-          );
-    if (!canEdit) return label;
-
-    return Row(
-      children: [
-        Flexible(child: label),
-        const SizedBox(width: 6),
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => _pickDate(rowIndex, name, value, editor),
-          child: const MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: Icon(FluentIcons.calendar, size: 11, color: _textLo),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _pickDate(
-    int rowIndex,
-    String name,
-    Object? current,
-    ColumnEditor editor,
-  ) async {
-    final withTime = editor.kind == ColumnEditorKind.dateTime;
-    final picked = await showDialog<DateTime>(
-      context: context,
-      builder: (context) => _DatePickerDialog(
-        initial: _parseDate(current) ?? DateTime.now(),
-        withTime: withTime,
-      ),
-    );
-    if (picked == null || !mounted) return;
-    _stage(rowIndex, name, _formatDate(picked, withTime: withTime));
-  }
-
-  /// Parses what the engine gave us. Values arrive as text on SQLite/MySQL and
-  /// may already be a DateTime on Postgres.
-  static DateTime? _parseDate(Object? v) => switch (v) {
-        null => null,
-        DateTime d => d,
-        _ => DateTime.tryParse('$v'.replaceFirst(' ', 'T')),
-      };
-
-  /// Engine-neutral text: `yyyy-MM-dd[ HH:mm:ss]`, which every engine accepts
-  /// for a date/timestamp literal.
-  static String _formatDate(DateTime d, {required bool withTime}) {
-    String two(int n) => n.toString().padLeft(2, '0');
-    final date = '${d.year}-${two(d.month)}-${two(d.day)}';
-    if (!withTime) return date;
-    return '$date ${two(d.hour)}:${two(d.minute)}:${two(d.second)}';
-  }
-
-  Object? _nextBool(Object? current, ColumnEditor editor) {
-    if (current == null) return false;
-    if (!_truthy(current)) return true;
-    return editor.nullable ? null : false;
-  }
-
-  static bool _truthy(Object? v) => switch (v) {
-        null => false,
-        bool b => b,
-        num n => n != 0,
-        _ => const {'true', 't', '1', 'yes', 'y'}
-            .contains('$v'.toLowerCase()),
-      };
-
-  /// Stage a value that didn't come from a pluto editor (the boolean toggle).
+  /// Stage a value that didn't come from a pluto editor (the boolean toggle,
+  /// the date picker).
   void _stage(int rowIndex, String column, Object? newValue) {
-    final colIndex =
-        widget.rows.fields.indexWhere((f) => f.name == column);
+    final colIndex = widget.rows.fields.indexWhere((f) => f.name == column);
     if (colIndex < 0) return;
     ref.read(gridEditsProvider(widget.gridId).notifier).stage(
           StagedEdit(
@@ -614,9 +401,9 @@ class _ReviewDialog extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           const Text(
-            'These run on this worksheet\'s session, in order. With '
-            'manual-commit on they stay in the open transaction until you '
-            'press Commit.',
+            'One statement per edited row, run in order inside a single '
+            'transaction — if any fails, none are applied. With manual-commit '
+            'on they join your open transaction instead, and wait for Commit.',
             style: TextStyle(color: _textMid, fontSize: 11.5),
           ),
           const SizedBox(height: 10),
@@ -653,6 +440,201 @@ class _ReviewDialog extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+/// One grid cell.
+///
+/// It **watches the edit buffer itself**. pluto takes its `columns` list once
+/// and keeps those `PlutoColumn` objects, so a renderer that closed over the
+/// buffer would keep rendering whatever existed at first build — the edit would
+/// stage (the pending count rose) while the cell still painted the old value.
+/// Watching per cell also means a staged change repaints exactly that cell,
+/// with no dependency on pluto noticing anything.
+class _CellView extends ConsumerWidget {
+  const _CellView({
+    required this.gridId,
+    required this.rowIndex,
+    required this.column,
+    required this.colIndex,
+    required this.editor,
+    required this.editable,
+    required this.rows,
+    required this.onStage,
+  });
+
+  final String gridId;
+  final int rowIndex;
+  final String column;
+  final int colIndex;
+  final ColumnEditor? editor;
+  final bool editable;
+  final WorksheetRows rows;
+  final void Function(int rowIndex, String column, Object? value) onStage;
+
+  Object? get _original => rowIndex < rows.rows.length
+      ? rows.rows[rowIndex].values[colIndex]
+      : null;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final staged = ref.watch(gridEditsProvider(gridId)).at(rowIndex, column);
+    final value = staged != null ? staged.newValue : _original;
+    final isDirty = staged != null;
+
+    final Widget body = switch (editor?.kind) {
+      ColumnEditorKind.boolean => _boolBody(context, value, isDirty),
+      ColumnEditorKind.date ||
+      ColumnEditorKind.dateTime =>
+        _dateBody(context, value, isDirty),
+      _ => _textBody(value, isDirty),
+    };
+
+    if (!isDirty) return body;
+    // Hovering a changed cell shows what it was — the staged value replaced the
+    // original on screen, so this is the only way back to it before applying.
+    return Tooltip(
+      message: '${_display(staged.oldValue)}  \u2192  ${_display(staged.newValue)}',
+      child: Row(
+        children: [
+          Container(width: 2, height: 16, color: _dirty),
+          const SizedBox(width: 6),
+          Flexible(child: body),
+        ],
+      ),
+    );
+  }
+
+  static String _display(Object? v) => v == null ? 'NULL' : '$v';
+
+  Widget _nullLabel() => const Text(
+        'NULL',
+        style: TextStyle(
+          color: _textLo,
+          fontSize: 11.5,
+          fontFamily: 'monospace',
+          fontStyle: FontStyle.italic,
+        ),
+      );
+
+  Widget _textBody(Object? value, bool isDirty) {
+    if (value == null) return _nullLabel();
+    return Text(
+      '$value',
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        color: isDirty ? _dirty : _text,
+        fontSize: 12.5,
+        fontFamily: 'monospace',
+      ),
+    );
+  }
+
+  /// A clickable toggle. pluto has no boolean editor, and a text cell showing
+  /// `true` / `0` (engines disagree) was both ugly and error-prone.
+  Widget _boolBody(BuildContext context, Object? value, bool isDirty) {
+    final on = _truthy(value);
+    final isNull = value == null;
+    final color = isNull
+        ? _textLo
+        : isDirty
+            ? _dirty
+            : (on ? _accent : _textMid);
+
+    final visual = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          isNull
+              ? FluentIcons.checkbox_indeterminate
+              : on
+                  ? FluentIcons.checkbox_composite
+                  : FluentIcons.checkbox,
+          size: 13,
+          color: color,
+        ),
+        const SizedBox(width: 6),
+        Text(
+          isNull ? 'NULL' : (on ? 'true' : 'false'),
+          style: TextStyle(
+            color: isNull ? _textLo : (isDirty ? _dirty : _textMid),
+            fontSize: 11.5,
+            fontFamily: 'monospace',
+            fontStyle: isNull ? FontStyle.italic : FontStyle.normal,
+          ),
+        ),
+      ],
+    );
+    if (!editable) return visual;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      // Cycles false -> true -> (NULL where the column allows it) -> false.
+      onTap: () => onStage(rowIndex, column, _nextBool(value)),
+      child: MouseRegion(cursor: SystemMouseCursors.click, child: visual),
+    );
+  }
+
+  Object? _nextBool(Object? current) {
+    if (current == null) return false;
+    if (!_truthy(current)) return true;
+    return (editor?.nullable ?? false) ? null : false;
+  }
+
+  static bool _truthy(Object? v) => switch (v) {
+        null => false,
+        bool b => b,
+        num n => n != 0,
+        _ => const {'true', 't', '1', 'yes', 'y'}.contains('$v'.toLowerCase()),
+      };
+
+  /// The value as stored, plus a calendar button opening a real picker. The
+  /// column is still text underneath, so typing an exact value keeps working.
+  Widget _dateBody(BuildContext context, Object? value, bool isDirty) {
+    final label = _textBody(value, isDirty);
+    if (!editable) return label;
+    return Row(
+      children: [
+        Flexible(child: label),
+        const SizedBox(width: 6),
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => _pickDate(context, value),
+          child: const MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: Icon(FluentIcons.calendar, size: 11, color: _textLo),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _pickDate(BuildContext context, Object? current) async {
+    final withTime = editor?.kind == ColumnEditorKind.dateTime;
+    final picked = await showDialog<DateTime>(
+      context: context,
+      builder: (context) => _DatePickerDialog(
+        initial: _parseDate(current) ?? DateTime.now(),
+        withTime: withTime,
+      ),
+    );
+    if (picked == null) return;
+    onStage(rowIndex, column, _formatDate(picked, withTime: withTime));
+  }
+
+  /// Values arrive as text on SQLite/MySQL and may already be a DateTime on
+  /// Postgres.
+  static DateTime? _parseDate(Object? v) => switch (v) {
+        null => null,
+        DateTime d => d,
+        _ => DateTime.tryParse('$v'.replaceFirst(' ', 'T')),
+      };
+
+  /// Engine-neutral `yyyy-MM-dd[ HH:mm:ss]`, which all three engines accept.
+  static String _formatDate(DateTime d, {required bool withTime}) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    final date = '${d.year}-${two(d.month)}-${two(d.day)}';
+    if (!withTime) return date;
+    return '$date ${two(d.hour)}:${two(d.minute)}:${two(d.second)}';
   }
 }
 

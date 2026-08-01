@@ -294,8 +294,21 @@ class GridEdits extends _$GridEdits {
 /// with manual commit on, the UPDATEs land inside the open transaction and the
 /// user still has to press Commit. Stops at the first failure and reports it.
 class GridEditApplyResult {
-  const GridEditApplyResult({required this.applied, this.error});
+  const GridEditApplyResult({
+    required this.applied,
+    this.rowsAffected = 0,
+    this.error,
+  });
+
+  /// Statements that ran successfully. Zero on failure — the whole batch is
+  /// rolled back, so nothing was applied.
   final int applied;
+
+  /// Rows the engine actually changed, summed across the statements. Can differ
+  /// from [applied]: a row deleted by someone else since the result was read
+  /// matches nothing and reports 0.
+  final int rowsAffected;
+
   final DriverError? error;
   bool get ok => error == null;
 }
@@ -493,7 +506,16 @@ class Worksheet extends _$Worksheet {
     final session = await ref.read(
       worksheetSessionProvider(worksheetId).future,
     );
+    // One statement per edited row, so each stays readable in the review panel
+    // — but they must land together. Without a transaction, a failure partway
+    // through leaves the earlier rows already committed and the rest not.
+    // Skipped when a manual-commit transaction is already open: the edits join
+    // that one, and the user's own Commit/Rollback governs.
+    final ownTx = !ref.read(worksheetTxProvider(worksheetId));
+    if (ownTx) await session.begin();
+
     var applied = 0;
+    var rowsAffected = 0;
     for (final sql in statements) {
       // Grid edits are real statements the user ran — they belong in history
       // exactly like a typed UPDATE, so they're auditable and re-runnable.
@@ -503,28 +525,48 @@ class Worksheet extends _$Worksheet {
         final result = await session.execute(sql);
         sw.stop();
         applied++;
+        final affected = result is CommandResult ? result.affectedRows : null;
+        rowsAffected += affected ?? 0;
         await _record(
           sql,
           started,
           sw.elapsedMilliseconds,
-          result is CommandResult
-              ? WorksheetMessage('${result.affectedRows} row(s) affected')
-              : const WorksheetIdle(),
+          WorksheetMessage('${affected ?? 0} row(s) affected'),
+          affectedRows: affected,
         );
       } on DriverError catch (e) {
         sw.stop();
         await _record(sql, started, sw.elapsedMilliseconds,
             WorksheetFailure(e));
-        return GridEditApplyResult(applied: applied, error: e);
+        if (ownTx) await _rollbackQuietly(session);
+        return GridEditApplyResult(applied: 0, error: e);
       } catch (e) {
         sw.stop();
         final err = DriverError(DriverErrorKind.unknown, e.toString());
         await _record(sql, started, sw.elapsedMilliseconds,
             WorksheetFailure(err));
-        return GridEditApplyResult(applied: applied, error: err);
+        if (ownTx) await _rollbackQuietly(session);
+        return GridEditApplyResult(applied: 0, error: err);
       }
     }
-    return GridEditApplyResult(applied: applied);
+    if (ownTx) {
+      try {
+        await session.commit();
+      } on DriverError catch (e) {
+        return GridEditApplyResult(applied: 0, error: e);
+      }
+    }
+    return GridEditApplyResult(applied: applied, rowsAffected: rowsAffected);
+  }
+
+  /// Best-effort rollback — the caller is already reporting the real failure,
+  /// and a rollback error would only mask it.
+  Future<void> _rollbackQuietly(Session session) async {
+    try {
+      await session.rollback();
+    } catch (_) {
+      // Nothing useful to do; the original error is what the user needs.
+    }
   }
 
   /// Whether the grid for [sql] can write back, and how. Best-effort: any
@@ -565,8 +607,12 @@ class Worksheet extends _$Worksheet {
     String sql,
     DateTime started,
     int ms,
-    WorksheetResult result,
-  ) async {
+    WorksheetResult result, {
+    /// Row count for results that aren't [WorksheetRows] — a DML statement's
+    /// affected-row count, which the switch below can't recover from a
+    /// [WorksheetMessage].
+    int? affectedRows,
+  }) async {
     final conn = ref.read(currentConnectionProvider);
     final (
       HistoryStatus status,
@@ -581,7 +627,7 @@ class Worksheet extends _$Worksheet {
         error.kind.name,
         error.message,
       ),
-      _ => (HistoryStatus.ok, null, null, null),
+      _ => (HistoryStatus.ok, affectedRows, null, null),
     };
     await ref
         .read(historyRepositoryProvider)

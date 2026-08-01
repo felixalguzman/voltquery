@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:voltquery/data/services/local_store.dart';
 import 'package:voltquery/domain/models/history_entry.dart';
+import 'package:voltquery/domain/drivers/result.dart';
 import 'package:voltquery/domain/models/schema.dart';
 import 'package:voltquery/ui/features/history/history_providers.dart';
 import 'package:voltquery/ui/features/query_workspace/grid_editability.dart';
@@ -141,6 +142,56 @@ void main() {
     expect(byName['customer_id']!.isForeignKey, isTrue);
     expect(byName['id']!.isPrimaryKey, isTrue);
     expect(byName['amount']!.isForeignKey, isFalse);
+  });
+
+  group('applying staged edits', () {
+    Future<List<Object?>> firstColumnOf(ProviderContainer c, String sql) async {
+      final session = await c.read(introspectionSessionProvider.future);
+      final res = await session.execute(sql);
+      final rows = await (res as RowsResult).cursor.fetch(10);
+      await res.cursor.close();
+      return rows.map((r) => r.values.first).toList();
+    }
+
+    test('applies the statements and reports rows actually affected', () async {
+      await container.read(introspectionSessionProvider.future);
+      final result = await container
+          .read(worksheetProvider('ws').notifier)
+          .applyGridEdits([
+        'UPDATE "customers" SET "name" = \'Ada L.\' WHERE "id" = 1;',
+        'UPDATE "customers" SET "name" = \'Grace H.\' WHERE "id" = 2;',
+      ]);
+
+      expect(result.ok, isTrue);
+      expect(result.applied, 2);
+      expect(result.rowsAffected, 2); // <- was reported as 0 in history before
+      expect(
+        await firstColumnOf(container, 'SELECT name FROM customers ORDER BY id LIMIT 2'),
+        ['Ada L.', 'Grace H.'],
+      );
+    });
+
+    test('a failure rolls the whole batch back — no partial writes', () async {
+      await container.read(introspectionSessionProvider.future);
+      final before =
+          await firstColumnOf(container, 'SELECT name FROM customers WHERE id = 1');
+
+      final result = await container
+          .read(worksheetProvider('ws').notifier)
+          .applyGridEdits([
+        'UPDATE "customers" SET "name" = \'changed\' WHERE "id" = 1;',
+        'UPDATE "customers" SET "nope" = 1 WHERE "id" = 2;', // no such column
+      ]);
+
+      expect(result.ok, isFalse);
+      expect(result.applied, 0, reason: 'nothing survives a failed batch');
+      // The first statement succeeded before the second failed; without a
+      // transaction it would have stuck.
+      expect(
+        await firstColumnOf(container, 'SELECT name FROM customers WHERE id = 1'),
+        before,
+      );
+    });
   });
 
   test('a projection missing the PK yields no row identity', () async {
