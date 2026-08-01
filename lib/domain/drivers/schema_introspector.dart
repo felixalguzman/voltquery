@@ -28,6 +28,18 @@ abstract interface class SchemaIntrospector {
   /// a `--`-commented note instead so the clipboard is always meaningful.
   Future<String> tableDdl(TableInfo table);
 
+  /// Cheap statistics for [table] — estimated rows, on-disk size, comment.
+  ///
+  /// Must stay **catalog-only**: this runs when a user opens an info dialog, so
+  /// it may not scan the table. Engines that keep no estimate return the fields
+  /// they can and leave the rest null rather than counting rows.
+  Future<TableStats> tableStats(TableInfo table);
+
+  /// An exact `count(*)`. Separate from [tableStats] because on a large table
+  /// this is a full scan, and the caller should be the one deciding to pay for
+  /// it.
+  Future<int> rowCount(TableInfo table);
+
   /// The `CREATE INDEX` statement for [index] on [table] ("Copy CREATE" on an
   /// index node, #53). Postgres uses `pg_get_indexdef`; SQLite reads
   /// `sqlite_master` (auto-indexes have no stored SQL → reconstructed);

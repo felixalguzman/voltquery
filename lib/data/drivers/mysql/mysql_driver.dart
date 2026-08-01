@@ -282,6 +282,39 @@ class _MysqlIntrospector implements SchemaIntrospector {
   }
 
   @override
+  Future<TableStats> tableStats(TableInfo table) async {
+    final rs = await _conn.execute(
+      'SELECT table_rows, data_length, index_length, table_comment '
+      'FROM information_schema.tables '
+      "WHERE table_schema = COALESCE(NULLIF(:s, ''), DATABASE()) "
+      'AND table_name = :t',
+      {'s': table.schema, 't': table.name},
+    );
+    if (rs.rows.isEmpty) return const TableStats();
+    final r = rs.rows.first;
+    final rows = int.tryParse(r.colAt(0) ?? '');
+    final data = int.tryParse(r.colAt(1) ?? '') ?? 0;
+    final index = int.tryParse(r.colAt(2) ?? '') ?? 0;
+    final comment = r.colAt(3);
+    return TableStats(
+      // InnoDB's table_rows is a sampled estimate, not a count — the dialog
+      // labels it as such rather than presenting it as exact.
+      estimatedRows: rows,
+      totalBytes: data + index,
+      indexBytes: index,
+      comment: (comment == null || comment.isEmpty) ? null : comment,
+    );
+  }
+
+  @override
+  Future<int> rowCount(TableInfo table) async {
+    final rs = await _conn.execute(
+      'SELECT count(*) FROM ${_qualified(table)}',
+    );
+    return int.tryParse(rs.rows.first.colAt(0) ?? '') ?? 0;
+  }
+
+  @override
   Future<String> indexDdl(TableInfo table, IndexInfo index) async {
     // MySQL has no SHOW CREATE INDEX — reconstruct from the index's columns.
     final cols = index.columns.map(_ident).join(', ');

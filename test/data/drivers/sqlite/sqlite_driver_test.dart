@@ -183,6 +183,39 @@ void main() {
     );
   });
 
+  test('tableStats reports nothing rather than scanning the table', () async {
+    await session.execute('CREATE TABLE t (id INTEGER PRIMARY KEY, a TEXT)');
+    await session.execute("INSERT INTO t (a) VALUES ('x'), ('y')");
+
+    // SQLite keeps no row estimate and its size stats need the optional dbstat
+    // module. An empty result the dialog labels "Unknown" is honest; a
+    // count(*) disguised as a cheap statistic would not be.
+    final stats = await session.schema
+        .tableStats(const TableInfo(name: 't', kind: ObjectKind.table));
+    expect(stats.estimatedRows, isNull);
+    expect(stats.totalBytes, isNull);
+    expect(stats.isEmpty, isTrue);
+  });
+
+  test('rowCount is exact, and separate from tableStats', () async {
+    await session.execute('CREATE TABLE t (id INTEGER PRIMARY KEY)');
+    await session.execute('INSERT INTO t (id) VALUES (1), (2), (3)');
+
+    final n = await session.schema
+        .rowCount(const TableInfo(name: 't', kind: ObjectKind.table));
+    expect(n, 3);
+  });
+
+  test('rowCount quotes the table name', () async {
+    await session.execute('CREATE TABLE "odd name" (id INTEGER)');
+    await session.execute('INSERT INTO "odd name" VALUES (1)');
+    expect(
+      await session.schema
+          .rowCount(const TableInfo(name: 'odd name', kind: ObjectKind.table)),
+      1,
+    );
+  });
+
   test('SQLite capabilities: no server, no schemas, no query-cancel', () {
     expect(driver.engine, Engine.sqlite);
     final c = driver.capabilities;

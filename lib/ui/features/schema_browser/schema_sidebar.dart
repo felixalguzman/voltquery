@@ -9,6 +9,7 @@ import '../../core/menu/context_menu.dart';
 import '../query_workspace/worksheet_providers.dart';
 import 'schema_providers.dart';
 import 'schema_repository.dart';
+import 'table_info_dialog.dart';
 
 // TODO(theming #7): unify these tokens into ui/core/theme.
 const _panel = Color(0xFF16181D);
@@ -163,6 +164,9 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
                 () => _copyDdl(() => widget.repo.tableDdl(t)),
                 icon: FluentIcons.code),
             MenuAction.divider,
+            MenuAction('Table Info…', () => _showInfo(t),
+                icon: FluentIcons.info),
+            MenuAction.divider,
             MenuAction('Open in Editor', () => _openTable(t, run: false),
                 icon: FluentIcons.open_file),
             MenuAction('Preview Data', () => _openTable(t, run: true),
@@ -220,6 +224,10 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
   // --- Context-menu actions --------------------------------------------------
 
   void _copy(String text) => Clipboard.setData(ClipboardData(text: text));
+
+  /// Size, shape, keys and indexes without writing a query for any of it.
+  void _showInfo(TableInfo t) =>
+      showTableInfoDialog(context, table: t, repo: widget.repo);
 
   /// Fetch DDL (cached in the repo) then copy it. Never leaves the clipboard
   /// empty — a fetch failure copies a `--`-commented note instead.

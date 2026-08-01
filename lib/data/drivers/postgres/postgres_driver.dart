@@ -386,6 +386,43 @@ class _PostgresIntrospector implements SchemaIntrospector {
   }
 
   @override
+  Future<TableStats> tableStats(TableInfo table) async {
+    final schemaName = table.schema.isEmpty ? 'public' : table.schema;
+    final qualified = '${_ident(schemaName)}.${_ident(table.name)}';
+    final r = await _conn.execute(
+      pg.Sql.named(
+        // reltuples is the planner's estimate, maintained by ANALYZE — free to
+        // read, and -1 on a table that has never been analysed.
+        'SELECT c.reltuples::bigint, '
+        '       pg_total_relation_size(c.oid), '
+        '       pg_indexes_size(c.oid), '
+        '       obj_description(c.oid) '
+        'FROM pg_class c WHERE c.oid = @r::regclass',
+      ),
+      parameters: {'r': qualified},
+    );
+    if (r.isEmpty) return const TableStats();
+    final row = r.first;
+    final estimate = row[0] as int?;
+    return TableStats(
+      // -1 means "never analysed"; reporting it as a row count would be a lie.
+      estimatedRows: (estimate == null || estimate < 0) ? null : estimate,
+      totalBytes: (row[1] as int?),
+      indexBytes: (row[2] as int?),
+      comment: row[3] as String?,
+    );
+  }
+
+  @override
+  Future<int> rowCount(TableInfo table) async {
+    final schemaName = table.schema.isEmpty ? 'public' : table.schema;
+    final r = await _conn.execute(
+      'SELECT count(*) FROM ${_ident(schemaName)}.${_ident(table.name)}',
+    );
+    return (r.first.first as int?) ?? 0;
+  }
+
+  @override
   Future<String> indexDdl(TableInfo table, IndexInfo index) async {
     final schemaName = table.schema.isEmpty ? 'public' : table.schema;
     final qualified = '${_ident(schemaName)}.${_ident(index.name)}';

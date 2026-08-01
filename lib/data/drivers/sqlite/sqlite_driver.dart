@@ -231,6 +231,22 @@ class _SqliteSchemaIntrospector implements SchemaIntrospector {
   }
 
   @override
+  Future<TableStats> tableStats(TableInfo table) async {
+    // SQLite keeps no row estimate and its size stats need the optional dbstat
+    // module, so there is genuinely nothing cheap to report — better an empty
+    // result the dialog can label "not available" than a full table scan
+    // disguised as a statistic.
+    return const TableStats();
+  }
+
+  @override
+  Future<int> rowCount(TableInfo table) async {
+    final name = table.name.replaceAll('"', '""');
+    final rs = _db.select('SELECT count(*) FROM "$name"');
+    return (rs.first.values.first as int?) ?? 0;
+  }
+
+  @override
   Future<String> indexDdl(TableInfo table, IndexInfo index) async {
     final rs = _db.select(
       "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?",
