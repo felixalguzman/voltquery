@@ -66,7 +66,10 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   removes the stored password too. **SSH tunnelling** (dartssh2) forwards a
   loopback port to the database as seen from the bastion, with password or
   private-key auth; the tunnel's lifetime is tied to the Session, and its
-  secrets live in the vault like any other. Connection failures are explained
+  secrets live in the vault like any other. The bastion's **host key is
+  verified** trust-on-first-use against the app's own `known_hosts.json`, with a
+  prompt showing the `SHA256:` fingerprint; a *changed* key is surfaced
+  distinctly from an unknown one, and an unverified host fails closed. Connection failures are explained
   in plain language with a one-click fix where one exists (`DriverErrorHelper`),
   raw driver text behind a Details toggle.
 - **Credentials vault** (`data/services/secret_store.dart`, ADR-0006): Argon2id →
@@ -114,10 +117,7 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   nothing consumes it: checking a value before sending it, a parent-row picker,
   and FK navigation (P2 in `docs/research/feature-gaps.md`) all remain to build.
   The metadata that blocked them is in place.
-- **SSH host-key verification is not implemented.** The tunnel authenticates
-  *to* the bastion but does not verify the bastion's identity against
-  known_hosts, so it is exposed to an active MITM on that hop. Multi-hop / jump
-  chains are also unsupported.
+- **SSH multi-hop / jump-host chains** are unsupported — one bastion only.
 - mac/win **keychain** adapter for the SecretStore (ADR-0006).
 - `ui/core/theme` (mix tokens) not built; tokens are inlined per widget.
 

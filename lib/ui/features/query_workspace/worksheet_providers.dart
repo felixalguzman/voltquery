@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../data/drivers/driver_factory.dart';
+import '../../../data/services/known_hosts.dart';
 import '../../../data/services/ssh_tunnel.dart';
 import '../../../domain/drivers/driver.dart';
 import '../../../domain/drivers/driver_error.dart';
@@ -120,6 +121,11 @@ Future<Session> _openSession(Ref ref, Connection conn) async {
       password: await secretFor(ssh.passwordRef),
       passphrase: await secretFor(ssh.passphraseRef),
       timeout: Duration(seconds: conn.options.connectTimeoutSeconds),
+      knownHosts: await ref.read(knownHostsProvider.future),
+      // The decision belongs to the user, so it's routed out of here rather
+      // than defaulted. With no prompt registered the tunnel refuses an
+      // unrecognised key — failing closed.
+      onUnknownHostKey: ref.read(hostKeyPromptProvider),
     );
     // Registered immediately, so a failure *after* this point still tears the
     // tunnel down rather than leaking an authenticated SSH session.
@@ -393,6 +399,24 @@ class WorksheetSeeds extends _$WorksheetSeeds {
     if (seed != null) state = {...state}..remove(worksheetId);
     return seed;
   }
+}
+
+/// Accepted SSH host keys, so a bastion's identity is verified rather than
+/// assumed. See [KnownHostsStore].
+@Riverpod(keepAlive: true)
+Future<KnownHostsStore> knownHosts(Ref ref) => KnownHostsStore.open();
+
+/// Asks the user whether to trust an unrecognised (or changed) SSH host key.
+///
+/// Null until the UI registers one, and a null prompt means the tunnel refuses
+/// the key: an unverified bastion should fail closed, not silently connect.
+@Riverpod(keepAlive: true)
+class HostKeyPrompt extends _$HostKeyPrompt {
+  @override
+  Future<bool> Function(HostKeyVerdict, String)? build() => null;
+
+  void register(Future<bool> Function(HostKeyVerdict, String) prompt) =>
+      state = prompt;
 }
 
 @riverpod

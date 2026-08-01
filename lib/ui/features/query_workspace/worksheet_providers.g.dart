@@ -380,6 +380,141 @@ abstract class _$WorksheetSeeds extends $Notifier<Map<String, WorksheetSeed>> {
   }
 }
 
+/// Accepted SSH host keys, so a bastion's identity is verified rather than
+/// assumed. See [KnownHostsStore].
+
+@ProviderFor(knownHosts)
+final knownHostsProvider = KnownHostsProvider._();
+
+/// Accepted SSH host keys, so a bastion's identity is verified rather than
+/// assumed. See [KnownHostsStore].
+
+final class KnownHostsProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<KnownHostsStore>,
+          KnownHostsStore,
+          FutureOr<KnownHostsStore>
+        >
+    with $FutureModifier<KnownHostsStore>, $FutureProvider<KnownHostsStore> {
+  /// Accepted SSH host keys, so a bastion's identity is verified rather than
+  /// assumed. See [KnownHostsStore].
+  KnownHostsProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'knownHostsProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$knownHostsHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<KnownHostsStore> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<KnownHostsStore> create(Ref ref) {
+    return knownHosts(ref);
+  }
+}
+
+String _$knownHostsHash() => r'a0d70f0d59e6e38bb5fade90dc2a1acf1d63a368';
+
+/// Asks the user whether to trust an unrecognised (or changed) SSH host key.
+///
+/// Null until the UI registers one, and a null prompt means the tunnel refuses
+/// the key: an unverified bastion should fail closed, not silently connect.
+
+@ProviderFor(HostKeyPrompt)
+final hostKeyPromptProvider = HostKeyPromptProvider._();
+
+/// Asks the user whether to trust an unrecognised (or changed) SSH host key.
+///
+/// Null until the UI registers one, and a null prompt means the tunnel refuses
+/// the key: an unverified bastion should fail closed, not silently connect.
+final class HostKeyPromptProvider
+    extends
+        $NotifierProvider<
+          HostKeyPrompt,
+          Future<bool> Function(HostKeyVerdict, String)?
+        > {
+  /// Asks the user whether to trust an unrecognised (or changed) SSH host key.
+  ///
+  /// Null until the UI registers one, and a null prompt means the tunnel refuses
+  /// the key: an unverified bastion should fail closed, not silently connect.
+  HostKeyPromptProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'hostKeyPromptProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$hostKeyPromptHash();
+
+  @$internal
+  @override
+  HostKeyPrompt create() => HostKeyPrompt();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(
+    Future<bool> Function(HostKeyVerdict, String)? value,
+  ) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride:
+          $SyncValueProvider<Future<bool> Function(HostKeyVerdict, String)?>(
+            value,
+          ),
+    );
+  }
+}
+
+String _$hostKeyPromptHash() => r'a37c5e6c3262794e7c9791981cd553d98ef0a704';
+
+/// Asks the user whether to trust an unrecognised (or changed) SSH host key.
+///
+/// Null until the UI registers one, and a null prompt means the tunnel refuses
+/// the key: an unverified bastion should fail closed, not silently connect.
+
+abstract class _$HostKeyPrompt
+    extends $Notifier<Future<bool> Function(HostKeyVerdict, String)?> {
+  Future<bool> Function(HostKeyVerdict, String)? build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref =
+        this.ref
+            as $Ref<
+              Future<bool> Function(HostKeyVerdict, String)?,
+              Future<bool> Function(HostKeyVerdict, String)?
+            >;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<
+                Future<bool> Function(HostKeyVerdict, String)?,
+                Future<bool> Function(HostKeyVerdict, String)?
+              >,
+              Future<bool> Function(HostKeyVerdict, String)?,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}
+
 @ProviderFor(worksheetRunner)
 final worksheetRunnerProvider = WorksheetRunnerProvider._();
 

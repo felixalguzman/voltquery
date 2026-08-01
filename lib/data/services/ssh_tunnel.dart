@@ -5,6 +5,7 @@ import 'package:dartssh2/dartssh2.dart';
 
 import '../../domain/drivers/driver_error.dart';
 import '../../domain/models/ssh_config.dart';
+import 'known_hosts.dart';
 
 /// A live local port-forward over SSH.
 ///
@@ -34,6 +35,9 @@ class SshTunnel {
     String? password,
     String? passphrase,
     Duration timeout = const Duration(seconds: 15),
+    KnownHostsStore? knownHosts,
+    Future<bool> Function(HostKeyVerdict verdict, String fingerprint)?
+        onUnknownHostKey,
   }) async {
     SSHClient? client;
     ServerSocket? server;
@@ -46,6 +50,28 @@ class SshTunnel {
         username: config.username,
         onPasswordRequest: () => password ?? '',
         identities: await _identities(config, passphrase),
+        // Authenticating *to* a bastion proves nothing about *which* machine
+        // answered — without this, anything on the path can present its own key
+        // and relay the session. Same trust-on-first-use model as ssh(1).
+        onVerifyHostKey: (type, rawKey) async {
+          final fingerprint = KnownHostsStore.fingerprintOf(type, rawKey);
+          final store = knownHosts;
+          if (store == null) {
+            // No store wired: refuse rather than accept silently. A caller that
+            // genuinely wants no verification has to say so with a callback.
+            return onUnknownHostKey != null &&
+                await onUnknownHostKey(HostKeyVerdict.unknown, fingerprint);
+          }
+          final verdict =
+              await store.check(config.host, config.port, fingerprint);
+          if (verdict == HostKeyVerdict.trusted) return true;
+          if (onUnknownHostKey == null) return false;
+          final accepted = await onUnknownHostKey(verdict, fingerprint);
+          if (accepted) {
+            await store.trust(config.host, config.port, fingerprint);
+          }
+          return accepted;
+        },
       );
       await client.authenticated;
 
