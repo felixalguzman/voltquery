@@ -216,9 +216,24 @@ class ConnectionsPanel extends ConsumerWidget {
       onPressed: () => _select(context, ref, c),
       builder: (context, states) => Container(
         color: active ? _accentDim : (states.isHovered ? const Color(0x14FFFFFF) : null),
-        padding: const EdgeInsets.only(left: 12, right: 6),
+        padding: EdgeInsets.only(left: c.options.colorTag == null ? 12 : 8,
+            right: 6),
         height: 30,
         child: Row(children: [
+          // Environment tag, when set: a red bar down the row is the
+          // conventional "this is production" cue, and it needs to be visible
+          // before you run anything, not buried in a settings dialog.
+          if (c.options.colorTag case final tag?) ...[
+            Container(
+              width: 3,
+              height: 18,
+              decoration: BoxDecoration(
+                color: Color(tag),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 5),
+          ],
           // Brand glyph (left). Right stays free for a live status dot (#14).
           SizedBox(width: 16, child: Icon(icon, size: 15, color: color)),
           const SizedBox(width: 8),

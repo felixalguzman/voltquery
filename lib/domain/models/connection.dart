@@ -1,3 +1,4 @@
+import 'connection_options.dart';
 import 'engine.dart';
 import 'ssl_mode.dart';
 
@@ -19,8 +20,7 @@ class Connection {
     this.credentialRef,
     this.sqlitePath,
     this.defaultDatabase,
-    this.sslMode = SslMode.require,
-    this.caCertPath,
+    this.options = const ConnectionOptions(),
   });
 
   final String id;
@@ -40,16 +40,15 @@ class Connection {
 
   final String? defaultDatabase;
 
-  /// TLS policy for server engines; ignored by SQLite (a local file).
-  ///
-  /// Defaults to [SslMode.require] rather than `disable`: encryption should be
-  /// something you opt *out* of, and MySQL 8 can't authenticate without it.
-  final SslMode sslMode;
+  /// Everything that isn't part of *reaching* the server — TLS, timeouts, the
+  /// colour tag, engine pass-through properties. Grouped so the dialog can be
+  /// tabbed and so adding a setting doesn't mean a schema migration.
+  final ConnectionOptions options;
 
-  /// PEM certificate authority for [SslMode.verifyFull] when the server's CA
-  /// isn't in the system trust store (self-signed, private CA). Null = use the
-  /// system roots.
-  final String? caCertPath;
+  // Convenience delegates: the drivers care about these specifically, and
+  // routing through `options` at every call site would only add noise.
+  SslMode get sslMode => options.sslMode;
+  String? get caCertPath => options.caCertPath;
 
   Connection copyWith({
     String? name,
@@ -58,8 +57,7 @@ class Connection {
     String? username,
     String? credentialRef,
     String? defaultDatabase,
-    SslMode? sslMode,
-    String? caCertPath,
+    ConnectionOptions? options,
   }) =>
       Connection(
         id: id,
@@ -71,7 +69,6 @@ class Connection {
         credentialRef: credentialRef ?? this.credentialRef,
         sqlitePath: sqlitePath,
         defaultDatabase: defaultDatabase ?? this.defaultDatabase,
-        sslMode: sslMode ?? this.sslMode,
-        caCertPath: caCertPath ?? this.caCertPath,
+        options: options ?? this.options,
       );
 }

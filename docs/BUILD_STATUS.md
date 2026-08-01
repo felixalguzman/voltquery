@@ -53,10 +53,14 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   read-only (the UPDATE addresses the row by them). Enum options come from
   `pg_enum`, MySQL `column_type`, or a SQLite `CHECK (col IN (...))`.
 - **Connections** (`connections/`): built-in demo + saved connections (drift),
-  switch/add/delete; SQLite file-open; server form (Postgres/MySQL) with an inline
-  **Test connection** and a **TLS mode** picker (disable / require / verify-full,
-  default *require*). Postgres honours all three and accepts a custom CA PEM;
-  MySQL can only encrypt — see the known gap below.
+  switch/add/delete; SQLite file-open; a **tabbed connection dialog**
+  (General / Security / SSH / Advanced) over a `ConnectionOptions` model stored
+  as one JSON column, so adding a setting isn't a schema migration. Carries
+  **TLS mode** (disable / require / verify-full, default *require*; Postgres
+  honours all three + a custom CA PEM, MySQL can only encrypt), a **colour tag**
+  shown as a bar in the connections list, a **read-only** guard, SQLite
+  **FK enforcement**, and a connect timeout. Inline **Test connection** with a
+  selectable, copyable error.
 - **Credentials vault** (`data/services/secret_store.dart`, ADR-0006): Argon2id →
   AES-256-GCM envelope crypto, master password, locked each launch, header padlock.
   *Deviation:* vault used on all platforms; mac/win keychain deferred.
@@ -97,11 +101,6 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   `SecureSocket.secure(onBadCertificate: (_) => true)`, so MySQL TLS is
   encrypted but never authenticated. The driver refuses `verifyFull` rather
   than downgrade silently; fixing it properly needs a different MySQL package.
-- **SQLite foreign-key enforcement is hardcoded on.** `PRAGMA foreign_keys`
-  defaults OFF per connection, which made a declared FK unenforced — a grid edit
-  pointing at a nonexistent parent row was written silently, where Postgres and
-  MySQL reject it. Now enabled at connect; should become a per-connection
-  property once the properties panel exists.
 - **No client-side FK validation *yet*.** The target is now introspected
   (`ColumnInfo.references`, all three engines) and shown in the tree, but
   nothing consumes it: checking a value before sending it, a parent-row picker,
@@ -125,13 +124,9 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
    **deferred**. Both pluto and trina build every body column for every visible
    row, so a wide `SELECT *` is the failure mode — `wide_metrics` (5k × 26) is
    seeded for that test. See `docs/research/data-grid-options.md`.
-5. **Connection properties panel** — tabbed dialog (General / Security / SSH /
-   Advanced) over a `ConnectionOptions` model with a JSON bag for the long tail,
-   so per-connection settings stop crowding one flat form. First tenants: TLS
-   (move), a prod/dev **colour tag**, and **SQLite FK enforcement** (currently
-   hardcoded ON in the driver — see below).
-6. **Connectivity** — **TLS landed**; SSH tunnel and keep-alive/auto-reconnect
+5. **Connectivity** — **TLS landed**; SSH tunnel and keep-alive/auto-reconnect
    remain. Without a tunnel, databases behind a bastion are still unreachable.
+   The connection dialog already has an (inert) SSH tab waiting for it.
 7. Tables/Views folders + large-schema render-cap (#13 tail).
 8. `ui/core/theme` via mix.
 

@@ -37,14 +37,21 @@ class ConnectionRows extends Table {
   TextColumn get sqlitePath => text().nullable()();
   TextColumn get defaultDatabase => text().nullable()();
 
-  /// [SslMode] name. Existing rows migrate to `require` rather than `disable`:
-  /// encryption should be opted out of, not into — and MySQL 8 cannot
-  /// authenticate without it.
+  /// [SslMode] name. **Superseded by [options]** in schema v4 and read only by
+  /// the v3→v4 migration; kept so that migration has something to read.
   TextColumn get sslMode =>
       text().withDefault(const Constant('require'))();
 
-  /// PEM CA bundle for verify-full against a private/self-signed CA.
+  /// Superseded by [options] — see [sslMode].
   TextColumn get caCertPath => text().nullable()();
+
+  /// `ConnectionOptions` as JSON.
+  ///
+  /// One column rather than one per setting: connection options are a long
+  /// tail (timeouts, colour tags, engine pass-through properties), and a
+  /// migration per knob would be all cost and no benefit. The fields the app
+  /// branches on are still typed — inside the decoded object.
+  TextColumn get options => text().withDefault(const Constant('{}'))();
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
 
@@ -63,7 +70,7 @@ class LocalStore extends _$LocalStore {
   LocalStore.memory() : super(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -73,6 +80,21 @@ class LocalStore extends _$LocalStore {
           if (from < 3) {
             await m.addColumn(connectionRows, connectionRows.sslMode);
             await m.addColumn(connectionRows, connectionRows.caCertPath);
+          }
+          if (from < 4) {
+            await m.addColumn(connectionRows, connectionRows.options);
+            // Carry the v3 TLS columns into the options blob rather than
+            // letting them fall back to defaults — silently resetting someone's
+            // verify-full connection to `require` on upgrade would be a
+            // security downgrade they never asked for.
+            await customStatement(
+              "UPDATE connection_rows SET options = json_object("
+              "'sslMode', COALESCE(ssl_mode, 'require'), "
+              "'caCertPath', ca_cert_path, "
+              "'enforceForeignKeys', json('true'), "
+              "'readOnly', json('false'), "
+              "'connectTimeoutSeconds', 15)",
+            );
           }
         },
       );

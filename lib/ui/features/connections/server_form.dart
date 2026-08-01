@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../data/drivers/driver_factory.dart';
 import '../../../domain/drivers/driver_error.dart';
+import '../../../domain/models/connection_options.dart';
 import '../../../domain/models/ssl_mode.dart';
 import '../../../domain/drivers/result.dart';
 import '../../../domain/models/connection.dart';
@@ -42,10 +43,14 @@ class _ServerDialogState extends State<_ServerDialog> {
   final _password = TextEditingController();
   late final _database = TextEditingController(text: _isPg ? 'postgres' : '');
 
-  /// Defaults to `require`: encryption should be opted out of, and MySQL 8's
-  /// default auth plugin refuses to authenticate over a plaintext socket.
-  SslMode _ssl = SslMode.require;
+  /// Everything on the Security/Advanced tabs. Defaults to `require` TLS:
+  /// encryption is opted out of, and MySQL 8's default auth plugin refuses to
+  /// authenticate over a plaintext socket.
+  ConnectionOptions _options = const ConnectionOptions();
   final _caCert = TextEditingController();
+  int _tab = 0;
+
+  SslMode get _ssl => _options.sslMode;
 
   _Test _test = _Test.idle;
   String _testMsg = '';
@@ -93,8 +98,9 @@ class _ServerDialogState extends State<_ServerDialog> {
       defaultDatabase: _database.text.trim().isEmpty
           ? null
           : _database.text.trim(),
-      sslMode: _ssl,
-      caCertPath: _caCert.text.trim().isEmpty ? null : _caCert.text.trim(),
+      options: _options.copyWith(
+        caCertPath: _caCert.text.trim().isEmpty ? null : _caCert.text.trim(),
+      ),
     );
   }
 
@@ -154,23 +160,14 @@ class _ServerDialogState extends State<_ServerDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _field('Name', _name),
-          Row(
-            children: [
-              Expanded(flex: 3, child: _field('Host', _host)),
-              const SizedBox(width: 10),
-              Expanded(child: _field('Port', _port)),
-            ],
+          // Tabbed rather than one flat form: SSH alone would add half a
+          // dozen more fields, and connection dialogs become unusable that way.
+          _tabStrip(),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 268,
+            child: SingleChildScrollView(child: _tabBody()),
           ),
-          Row(
-            children: [
-              Expanded(child: _field('User', _user)),
-              const SizedBox(width: 10),
-              Expanded(child: _field('Password', _password, obscure: true)),
-            ],
-          ),
-          _field('Database', _database),
-          _sslField(),
           const SizedBox(height: 6),
           _testRow(),
         ],
@@ -259,6 +256,195 @@ class _ServerDialogState extends State<_ServerDialog> {
     }
   }
 
+  static const _tabs = ['General', 'Security', 'SSH', 'Advanced'];
+
+  Widget _tabStrip() => Row(
+        children: [
+          for (var i = 0; i < _tabs.length; i++)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: HoverButton(
+                onPressed: () => setState(() => _tab = i),
+                builder: (context, states) => Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _tab == i
+                        ? const Color(0x222FE6FF)
+                        : (states.isHovered ? const Color(0x14FFFFFF) : null),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: _tab == i
+                          ? const Color(0xFF2FE6FF)
+                          : Colors.transparent,
+                    ),
+                  ),
+                  child: Text(
+                    _tabs[i],
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _tab == i
+                          ? const Color(0xFF2FE6FF)
+                          : const Color(0xFF9BA1AD),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+
+  Widget _tabBody() => switch (_tab) {
+        0 => _generalTab(),
+        1 => _securityTab(),
+        2 => _sshTab(),
+        _ => _advancedTab(),
+      };
+
+  Widget _generalTab() => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _field('Name', _name),
+          Row(children: [
+            Expanded(flex: 3, child: _field('Host', _host)),
+            const SizedBox(width: 10),
+            Expanded(child: _field('Port', _port)),
+          ]),
+          Row(children: [
+            Expanded(child: _field('User', _user)),
+            const SizedBox(width: 10),
+            Expanded(child: _field('Password', _password, obscure: true)),
+          ]),
+          _field('Database', _database),
+          _colorTagField(),
+        ],
+      );
+
+  Widget _securityTab() => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _sslField(),
+          const SizedBox(height: 4),
+          Checkbox(
+            checked: _options.readOnly,
+            onChanged: (v) =>
+                setState(() => _options = _options.copyWith(readOnly: v)),
+            content: const Text('Read-only (block grid edits)',
+                style: TextStyle(fontSize: 12)),
+          ),
+          const Padding(
+            padding: EdgeInsets.only(left: 26, top: 2),
+            child: Text(
+              'Stops VoltQuery generating DML for this connection. A UI guard, '
+              'not a server-side permission.',
+              style: TextStyle(color: Color(0xFF5A6069), fontSize: 10.5),
+            ),
+          ),
+        ],
+      );
+
+  Widget _sshTab() => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Text(
+          'SSH tunnelling is not implemented yet.\n\n'
+          'It will live here: host, port, user, key file or password, and an '
+          'optional jump host.',
+          style: TextStyle(color: Color(0xFF9BA1AD), fontSize: 12),
+        ),
+      );
+
+  Widget _advancedTab() => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (widget.engine == Engine.sqlite)
+            Checkbox(
+              checked: _options.enforceForeignKeys,
+              onChanged: (v) => setState(
+                  () => _options = _options.copyWith(enforceForeignKeys: v)),
+              content: const Text('Enforce foreign keys',
+                  style: TextStyle(fontSize: 12)),
+            ),
+          InfoLabel(
+            label: 'Connect timeout (seconds)',
+            labelStyle:
+                const TextStyle(fontSize: 12, color: Color(0xFF9BA1AD)),
+            child: NumberBox<int>(
+              value: _options.connectTimeoutSeconds,
+              min: 1,
+              max: 300,
+              mode: SpinButtonPlacementMode.inline,
+              onChanged: (v) => setState(() =>
+                  _options = _options.copyWith(connectTimeoutSeconds: v ?? 15)),
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Driver properties (engine-specific pass-through) are stored with '
+            'the connection; an editor for them comes with the SSH slice.',
+            style: TextStyle(color: Color(0xFF5A6069), fontSize: 10.5),
+          ),
+        ],
+      );
+
+  /// Red-means-production. Surfaced in the connections list so the environment
+  /// is unmistakable before you run anything.
+  Widget _colorTagField() {
+    const swatches = <int?>[
+      null,
+      0xFFFF6B6B, // production
+      0xFFE8B84B, // staging
+      0xFF6FE39A, // development
+      0xFF2FE6FF,
+      0xFFB98CFF,
+    ];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: InfoLabel(
+        label: 'Colour tag',
+        labelStyle: const TextStyle(fontSize: 12, color: Color(0xFF9BA1AD)),
+        child: Row(
+          children: [
+            for (final c in swatches)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: HoverButton(
+                  onPressed: () =>
+                      setState(() => _options = ConnectionOptions(
+                            sslMode: _options.sslMode,
+                            caCertPath: _options.caCertPath,
+                            enforceForeignKeys: _options.enforceForeignKeys,
+                            colorTag: c,
+                            readOnly: _options.readOnly,
+                            connectTimeoutSeconds:
+                                _options.connectTimeoutSeconds,
+                            driverProperties: _options.driverProperties,
+                          )),
+                  builder: (context, states) => Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: c == null ? Colors.transparent : Color(c),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: _options.colorTag == c
+                            ? const Color(0xFFE6E8EC)
+                            : const Color(0xFF3A4049),
+                        width: _options.colorTag == c ? 2 : 1,
+                      ),
+                    ),
+                    child: c == null
+                        ? const Icon(FluentIcons.clear,
+                            size: 9, color: Color(0xFF5A6069))
+                        : null,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _sslField() {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -278,7 +464,8 @@ class _ServerDialogState extends State<_ServerDialog> {
                     child: Text(m.label, style: const TextStyle(fontSize: 12)),
                   ),
               ],
-              onChanged: (m) => setState(() => _ssl = m ?? _ssl),
+              onChanged: (m) => setState(
+                  () => _options = _options.copyWith(sslMode: m ?? _ssl)),
             ),
             const SizedBox(height: 4),
             Text(
