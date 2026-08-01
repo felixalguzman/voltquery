@@ -90,6 +90,25 @@ void main() {
     expect(byName['parent_id']!.isForeignKey, isTrue);
     expect(byName['id']!.isForeignKey, isFalse);
     expect(byName['id']!.isPrimaryKey, isTrue);
+
+    // The target, not just the fact of a reference.
+    expect(byName['parent_id']!.references?.table, 'parent');
+    expect(byName['parent_id']!.references?.column, 'id');
+    expect(byName['id']!.references, isNull);
+  });
+
+  test('a FK without an explicit parent column targets the primary key',
+      () async {
+    await session.execute('CREATE TABLE p (id INTEGER PRIMARY KEY)');
+    // No "(id)" — SQLite reports `to` as NULL, meaning the parent's PK.
+    await session.execute(
+        'CREATE TABLE c (id INTEGER PRIMARY KEY, p_id INTEGER REFERENCES p)');
+
+    final cols = await session.schema
+        .columns(const TableInfo(name: 'c', kind: ObjectKind.table));
+    final ref = cols.firstWhere((c) => c.name == 'p_id').references;
+    expect(ref?.table, 'p');
+    expect(ref?.column, isNotEmpty);
   });
 
   test('introspection lists indexes with columns and uniqueness', () async {

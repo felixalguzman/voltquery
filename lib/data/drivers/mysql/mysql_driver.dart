@@ -185,18 +185,26 @@ class _MysqlIntrospector implements SchemaIntrospector {
   @override
   Future<List<ColumnInfo>> columns(TableInfo table) async {
     final keys = await _conn.execute(
-      'SELECT column_name, constraint_name, referenced_table_name '
+      'SELECT column_name, constraint_name, referenced_table_name, '
+      '       referenced_column_name, referenced_table_schema '
       'FROM information_schema.key_column_usage '
       'WHERE table_schema = COALESCE(NULLIF(:s, \'\'), DATABASE()) '
       'AND table_name = :t',
       {'s': table.schema, 't': table.name},
     );
     final pk = <String>{};
-    final fk = <String>{};
+    final fkRefs = <String, ColumnRef>{};
     for (final r in keys.rows) {
       final col = r.colAt(0) ?? '';
       if (r.colAt(1) == 'PRIMARY') pk.add(col);
-      if (r.colAt(2) != null) fk.add(col); // referenced_table_name set → FK
+      final refTable = r.colAt(2); // set only for a foreign key
+      if (refTable != null) {
+        fkRefs[col] = ColumnRef(
+          table: refTable,
+          column: r.colAt(3) ?? '',
+          schema: r.colAt(4) ?? '',
+        );
+      }
     }
     final rs = await _conn.execute(
       'SELECT column_name, data_type, is_nullable, ordinal_position, '
@@ -218,7 +226,8 @@ class _MysqlIntrospector implements SchemaIntrospector {
               : (r.colAt(1) ?? ''),
           nullable: r.colAt(2) == 'YES',
           isPrimaryKey: pk.contains(r.colAt(0)),
-          isForeignKey: fk.contains(r.colAt(0)),
+          isForeignKey: fkRefs.containsKey(r.colAt(0)),
+          references: fkRefs[r.colAt(0)],
           ordinal: (int.tryParse(r.colAt(3) ?? '') ?? 1) - 1,
           defaultValue: r.colAt(4),
           enumOptions: parseMysqlEnumOptions(r.colAt(5)),

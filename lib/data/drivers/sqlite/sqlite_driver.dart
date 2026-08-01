@@ -147,7 +147,16 @@ class _SqliteSchemaIntrospector implements SchemaIntrospector {
     // PRAGMA can't take bound parameters — interpolate a quoted literal.
     final name = table.name.replaceAll("'", "''");
     final fk = _db.select("PRAGMA foreign_key_list('$name')");
-    final fkCols = {for (final r in fk) r['from'] as String};
+    // 'from' is the local column, 'table'/'to' the target. 'to' is NULL when
+    // the FK omits the parent column, which means it targets the parent's
+    // primary key.
+    final fkRefs = {
+      for (final r in fk)
+        r['from'] as String: ColumnRef(
+          table: r['table'] as String,
+          column: (r['to'] as String?) ?? 'rowid',
+        ),
+    };
     final rs = _db.select("PRAGMA table_info('$name')");
     final checks = _checkEnums(table.name);
     return [
@@ -157,7 +166,8 @@ class _SqliteSchemaIntrospector implements SchemaIntrospector {
           dataType: (row['type'] as String?) ?? '',
           nullable: (row['notnull'] as int) == 0,
           isPrimaryKey: (row['pk'] as int) != 0,
-          isForeignKey: fkCols.contains(row['name']),
+          isForeignKey: fkRefs.containsKey(row['name']),
+          references: fkRefs[row['name']],
           ordinal: row['cid'] as int,
           defaultValue: row['dflt_value']?.toString(),
           enumOptions: checks[row['name']] ?? const [],

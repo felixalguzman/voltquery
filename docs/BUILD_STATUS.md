@@ -102,11 +102,11 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   pointing at a nonexistent parent row was written silently, where Postgres and
   MySQL reject it. Now enabled at connect; should become a per-connection
   property once the properties panel exists.
-- **No client-side FK validation.** `ColumnInfo.isForeignKey` is a bool with no
-  target, so we can't check a value before sending it, offer a parent-row
-  picker, or navigate to the referenced row (a P2 item in
-  `docs/research/feature-gaps.md`). Storing the referenced table/column would
-  unlock all three.
+- **No client-side FK validation *yet*.** The target is now introspected
+  (`ColumnInfo.references`, all three engines) and shown in the tree, but
+  nothing consumes it: checking a value before sending it, a parent-row picker,
+  and FK navigation (P2 in `docs/research/feature-gaps.md`) all remain to build.
+  The metadata that blocked them is in place.
 - mac/win **keychain** adapter for the SecretStore (ADR-0006).
 - `ui/core/theme` (mix tokens) not built; tokens are inlined per widget.
 

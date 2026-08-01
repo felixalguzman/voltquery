@@ -272,6 +272,12 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
               actions: [
                 MenuAction('Copy Name', () => _copy(c.name),
                     icon: FluentIcons.copy),
+                if (c.references case final ref?)
+                  MenuAction(
+                    'Copy Referenced Table',
+                    () => _copy(ref.table),
+                    icon: FluentIcons.link,
+                  ),
               ],
               child: LayoutBuilder(builder: (context, cons) {
                 return Row(children: [
@@ -285,13 +291,20 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(c.dataType,
+                    // A FK shows what it points at — the glyph alone said a
+                    // reference existed but never where it went.
+                    child: Text(
+                        c.references == null
+                            ? c.dataType
+                            : '→ ${c.references}',
                         overflow: TextOverflow.ellipsis,
                         softWrap: false,
                         maxLines: 1,
                         textAlign: TextAlign.right,
-                        style: const TextStyle(
-                            color: _textLo,
+                        style: TextStyle(
+                            color: c.references == null
+                                ? _textLo
+                                : const Color(0xFFB98CFF),
                             fontSize: 10.5,
                             fontFamily: 'monospace')),
                   ),
