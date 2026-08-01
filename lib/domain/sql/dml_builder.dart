@@ -90,15 +90,12 @@ class DmlBuilder {
           : '${_ident(e.key)} = ${_rawLiteral(e.value)}')
       .join(' AND ');
 
-  String _table(EditableTarget t) => t.schema.isEmpty
-      ? _ident(t.table)
-      : '${_ident(t.schema)}.${_ident(t.table)}';
+  String _table(EditableTarget t) =>
+      dialect.qualify(t.table, schema: t.schema);
 
-  /// Quote an identifier for the dialect, escaping any embedded quote char.
-  String _ident(String name) => switch (dialect) {
-        SqlDialect.mysql => '`${name.replaceAll('`', '``')}`',
-        _ => '"${name.replaceAll('"', '""')}"',
-      };
+  /// Quote an identifier for the dialect. Shared with the schema tree's
+  /// generated SELECTs so the two can't drift apart.
+  String _ident(String name) => dialect.quoteIdentifier(name);
 
   /// Encode a staged value per its editor kind.
   String _literal(Object? value, ColumnEditor editor) {

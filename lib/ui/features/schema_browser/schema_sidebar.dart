@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../domain/drivers/driver_error.dart';
 import '../../../domain/models/schema.dart';
+import '../../../domain/sql/sql_statement_splitter.dart';
 import '../../core/menu/context_menu.dart';
 import '../query_workspace/worksheet_providers.dart';
 import 'schema_providers.dart';
@@ -233,11 +234,17 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
   /// Open [t] in a **new** worksheet tab (never clobbering the current editor).
   /// [run] = Preview Data (auto-run); false = Open in Editor (load only).
   void _openTable(TableInfo t, {required bool run}) {
-    final name = t.name.replaceAll('"', '""');
+    // Quote for the *connection's* dialect: MySQL reads "t" as a string
+    // literal unless ANSI_QUOTES is on, so a double-quoted name is a syntax
+    // error there. Qualify with the owning schema/database too — the tree can
+    // browse outside the session's default, where a bare name would silently
+    // resolve against the wrong one.
+    final dialect = SqlDialect.of(ref.read(currentConnectionProvider).engine);
+    final target = dialect.qualify(t.name, schema: t.schema);
     final id = ref.read(worksheetTabsProvider.notifier).add();
     ref
         .read(worksheetSeedsProvider.notifier)
-        .put(id, 'SELECT * FROM "$name" LIMIT 200;', autoRun: run);
+        .put(id, 'SELECT * FROM $target LIMIT 200;', autoRun: run);
   }
 
   List<TreeViewItem> _columnItems(List<ColumnInfo> cols) => [

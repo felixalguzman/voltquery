@@ -23,6 +23,21 @@ enum SqlDialect {
 
   /// MySQL `#` line comments and the `DELIMITER` client command.
   bool get isMysql => this == SqlDialect.mysql;
+
+  /// Quote an identifier for this dialect, escaping any embedded quote char.
+  ///
+  /// MySQL uses backticks unless ANSI_QUOTES is on, so a double-quoted name is
+  /// a *string literal* there and `SELECT * FROM "t"` is a syntax error. Any
+  /// generated SQL must go through here rather than hardcoding a quote style.
+  String quoteIdentifier(String name) => switch (this) {
+        SqlDialect.mysql => '`${name.replaceAll('`', '``')}`',
+        _ => '"${name.replaceAll('"', '""')}"',
+      };
+
+  /// `schema.table`, or the bare table when unqualified.
+  String qualify(String name, {String schema = ''}) => schema.isEmpty
+      ? quoteIdentifier(name)
+      : '${quoteIdentifier(schema)}.${quoteIdentifier(name)}';
 }
 
 /// Coarse first-keyword classification — enough to pick grid-vs-message and to
