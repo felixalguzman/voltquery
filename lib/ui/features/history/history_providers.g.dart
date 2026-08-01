@@ -6,61 +6,143 @@ part of 'history_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$localStoreHash() => r'cfc19ab85e864c81c0417c9bcd0e205c7aff266e';
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
+/// The app's drift store — one instance for the app's lifetime.
+
+@ProviderFor(localStore)
+final localStoreProvider = LocalStoreProvider._();
 
 /// The app's drift store — one instance for the app's lifetime.
-///
-/// Copied from [localStore].
-@ProviderFor(localStore)
-final localStoreProvider = Provider<LocalStore>.internal(
-  localStore,
-  name: r'localStoreProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$localStoreHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
 
-@Deprecated('Will be removed in 3.0. Use Ref instead')
-// ignore: unused_element
-typedef LocalStoreRef = ProviderRef<LocalStore>;
+final class LocalStoreProvider
+    extends $FunctionalProvider<LocalStore, LocalStore, LocalStore>
+    with $Provider<LocalStore> {
+  /// The app's drift store — one instance for the app's lifetime.
+  LocalStoreProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'localStoreProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$localStoreHash();
+
+  @$internal
+  @override
+  $ProviderElement<LocalStore> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  LocalStore create(Ref ref) {
+    return localStore(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(LocalStore value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<LocalStore>(value),
+    );
+  }
+}
+
+String _$localStoreHash() => r'cfc19ab85e864c81c0417c9bcd0e205c7aff266e';
+
+@ProviderFor(historyRepository)
+final historyRepositoryProvider = HistoryRepositoryProvider._();
+
+final class HistoryRepositoryProvider
+    extends
+        $FunctionalProvider<
+          HistoryRepository,
+          HistoryRepository,
+          HistoryRepository
+        >
+    with $Provider<HistoryRepository> {
+  HistoryRepositoryProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'historyRepositoryProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$historyRepositoryHash();
+
+  @$internal
+  @override
+  $ProviderElement<HistoryRepository> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  HistoryRepository create(Ref ref) {
+    return historyRepository(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(HistoryRepository value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<HistoryRepository>(value),
+    );
+  }
+}
+
 String _$historyRepositoryHash() => r'b261b9b7b51faa0e9d38ebba046d822e8c31769c';
 
-/// See also [historyRepository].
-@ProviderFor(historyRepository)
-final historyRepositoryProvider = Provider<HistoryRepository>.internal(
-  historyRepository,
-  name: r'historyRepositoryProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$historyRepositoryHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+/// Reactive recent query history for the sidebar (drift `.watch()`).
 
-@Deprecated('Will be removed in 3.0. Use Ref instead')
-// ignore: unused_element
-typedef HistoryRepositoryRef = ProviderRef<HistoryRepository>;
-String _$recentHistoryHash() => r'5acf59e0c529afffa49ad0543affc0b4c5b9cb98';
+@ProviderFor(recentHistory)
+final recentHistoryProvider = RecentHistoryProvider._();
 
 /// Reactive recent query history for the sidebar (drift `.watch()`).
-///
-/// Copied from [recentHistory].
-@ProviderFor(recentHistory)
-final recentHistoryProvider =
-    AutoDisposeStreamProvider<List<HistoryEntry>>.internal(
-      recentHistory,
-      name: r'recentHistoryProvider',
-      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-          ? null
-          : _$recentHistoryHash,
-      dependencies: null,
-      allTransitiveDependencies: null,
-    );
 
-@Deprecated('Will be removed in 3.0. Use Ref instead')
-// ignore: unused_element
-typedef RecentHistoryRef = AutoDisposeStreamProviderRef<List<HistoryEntry>>;
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package
+final class RecentHistoryProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<HistoryEntry>>,
+          List<HistoryEntry>,
+          Stream<List<HistoryEntry>>
+        >
+    with
+        $FutureModifier<List<HistoryEntry>>,
+        $StreamProvider<List<HistoryEntry>> {
+  /// Reactive recent query history for the sidebar (drift `.watch()`).
+  RecentHistoryProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'recentHistoryProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$recentHistoryHash();
+
+  @$internal
+  @override
+  $StreamProviderElement<List<HistoryEntry>> $createElement(
+    $ProviderPointer pointer,
+  ) => $StreamProviderElement(pointer);
+
+  @override
+  Stream<List<HistoryEntry>> create(Ref ref) {
+    return recentHistory(ref);
+  }
+}
+
+String _$recentHistoryHash() => r'5acf59e0c529afffa49ad0543affc0b4c5b9cb98';

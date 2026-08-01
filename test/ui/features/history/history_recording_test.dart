@@ -23,6 +23,12 @@ void main() {
         .read(worksheetProvider('ws-x').notifier)
         .run('SELECT * FROM customers');
 
+    // Riverpod 3 disposes an autoDispose provider as soon as a one-off `read`
+    // returns — for a stream provider that lands mid-loading and throws. Hold a
+    // subscription for the duration of the await. (The app doesn't hit this: the
+    // history panel *watches* this provider.)
+    final sub = container.listen(recentHistoryProvider, (_, _) {});
+    addTearDown(sub.close);
     final history = await container.read(recentHistoryProvider.future);
     expect(history, isNotEmpty);
     expect(history.first.sql, contains('customers'));

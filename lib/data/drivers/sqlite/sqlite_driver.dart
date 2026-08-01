@@ -69,7 +69,7 @@ class SqliteSession implements Session {
           affectedRows: _db.updatedRows,
           lastInsertId: _db.lastInsertRowId,
         );
-        stmt.dispose();
+        stmt.close();
         return result;
       }
       final fields = <ResultField>[
@@ -102,7 +102,7 @@ class SqliteSession implements Session {
   SchemaIntrospector get schema => _SqliteSchemaIntrospector(_db);
 
   @override
-  Future<void> close() async => _db.dispose();
+  Future<void> close() async => _db.close();
 }
 
 /// SQLite introspection — the one place engine-specific catalog queries live
@@ -256,5 +256,5 @@ class _SqliteResultCursor implements ResultCursor {
   }
 
   @override
-  Future<void> close() async => _stmt.dispose();
+  Future<void> close() async => _stmt.close();
 }
