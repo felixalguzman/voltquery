@@ -208,9 +208,19 @@ class _ServerDialogState extends State<_ServerDialog> {
           // dozen more fields, and connection dialogs become unusable that way.
           _tabStrip(),
           const SizedBox(height: 12),
-          SizedBox(
-            height: 268,
-            child: SingleChildScrollView(child: _tabBody()),
+          // maxHeight, not a fixed height: a short tab (SSH, Security) then
+          // sizes to its content instead of leaving dead space, and only a tab
+          // that genuinely overflows scrolls.
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 320),
+            child: Scrollbar(
+              child: SingleChildScrollView(
+                // Gutter for the scrollbar. Without it the thumb is drawn over
+                // the fields themselves, slicing through the right-hand inputs.
+                padding: const EdgeInsets.only(right: 14),
+                child: _tabBody(),
+              ),
+            ),
           ),
           const SizedBox(height: 6),
           _testRow(),
@@ -229,16 +239,34 @@ class _ServerDialogState extends State<_ServerDialog> {
     );
   }
 
-  Widget _testRow() => Row(
-    children: [
-      Button(
-        onPressed: _test == _Test.testing ? null : _runTest,
-        child: const Text('⚡ Test connection'),
-      ),
-      const SizedBox(width: 10),
-      Expanded(child: _status()),
-    ],
-  );
+  Widget _testRow() {
+    // Idle and success are one short line, so they sit beside the button.
+    // A failure is a headline plus a hint plus actions — cramming that into
+    // half the dialog width wraps it into an unreadable column.
+    final inline = _test != _Test.error;
+    final button = Button(
+      onPressed: _test == _Test.testing ? null : _runTest,
+      child: const Text('⚡ Test connection'),
+    );
+    if (inline) {
+      return Row(
+        children: [
+          button,
+          const SizedBox(width: 10),
+          Expanded(child: _status()),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Align(alignment: Alignment.centerLeft, child: button),
+        const SizedBox(height: 8),
+        _status(),
+      ],
+    );
+  }
 
   Widget _status() {
     switch (_test) {
