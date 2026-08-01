@@ -44,6 +44,14 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   app's own features — every `ColumnEditorKind` the grid renders (boolean, date,
   datetime, decimal, integer, text), the two cases the grid must refuse to edit
   (view, no PK), a composite row identity, and a NULL in a nullable column.
+- **Result grid** (`query_workspace/result_grid.dart`): pluto_grid, read-only
+  unless the result maps 1:1 onto one table's rows. Then cells become editable
+  with **typed editors** per `ColumnEditorKind` (toggle, date picker, enum
+  dropdown, validated numbers), edits are **staged** — never written on a
+  keystroke — and **Review & Apply** shows the exact statements before they run,
+  inside a transaction so a partial failure applies nothing. PK columns are
+  read-only (the UPDATE addresses the row by them). Enum options come from
+  `pg_enum`, MySQL `column_type`, or a SQLite `CHECK (col IN (...))`.
 - **Connections** (`connections/`): built-in demo + saved connections (drift),
   switch/add/delete; SQLite file-open; server form (Postgres/MySQL) with an inline
   **Test connection**.
@@ -67,7 +75,7 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 - **Theming**: inline "Clean Dev-Tool" tokens (dark, cyan accent) — not yet in
   `ui/core/theme` (still TODO per #7).
 
-**72 tests** green (`flutter test`); `flutter analyze` clean.
+**182 tests** green (`flutter test`); `flutter analyze` clean.
 
 ## Deferred / known gaps
 
@@ -91,15 +99,21 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 
 1. NavigationView rail + grid keyboard cell nav (#21 remainder).
 2. Background isolate for the SQLite driver — unblocks true Cancel + timeouts.
-3. **Grid write-path** *(in progress)* — **inline cell editing landed**
-   (domain layer + typed editors + staged buffer + SQL review panel, PRs
-   #63/#64). Remaining: row insert/delete/clone, "Copy as SQL", an explicit
-   Set-NULL action, and custom cells for boolean/dateTime/json (pluto_grid has
-   no native editor for those). See `docs/research/feature-gaps.md`.
-4. **Connectivity** — SSH tunnel + TLS + keep-alive. Without these VoltQuery
+3. **Grid write-path** *(inline editing landed)* — domain layer, typed editors,
+   staged buffer and SQL review panel shipped in #63/#64, hardened in #66.
+   Remaining: **row insert/delete/clone**, **"Copy as SQL"**, an explicit
+   **Set NULL** action (empty input on a nullable column currently means NULL,
+   so a deliberate `''` is unreachable), and a **JSON** editor.
+4. **Result grid engine** (#67) — pluto_grid is unmaintained; migrate to the
+   active `trina_grid` fork, then measure. A custom `VoltGrid` on
+   `two_dimensional_scrollables` is the agreed long-term destination but is
+   **deferred**. Both pluto and trina build every body column for every visible
+   row, so a wide `SELECT *` is the failure mode — `wide_metrics` (5k × 26) is
+   seeded for that test. See `docs/research/data-grid-options.md`.
+5. **Connectivity** — SSH tunnel + TLS + keep-alive. Without these VoltQuery
    can't reach most production/cloud databases.
-5. Tables/Views folders + large-schema render-cap (#13 tail).
-6. `ui/core/theme` via mix.
+6. Tables/Views folders + large-schema render-cap (#13 tail).
+7. `ui/core/theme` via mix.
 
 See `docs/research/feature-gaps.md` (parity) and `docs/research/differentiators.md`
 (offense) for the surveyed backlog these were picked from.
