@@ -206,6 +206,34 @@ class _MysqlIntrospector implements SchemaIntrospector {
             name: name, columns: byName[name]!.cols, unique: byName[name]!.unique),
     ];
   }
+
+  @override
+  Future<String> tableDdl(TableInfo table) async {
+    // MySQL reprints the full DDL; column 1 is 'Create Table' / 'Create View'.
+    final what = table.kind == ObjectKind.view ? 'VIEW' : 'TABLE';
+    final rs =
+        await _conn.execute('SHOW CREATE $what ${_ident(table.name)}');
+    final ddl = rs.rows.isEmpty ? null : rs.rows.first.colAt(1);
+    if (ddl == null || ddl.isEmpty) {
+      return '-- No stored DDL for ${table.name}';
+    }
+    return '$ddl;';
+  }
+
+  @override
+  Future<String> indexDdl(TableInfo table, IndexInfo index) async {
+    // MySQL has no SHOW CREATE INDEX — reconstruct from the index's columns.
+    final cols = index.columns.map(_ident).join(', ');
+    if (index.name == 'PRIMARY') {
+      return 'ALTER TABLE ${_ident(table.name)} ADD PRIMARY KEY ($cols);';
+    }
+    final unique = index.unique ? 'UNIQUE ' : '';
+    return 'CREATE ${unique}INDEX ${_ident(index.name)} '
+        'ON ${_ident(table.name)} ($cols);';
+  }
+
+  /// Backtick-quote a MySQL identifier (escaping embedded backticks).
+  String _ident(String id) => '`${id.replaceAll('`', '``')}`';
 }
 
 DriverError _mapMysqlError(my.MySQLServerException e) {

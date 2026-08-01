@@ -147,6 +147,15 @@ class RequestedQuery extends _$RequestedQuery {
   void clear() => state = null;
 }
 
+/// The one-shot SQL a freshly opened Worksheet loads into its editor, plus
+/// whether it should run itself on open. "Preview data" seeds with
+/// [autoRun] = true; "Open in editor" seeds with false (load, don't run).
+class WorksheetSeed {
+  const WorksheetSeed(this.sql, {this.autoRun = true});
+  final String sql;
+  final bool autoRun;
+}
+
 /// One-shot initial SQL for a **freshly opened** Worksheet — the sidebar's
 /// "open table" opens a *new* tab (never clobbering the current editor) and
 /// seeds it here. The Worksheet consumes + clears its seed on first build.
@@ -157,15 +166,15 @@ class RequestedQuery extends _$RequestedQuery {
 @Riverpod(keepAlive: true)
 class WorksheetSeeds extends _$WorksheetSeeds {
   @override
-  Map<String, String> build() => const {};
+  Map<String, WorksheetSeed> build() => const {};
 
-  void put(String worksheetId, String sql) =>
-      state = {...state, worksheetId: sql};
+  void put(String worksheetId, String sql, {bool autoRun = true}) =>
+      state = {...state, worksheetId: WorksheetSeed(sql, autoRun: autoRun)};
 
-  String? take(String worksheetId) {
-    final sql = state[worksheetId];
-    if (sql != null) state = {...state}..remove(worksheetId);
-    return sql;
+  WorksheetSeed? take(String worksheetId) {
+    final seed = state[worksheetId];
+    if (seed != null) state = {...state}..remove(worksheetId);
+    return seed;
   }
 }
 

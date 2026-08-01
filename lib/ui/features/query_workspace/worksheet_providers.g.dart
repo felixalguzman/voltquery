@@ -273,7 +273,7 @@ String _$worksheetSeedsHash() => r'fca6e88af46bd186fafc223bb043397085b9c0b6';
 /// Copied from [WorksheetSeeds].
 @ProviderFor(WorksheetSeeds)
 final worksheetSeedsProvider =
-    NotifierProvider<WorksheetSeeds, Map<String, String>>.internal(
+    NotifierProvider<WorksheetSeeds, Map<String, WorksheetSeed>>.internal(
       WorksheetSeeds.new,
       name: r'worksheetSeedsProvider',
       debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
@@ -283,7 +283,7 @@ final worksheetSeedsProvider =
       allTransitiveDependencies: null,
     );
 
-typedef _$WorksheetSeeds = Notifier<Map<String, String>>;
+typedef _$WorksheetSeeds = Notifier<Map<String, WorksheetSeed>>;
 String _$worksheetCommandsHash() => r'68885aa59a0780c054e9674b0baa24539f494a92';
 
 /// See also [WorksheetCommands].

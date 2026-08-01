@@ -108,6 +108,43 @@ void main() {
     expect(byName['ux_ab']!.unique, isTrue);
   });
 
+  test('tableDdl returns the stored CREATE for a table and a view', () async {
+    await session.execute(
+        'CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT NOT NULL)');
+    await session.execute('CREATE VIEW active AS SELECT id FROM users');
+
+    final tableDdl = await session.schema
+        .tableDdl(const TableInfo(name: 'users', kind: ObjectKind.table));
+    expect(tableDdl, contains('CREATE TABLE users'));
+    expect(tableDdl, contains('email TEXT NOT NULL'));
+    expect(tableDdl, endsWith(';'));
+
+    final viewDdl = await session.schema
+        .tableDdl(const TableInfo(name: 'active', kind: ObjectKind.view));
+    expect(viewDdl, contains('CREATE VIEW active'));
+  });
+
+  test('indexDdl returns stored SQL, and reconstructs auto-indexes', () async {
+    await session.execute(
+        'CREATE TABLE t (id INTEGER PRIMARY KEY, a TEXT UNIQUE, b TEXT)');
+    await session.execute('CREATE INDEX ix_b ON t (b)');
+
+    final ix = await session.schema
+        .indexes(const TableInfo(name: 't', kind: ObjectKind.table));
+    final explicit = ix.firstWhere((i) => i.name == 'ix_b');
+    final auto = ix.firstWhere((i) => i.name != 'ix_b'); // from UNIQUE(a)
+
+    const t = TableInfo(name: 't', kind: ObjectKind.table);
+    expect(await session.schema.indexDdl(t, explicit),
+        contains('CREATE INDEX ix_b ON t (b)'));
+
+    // Auto-index has no stored SQL → synthesized with a note.
+    final autoDdl = await session.schema.indexDdl(t, auto);
+    expect(autoDdl, contains('Auto-created index'));
+    expect(autoDdl, contains('UNIQUE INDEX'));
+    expect(autoDdl, contains('"a"'));
+  });
+
   test('SQLite capabilities: no server, no schemas, no query-cancel', () {
     expect(driver.engine, Engine.sqlite);
     final c = driver.capabilities;

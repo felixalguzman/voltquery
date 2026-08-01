@@ -272,6 +272,73 @@ class _PostgresIntrospector implements SchemaIntrospector {
         ),
     ];
   }
+
+  @override
+  Future<String> tableDdl(TableInfo table) async {
+    final schemaName = table.schema.isEmpty ? 'public' : table.schema;
+    final qualified = '${_ident(schemaName)}.${_ident(table.name)}';
+
+    if (table.kind == ObjectKind.view) {
+      // Postgres reprints the view body verbatim; wrap it as a CREATE.
+      final r = await _conn.execute(
+        pg.Sql.named('SELECT pg_get_viewdef(@r::regclass, true)'),
+        parameters: {'r': qualified},
+      );
+      final body = (r.first[0] as String).trimRight();
+      return 'CREATE OR REPLACE VIEW $qualified AS\n$body';
+    }
+
+    // No pg_get_tabledef exists — reconstruct from the catalog: columns with
+    // exact types (format_type keeps length/precision), NOT NULL, defaults, PK.
+    final cols = await _conn.execute(
+      pg.Sql.named(
+        'SELECT a.attname, pg_catalog.format_type(a.atttypid, a.atttypmod), '
+        '       a.attnotnull, pg_get_expr(ad.adbin, ad.adrelid) '
+        'FROM pg_attribute a '
+        'LEFT JOIN pg_attrdef ad ON ad.adrelid = a.attrelid AND ad.adnum = a.attnum '
+        'WHERE a.attrelid = @r::regclass AND a.attnum > 0 AND NOT a.attisdropped '
+        'ORDER BY a.attnum',
+      ),
+      parameters: {'r': qualified},
+    );
+    final pk = await _conn.execute(
+      pg.Sql.named(
+        'SELECT a.attname FROM pg_index i '
+        'JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) '
+        'WHERE i.indrelid = @r::regclass AND i.indisprimary '
+        'ORDER BY array_position(i.indkey, a.attnum)',
+      ),
+      parameters: {'r': qualified},
+    );
+
+    final lines = <String>[
+      for (final c in cols)
+        '  ${_ident(c[0] as String)} ${c[1] as String}'
+            '${(c[2] as bool) ? ' NOT NULL' : ''}'
+            '${c[3] != null ? ' DEFAULT ${c[3]}' : ''}',
+    ];
+    if (pk.isNotEmpty) {
+      final keyCols = pk.map((r) => _ident(r[0] as String)).join(', ');
+      lines.add('  PRIMARY KEY ($keyCols)');
+    }
+    return '-- Reconstructed from the catalog (columns, types, defaults, PK).\n'
+        '-- Other constraints, indexes and triggers are not included.\n'
+        'CREATE TABLE $qualified (\n${lines.join(',\n')}\n);';
+  }
+
+  @override
+  Future<String> indexDdl(TableInfo table, IndexInfo index) async {
+    final schemaName = table.schema.isEmpty ? 'public' : table.schema;
+    final qualified = '${_ident(schemaName)}.${_ident(index.name)}';
+    final r = await _conn.execute(
+      pg.Sql.named('SELECT pg_get_indexdef(@i::regclass)'),
+      parameters: {'i': qualified},
+    );
+    return '${(r.first[0] as String).trimRight()};';
+  }
+
+  /// Double-quote a Postgres identifier (escaping embedded quotes).
+  String _ident(String id) => '"${id.replaceAll('"', '""')}"';
 }
 
 /// Maps a Postgres exception into the normalized [DriverError] taxonomy.

@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:voltquery/data/services/local_store.dart';
@@ -106,5 +107,25 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('ddl_made_me'), findsOneWidget);
+  });
+
+  testWidgets('right-click a table → context menu; Open in Editor seeds, no run',
+      (tester) async {
+    await _pumpApp(tester);
+    expect(find.text('customers'), findsOneWidget);
+    expect(find.text('Query 2'), findsNothing);
+
+    // Right-click the node → the #53 context menu.
+    await tester.tap(find.text('customers'), buttons: kSecondaryButton);
+    await tester.pumpAndSettle();
+    expect(find.text('Copy CREATE'), findsOneWidget);
+    expect(find.text('Open in Editor'), findsOneWidget);
+    expect(find.text('Preview Data'), findsOneWidget);
+
+    // "Open in Editor" opens a new tab but does NOT auto-run (unlike a row-tap).
+    await tester.tap(find.text('Open in Editor'));
+    await tester.pumpAndSettle();
+    expect(find.text('Query 2'), findsOneWidget);
+    expect(find.textContaining('row(s)'), findsNothing);
   });
 }
