@@ -38,6 +38,12 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   CREATE`; Postgres `pg_get_viewdef`/`pg_get_indexdef`, tables reconstructed from
   the catalog with a header note) via new `SchemaIntrospector.tableDdl`/
   `indexDdl`, cached in the `SchemaRepository`.
+- **Demo database** (temp-file SQLite, seeded per run): `customers`, `products`,
+  `orders`, `order_items` (composite PK), a PK-less `audit_log` and a
+  `customer_orders` view, with FKs and three indexes. Shaped to exercise the
+  app's own features — every `ColumnEditorKind` the grid renders (boolean, date,
+  datetime, decimal, integer, text), the two cases the grid must refuse to edit
+  (view, no PK), a composite row identity, and a NULL in a nullable column.
 - **Connections** (`connections/`): built-in demo + saved connections (drift),
   switch/add/delete; SQLite file-open; server form (Postgres/MySQL) with an inline
   **Test connection**.
@@ -85,12 +91,11 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 
 1. NavigationView rail + grid keyboard cell nav (#21 remainder).
 2. Background isolate for the SQLite driver — unblocks true Cancel + timeouts.
-3. **Grid write-path** *(in progress)* — inline cell editing + row add/delete/
-   clone + "Copy as SQL" + a staged-DML review panel. The biggest parity gap
-   (see `docs/research/feature-gaps.md`); the manual-commit/tx work already
-   built the safety story it needs. **Domain layer landed** (`EditableResult
-   Analyzer`, `ColumnEditorResolver`, `DmlBuilder`); next is the grid wiring
-   (typed editors + change buffer + review panel), then row insert/delete.
+3. **Grid write-path** *(in progress)* — **inline cell editing landed**
+   (domain layer + typed editors + staged buffer + SQL review panel, PRs
+   #63/#64). Remaining: row insert/delete/clone, "Copy as SQL", an explicit
+   Set-NULL action, and custom cells for boolean/dateTime/json (pluto_grid has
+   no native editor for those). See `docs/research/feature-gaps.md`.
 4. **Connectivity** — SSH tunnel + TLS + keep-alive. Without these VoltQuery
    can't reach most production/cloud databases.
 5. Tables/Views folders + large-schema render-cap (#13 tail).

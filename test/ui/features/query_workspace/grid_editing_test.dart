@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:voltquery/data/services/local_store.dart';
 import 'package:voltquery/domain/models/history_entry.dart';
+import 'package:voltquery/domain/models/schema.dart';
 import 'package:voltquery/ui/features/history/history_providers.dart';
 import 'package:voltquery/ui/features/query_workspace/grid_editability.dart';
 import 'package:voltquery/ui/features/query_workspace/worksheet_providers.dart';
@@ -91,14 +92,55 @@ void main() {
   });
 
   test('a table with no primary key is read-only', () async {
-    await container.read(introspectionSessionProvider.future);
-    await container
-        .read(worksheetProvider('ws').notifier)
-        .run('CREATE TABLE nopk (a TEXT, b TEXT);');
-
-    final e = await _editabilityOf(container, 'SELECT * FROM nopk');
+    // audit_log is seeded without a PK precisely to cover this path.
+    final e = await _editabilityOf(container, 'SELECT * FROM audit_log');
     // Without a PK a single row can't be addressed — refuse rather than guess.
     expect(e, isNull);
+  });
+
+  test('a view is read-only', () async {
+    final e = await _editabilityOf(container, 'SELECT * FROM customer_orders');
+    expect(e, isNull);
+  });
+
+  test('a composite primary key gives multi-column row identity', () async {
+    final e = await _editabilityOf(container, 'SELECT * FROM order_items');
+    expect(e, isNotNull);
+    expect(e!.primaryKey, ['order_id', 'product_id']);
+    expect(e.isPrimaryKey('order_id'), isTrue);
+    expect(e.isPrimaryKey('quantity'), isFalse);
+  });
+
+  test('the demo schema exercises every editor kind the grid renders',
+      () async {
+    final orders = await _editabilityOf(container, 'SELECT * FROM orders');
+    expect(orders, isNotNull);
+    // Declared SQLite affinities are chosen so real editors resolve.
+    expect(orders!.editorFor('placed_at')!.kind.name, 'dateTime');
+    expect(orders.editorFor('shipped')!.kind.name, 'boolean');
+    expect(orders.editorFor('amount')!.kind.name, 'decimal');
+    expect(orders.editorFor('status')!.kind.name, 'text');
+    expect(orders.editorFor('customer_id')!.kind.name, 'integer');
+
+    final customers = await _editabilityOf(container, 'SELECT * FROM customers');
+    expect(customers!.editorFor('active')!.kind.name, 'boolean');
+    expect(customers.editorFor('signed_up')!.kind.name, 'date');
+    // NOT NULL vs nullable drives the set-NULL affordance.
+    expect(customers.editorFor('name')!.nullable, isFalse);
+    expect(customers.editorFor('email')!.nullable, isTrue);
+  });
+
+  test('foreign keys are introspectable on the demo schema', () async {
+    // orders.customer_id -> customers.id, for the tree's FK glyph and (later)
+    // FK navigation in the grid.
+    final session = await container.read(introspectionSessionProvider.future);
+    final cols = await session.schema.columns(
+      const TableInfo(name: 'orders', kind: ObjectKind.table),
+    );
+    final byName = {for (final c in cols) c.name: c};
+    expect(byName['customer_id']!.isForeignKey, isTrue);
+    expect(byName['id']!.isPrimaryKey, isTrue);
+    expect(byName['amount']!.isForeignKey, isFalse);
   });
 
   test('a projection missing the PK yields no row identity', () async {
