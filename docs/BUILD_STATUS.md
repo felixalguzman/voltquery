@@ -60,7 +60,10 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   honours all three + a custom CA PEM, MySQL can only encrypt), a **colour tag**
   shown as a bar in the connections list, a **read-only** guard, SQLite
   **FK enforcement**, and a connect timeout. Inline **Test connection** with a
-  selectable, copyable error.
+  selectable, copyable error. Saved connections are **editable** — the same
+  dialog reopens prefilled, keeping the id so the vault entry and history stay
+  attached — with right-click Edit / Duplicate / Copy Name / Delete. Deleting
+  removes the stored password too.
 - **Credentials vault** (`data/services/secret_store.dart`, ADR-0006): Argon2id →
   AES-256-GCM envelope crypto, master password, locked each launch, header padlock.
   *Deviation:* vault used on all platforms; mac/win keychain deferred.

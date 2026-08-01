@@ -11,43 +11,65 @@ import '../../../domain/models/connection.dart';
 import '../../../domain/models/engine.dart';
 
 /// A secret-free [Connection] plus the password to hand to the vault.
-typedef ServerFormResult = ({Connection connection, String password});
+///
+/// [password] is null when editing and the field was left untouched — meaning
+/// "keep the stored secret". An empty string is a real (if unwise) password, so
+/// the two cases can't be collapsed.
+typedef ServerFormResult = ({Connection connection, String? password});
 
 /// Connection form for a server engine (Postgres / MySQL) with an inline
 /// **Test connection**. The #14 wizard's server branch.
+///
+/// Pass [existing] to edit a saved connection instead of creating one: the same
+/// form, prefilled, keeping the id and credential ref so the vault entry and any
+/// history stay attached.
 Future<ServerFormResult?> showServerConnectionDialog(
   BuildContext context, {
   required Engine engine,
+  Connection? existing,
 }) {
   return showDialog<ServerFormResult>(
     context: context,
-    builder: (_) => _ServerDialog(engine: engine),
+    builder: (_) => _ServerDialog(engine: engine, existing: existing),
   );
 }
 
 enum _Test { idle, testing, ok, error }
 
 class _ServerDialog extends StatefulWidget {
-  const _ServerDialog({required this.engine});
+  const _ServerDialog({required this.engine, this.existing});
   final Engine engine;
+
+  /// Non-null when editing a saved connection.
+  final Connection? existing;
 
   @override
   State<_ServerDialog> createState() => _ServerDialogState();
 }
 
 class _ServerDialogState extends State<_ServerDialog> {
-  late final _name = TextEditingController(text: _isPg ? 'Postgres' : 'MySQL');
-  final _host = TextEditingController(text: 'localhost');
-  late final _port = TextEditingController(text: '${_isPg ? 5432 : 3306}');
-  late final _user = TextEditingController(text: _isPg ? 'postgres' : 'root');
+  Connection? get _existing => widget.existing;
+  bool get _isEdit => _existing != null;
+
+  late final _name = TextEditingController(
+      text: _existing?.name ?? (_isPg ? 'Postgres' : 'MySQL'));
+  late final _host =
+      TextEditingController(text: _existing?.host ?? 'localhost');
+  late final _port = TextEditingController(
+      text: '${_existing?.port ?? (_isPg ? 5432 : 3306)}');
+  late final _user = TextEditingController(
+      text: _existing?.username ?? (_isPg ? 'postgres' : 'root'));
   final _password = TextEditingController();
-  late final _database = TextEditingController(text: _isPg ? 'postgres' : '');
+  late final _database = TextEditingController(
+      text: _existing?.defaultDatabase ?? (_isPg ? 'postgres' : ''));
 
   /// Everything on the Security/Advanced tabs. Defaults to `require` TLS:
   /// encryption is opted out of, and MySQL 8's default auth plugin refuses to
   /// authenticate over a plaintext socket.
-  ConnectionOptions _options = const ConnectionOptions();
-  final _caCert = TextEditingController();
+  late ConnectionOptions _options =
+      _existing?.options ?? const ConnectionOptions();
+  late final _caCert =
+      TextEditingController(text: _existing?.options.caCertPath ?? '');
   int _tab = 0;
 
   SslMode get _ssl => _options.sslMode;
@@ -86,7 +108,9 @@ class _ServerDialogState extends State<_ServerDialog> {
   }
 
   Connection _connection({required bool forSave}) {
-    final id = forSave ? const Uuid().v4() : 'test';
+    // Editing keeps the id (and so the vault entry and history association);
+    // only a brand-new connection mints one.
+    final id = _existing?.id ?? (forSave ? const Uuid().v4() : 'test');
     return Connection(
       id: id,
       name: _name.text.trim().isEmpty ? _host.text.trim() : _name.text.trim(),
@@ -94,7 +118,7 @@ class _ServerDialogState extends State<_ServerDialog> {
       host: _host.text.trim(),
       port: int.tryParse(_port.text.trim()) ?? (_isPg ? 5432 : 3306),
       username: _user.text.trim(),
-      credentialRef: forSave ? id : null,
+      credentialRef: _existing?.credentialRef ?? (forSave ? id : null),
       defaultDatabase: _database.text.trim().isEmpty
           ? null
           : _database.text.trim(),
@@ -147,7 +171,10 @@ class _ServerDialogState extends State<_ServerDialog> {
   void _save() {
     Navigator.pop(context, (
       connection: _connection(forSave: true),
-      password: _password.text,
+      // Editing with the field untouched means "keep the stored secret". An
+      // empty string is a real password, so null is the only way to say
+      // "unchanged" without silently wiping the vault entry.
+      password: _isEdit && _password.text.isEmpty ? null : _password.text,
     ));
   }
 
@@ -155,7 +182,7 @@ class _ServerDialogState extends State<_ServerDialog> {
   Widget build(BuildContext context) {
     return ContentDialog(
       constraints: const BoxConstraints(maxWidth: 480),
-      title: Text('New $_dbLabel connection'),
+      title: Text(_isEdit ? 'Edit $_dbLabel connection' : 'New $_dbLabel connection'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -177,7 +204,10 @@ class _ServerDialogState extends State<_ServerDialog> {
           child: const Text('Cancel'),
           onPressed: () => Navigator.pop(context),
         ),
-        FilledButton(onPressed: _save, child: const Text('Save & connect')),
+        FilledButton(
+          onPressed: _save,
+          child: Text(_isEdit ? 'Save' : 'Save & connect'),
+        ),
       ],
     );
   }
@@ -313,7 +343,13 @@ class _ServerDialogState extends State<_ServerDialog> {
           Row(children: [
             Expanded(child: _field('User', _user)),
             const SizedBox(width: 10),
-            Expanded(child: _field('Password', _password, obscure: true)),
+            Expanded(
+              child: _field(
+                _isEdit ? 'Password (unchanged)' : 'Password',
+                _password,
+                obscure: true,
+              ),
+            ),
           ]),
           _field('Database', _database),
           _colorTagField(),
