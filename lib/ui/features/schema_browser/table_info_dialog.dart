@@ -1,7 +1,13 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
+import 'package:re_editor/re_editor.dart';
+import 'package:re_highlight/languages/sql.dart';
+import 'package:re_highlight/styles/atom-one-dark.dart';
 
+import '../../../domain/models/column_editor.dart';
+import '../../../domain/models/engine.dart';
 import '../../../domain/models/schema.dart';
+import '../../core/theme/sql_type_colors.dart';
 import 'schema_repository.dart';
 
 // TODO(theming #7): unify tokens into ui/core/theme.
@@ -19,18 +25,25 @@ Future<void> showTableInfoDialog(
   BuildContext context, {
   required TableInfo table,
   required SchemaRepository repo,
+  required Engine engine,
 }) {
   return showDialog(
     context: context,
-    builder: (context) => _TableInfoDialog(table: table, repo: repo),
+    builder: (context) =>
+        _TableInfoDialog(table: table, repo: repo, engine: engine),
   );
 }
 
 class _TableInfoDialog extends StatefulWidget {
-  const _TableInfoDialog({required this.table, required this.repo});
+  const _TableInfoDialog({
+    required this.table,
+    required this.repo,
+    required this.engine,
+  });
 
   final TableInfo table;
   final SchemaRepository repo;
+  final Engine engine;
 
   @override
   State<_TableInfoDialog> createState() => _TableInfoDialogState();
@@ -81,8 +94,15 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
   Widget build(BuildContext context) {
     final t = widget.table;
     final qualified = t.schema.isEmpty ? t.name : '${t.schema}.${t.name}';
+    // Sized to the window rather than fixed: a table with twenty indexes (or a
+    // wide column list) was scrolling inside a small box while most of the
+    // screen sat empty.
+    final screen = MediaQuery.sizeOf(context);
     return ContentDialog(
-      constraints: const BoxConstraints(maxWidth: 560, maxHeight: 560),
+      constraints: BoxConstraints(
+        maxWidth: screen.width.clamp(420.0, 900.0),
+        maxHeight: screen.height * 0.8,
+      ),
       title: Row(
         children: [
           Icon(t.kind == ObjectKind.view ? FluentIcons.page : FluentIcons.table,
@@ -215,7 +235,9 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
                           ? '→ ${c.references}'
                           : c.dataType,
                       style: TextStyle(
-                          color: c.references != null ? _fk : _textMid,
+                          color: c.references != null
+                              ? _fk
+                              : _colors.of(_kindOf(c)),
                           fontSize: 11,
                           fontFamily: 'monospace'),
                     ),
@@ -257,18 +279,77 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
         const SizedBox(height: 6),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(10),
+          constraints: const BoxConstraints(minHeight: 120, maxHeight: 320),
+          padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
             color: _bg,
             border: Border.all(color: _hair),
             borderRadius: BorderRadius.circular(4),
           ),
-          child: SelectableText(info.ddl,
-              style: const TextStyle(
-                  color: _text, fontSize: 11.5, fontFamily: 'monospace')),
+          // Same highlighting as the editor. SQLite stores DDL exactly as it
+          // was typed — often one long line — so it's also reflowed onto one
+          // column per line before display.
+          child: CodeEditor(
+            readOnly: true,
+            controller: CodeLineEditingController.fromText(_prettyDdl(info.ddl)),
+            style: CodeEditorStyle(
+              fontSize: 11.5,
+              backgroundColor: _bg,
+              codeTheme: CodeHighlightTheme(
+                languages: {'sql': CodeHighlightThemeMode(mode: langSql)},
+                theme: atomOneDarkTheme,
+              ),
+            ),
+          ),
         ),
       ],
     );
+  }
+
+  /// Breaks a single-line `CREATE TABLE t (a, b, c)` onto one column per line.
+  ///
+  /// Only splits at depth-1 commas, so a `NUMERIC(10,2)` or a composite
+  /// `PRIMARY KEY (a, b)` isn't torn apart. Anything already multi-line (MySQL
+  /// and Postgres both return formatted DDL) is left alone.
+  static String _prettyDdl(String ddl) {
+    if (ddl.contains('\n')) return ddl;
+    final open = ddl.indexOf('(');
+    final close = ddl.lastIndexOf(')');
+    if (open < 0 || close <= open) return ddl;
+
+    final head = ddl.substring(0, open).trimRight();
+    final body = ddl.substring(open + 1, close);
+    final tail = ddl.substring(close + 1);
+
+    final parts = <String>[];
+    final buf = StringBuffer();
+    var depth = 0;
+    var inString = false;
+    for (var i = 0; i < body.length; i++) {
+      final c = body[i];
+      if (inString) {
+        buf.write(c);
+        if (c == "'") inString = false;
+        continue;
+      }
+      if (c == "'") {
+        inString = true;
+        buf.write(c);
+        continue;
+      }
+      if (c == '(') depth++;
+      if (c == ')') depth--;
+      if (c == ',' && depth == 0) {
+        parts.add(buf.toString().trim());
+        buf.clear();
+        continue;
+      }
+      buf.write(c);
+    }
+    if (buf.toString().trim().isNotEmpty) parts.add(buf.toString().trim());
+    if (parts.length < 2) return ddl;
+
+    return '$head (\n  ${parts.join(',\n  ')}\n)$tail';
   }
 
   Widget _body(_Info info) {
@@ -303,6 +384,8 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
               ),
             ],
           ),
+          const SizedBox(height: 10),
+          _typeBreakdown(info.columns),
           const SizedBox(height: 14),
           _section('Primary key',
               pk.isEmpty ? null : pk.map((c) => c.name).join(', '),
@@ -406,6 +489,58 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
       ),
     );
   }
+
+  /// What the table is *made of*, at a glance — a column count says how many,
+  /// not what kind.
+  Widget _typeBreakdown(List<ColumnInfo> columns) {
+    final counts = <String, int>{};
+    for (final c in columns) {
+      // Group by base type: varchar(50) and varchar(255) are one kind here.
+      final base = c.dataType.split('(').first.trim().toUpperCase();
+      counts[base.isEmpty ? 'UNTYPED' : base] =
+          (counts[base.isEmpty ? 'UNTYPED' : base] ?? 0) + 1;
+    }
+    final ordered = counts.entries.toList()
+      ..sort((a, b) => b.value == a.value
+          ? a.key.compareTo(b.key)
+          : b.value.compareTo(a.value));
+    if (ordered.isEmpty) return const SizedBox.shrink();
+
+    return Wrap(
+      spacing: 6,
+      runSpacing: 4,
+      children: [
+        for (final e in ordered)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+            decoration: BoxDecoration(
+              color: _bg,
+              border: Border.all(color: _hair),
+              borderRadius: BorderRadius.circular(3),
+            ),
+            child: Text('${e.value} × ${e.key}',
+                style: TextStyle(
+                    color: e.value == 0 ? _textMid : _colorForType(e.key),
+                    fontSize: 10.5,
+                    fontFamily: 'monospace')),
+          ),
+      ],
+    );
+  }
+
+  static const _colors = SqlTypeColors.dark;
+
+  /// Semantic kind for a column, via the same resolver that drives the grid's
+  /// editors — so the colour and the editor always agree about what a type is.
+  ColumnEditorKind _kindOf(ColumnInfo c) =>
+      ColumnEditorResolver(widget.engine)
+          .resolve(c.dataType, nullable: c.nullable)
+          .kind;
+
+  Color _colorForType(String dataType) => _colors.of(
+      ColumnEditorResolver(widget.engine)
+          .resolve(dataType, nullable: true)
+          .kind);
 
   Widget _stat(String label, String value, {String? sub}) => Container(
         padding: const EdgeInsets.all(12),

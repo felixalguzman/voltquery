@@ -259,11 +259,37 @@ class _SqliteSchemaIntrospector implements SchemaIntrospector {
 
   @override
   Future<TableStats> tableStats(TableInfo table) async {
-    // SQLite keeps no row estimate and its size stats need the optional dbstat
-    // module, so there is genuinely nothing cheap to report — better an empty
-    // result the dialog can label "not available" than a full table scan
-    // disguised as a statistic.
-    return const TableStats();
+    // SQLite keeps no row estimate — reporting one would mean a full scan,
+    // which this method must not do.
+    //
+    // Size, though, *is* available when the build includes the optional dbstat
+    // module (most do, including the bundled desktop library): it sums the
+    // actual pages a table occupies. Indexes are attributed separately, since
+    // dbstat rows are per b-tree. If dbstat isn't compiled in the query throws
+    // and we fall back to reporting nothing rather than guessing.
+    try {
+      final name = table.name.replaceAll("'", "''");
+      final rs = _db.select(
+        "SELECT SUM(pgsize) FROM dbstat WHERE name = '$name'",
+      );
+      final tableBytes = rs.isEmpty ? null : rs.first.values.first as int?;
+
+      // Index pages live under the index's own name in dbstat.
+      final idx = _db.select(
+        "SELECT SUM(s.pgsize) FROM dbstat s "
+        "JOIN sqlite_master m ON m.name = s.name "
+        "WHERE m.type = 'index' AND m.tbl_name = '$name'",
+      );
+      final indexBytes = idx.isEmpty ? null : idx.first.values.first as int?;
+
+      if (tableBytes == null && indexBytes == null) return const TableStats();
+      return TableStats(
+        totalBytes: (tableBytes ?? 0) + (indexBytes ?? 0),
+        indexBytes: indexBytes,
+      );
+    } catch (_) {
+      return const TableStats();
+    }
   }
 
   @override

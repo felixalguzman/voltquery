@@ -183,18 +183,20 @@ void main() {
     );
   });
 
-  test('tableStats reports nothing rather than scanning the table', () async {
+  test('tableStats sizes the table but never estimates rows', () async {
     await session.execute('CREATE TABLE t (id INTEGER PRIMARY KEY, a TEXT)');
     await session.execute("INSERT INTO t (a) VALUES ('x'), ('y')");
 
-    // SQLite keeps no row estimate and its size stats need the optional dbstat
-    // module. An empty result the dialog labels "Unknown" is honest; a
-    // count(*) disguised as a cheap statistic would not be.
     final stats = await session.schema
         .tableStats(const TableInfo(name: 't', kind: ObjectKind.table));
+
+    // SQLite keeps no row estimate, and producing one would mean the full scan
+    // this method exists to avoid.
     expect(stats.estimatedRows, isNull);
-    expect(stats.totalBytes, isNull);
-    expect(stats.isEmpty, isTrue);
+    // Size, though, comes free from the dbstat module (present in the bundled
+    // library) — it sums the pages the table actually occupies.
+    expect(stats.totalBytes, isNotNull);
+    expect(stats.totalBytes, greaterThan(0));
   });
 
   test('rowCount is exact, and separate from tableStats', () async {

@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../domain/drivers/driver_error.dart';
+import '../../../domain/models/column_editor.dart';
 import '../../../domain/models/schema.dart';
+import '../../core/theme/sql_type_colors.dart';
 import '../../../domain/sql/sql_statement_splitter.dart';
 import '../../core/menu/context_menu.dart';
 import '../query_workspace/worksheet_providers.dart';
@@ -226,8 +228,12 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
   void _copy(String text) => Clipboard.setData(ClipboardData(text: text));
 
   /// Size, shape, keys and indexes without writing a query for any of it.
-  void _showInfo(TableInfo t) =>
-      showTableInfoDialog(context, table: t, repo: widget.repo);
+  void _showInfo(TableInfo t) => showTableInfoDialog(
+        context,
+        table: t,
+        repo: widget.repo,
+        engine: ref.read(currentConnectionProvider).engine,
+      );
 
   /// Fetch DDL (cached in the repo) then copy it. Never leaves the clipboard
   /// empty — a fetch failure copies a `--`-commented note instead.
@@ -310,9 +316,15 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
                         maxLines: 1,
                         textAlign: TextAlign.right,
                         style: TextStyle(
-                            color: c.references == null
-                                ? _textLo
-                                : const Color(0xFFB98CFF),
+                            color: c.references != null
+                                ? const Color(0xFFB98CFF)
+                                : SqlTypeColors.dark.of(
+                                    ColumnEditorResolver(
+                                            ref.read(currentConnectionProvider)
+                                                .engine)
+                                        .resolve(c.dataType,
+                                            nullable: c.nullable)
+                                        .kind),
                             fontSize: 10.5,
                             fontFamily: 'monospace')),
                   ),
