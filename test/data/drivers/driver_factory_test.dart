@@ -15,10 +15,14 @@ void main() {
     expect(driverFor(Engine.mysql), isA<MysqlDriver>());
   });
 
-  test('MySQL capabilities: server, no schemas (Database==Schema), no cancel', () {
+  test('MySQL capabilities: server + schemas (Database==Schema), no cancel', () {
     final c = MysqlDriver().capabilities;
     expect(c.hasServer, isTrue);
-    expect(c.hasSchemas, isFalse);
+    // MySQL treats SCHEMA and DATABASE as synonyms, so the schema level *is*
+    // the database list. Reporting true is what lets a connection with no
+    // default database still be browsed — and any database be reached, not
+    // just the default one.
+    expect(c.hasSchemas, isTrue);
     expect(c.supportsQueryCancel, isFalse);
     expect(c.paramStyle, ParamStyle.question);
   });
