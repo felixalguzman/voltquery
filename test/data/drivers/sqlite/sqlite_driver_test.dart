@@ -216,6 +216,44 @@ void main() {
     );
   });
 
+  test('referencedBy finds inbound foreign keys', () async {
+    await session.execute('CREATE TABLE customers (id INTEGER PRIMARY KEY)');
+    await session.execute('CREATE TABLE orders ('
+        'id INTEGER PRIMARY KEY, '
+        'customer_id INTEGER REFERENCES customers(id))');
+    await session.execute('CREATE TABLE notes ('
+        'id INTEGER PRIMARY KEY, '
+        'about INTEGER REFERENCES customers(id))');
+
+    // The inverse of ColumnInfo.references: what depends on this table. There
+    // is no other way to answer that from the UI.
+    final inbound = await session.schema
+        .referencedBy(const TableInfo(name: 'customers', kind: ObjectKind.table));
+    final described = inbound.map((r) => '${r.table}.${r.column}').toSet();
+    expect(described, {'orders.customer_id', 'notes.about'});
+  });
+
+  test('referencedBy is empty for a table nothing points at', () async {
+    await session.execute('CREATE TABLE lonely (id INTEGER PRIMARY KEY)');
+    expect(
+      await session.schema
+          .referencedBy(const TableInfo(name: 'lonely', kind: ObjectKind.table)),
+      isEmpty,
+    );
+  });
+
+  test('a self-referencing table does not report itself', () async {
+    // Walking every table would otherwise list the table's own FK as inbound,
+    // which is true but useless noise in a "what depends on this" list.
+    await session.execute('CREATE TABLE tree ('
+        'id INTEGER PRIMARY KEY, parent INTEGER REFERENCES tree(id))');
+    expect(
+      await session.schema
+          .referencedBy(const TableInfo(name: 'tree', kind: ObjectKind.table)),
+      isEmpty,
+    );
+  });
+
   test('SQLite capabilities: no server, no schemas, no query-cancel', () {
     expect(driver.engine, Engine.sqlite);
     final c = driver.capabilities;

@@ -386,6 +386,35 @@ class _PostgresIntrospector implements SchemaIntrospector {
   }
 
   @override
+  Future<List<ColumnRef>> referencedBy(TableInfo table) async {
+    final schemaName = table.schema.isEmpty ? 'public' : table.schema;
+    final r = await _conn.execute(
+      pg.Sql.named(
+        'SELECT tc.table_schema, tc.table_name, kcu.column_name '
+        'FROM information_schema.table_constraints tc '
+        'JOIN information_schema.key_column_usage kcu '
+        '  ON kcu.constraint_name = tc.constraint_name '
+        '  AND kcu.constraint_schema = tc.constraint_schema '
+        'JOIN information_schema.constraint_column_usage ccu '
+        '  ON ccu.constraint_name = tc.constraint_name '
+        '  AND ccu.constraint_schema = tc.constraint_schema '
+        "WHERE tc.constraint_type = 'FOREIGN KEY' "
+        'AND ccu.table_schema = @s AND ccu.table_name = @t '
+        'ORDER BY tc.table_name, kcu.column_name',
+      ),
+      parameters: {'s': schemaName, 't': table.name},
+    );
+    return [
+      for (final row in r)
+        ColumnRef(
+          schema: (row[0] as String?) ?? '',
+          table: (row[1] as String?) ?? '',
+          column: (row[2] as String?) ?? '',
+        ),
+    ];
+  }
+
+  @override
   Future<TableStats> tableStats(TableInfo table) async {
     final schemaName = table.schema.isEmpty ? 'public' : table.schema;
     final qualified = '${_ident(schemaName)}.${_ident(table.name)}';

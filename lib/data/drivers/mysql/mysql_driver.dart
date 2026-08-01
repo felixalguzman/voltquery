@@ -282,6 +282,26 @@ class _MysqlIntrospector implements SchemaIntrospector {
   }
 
   @override
+  Future<List<ColumnRef>> referencedBy(TableInfo table) async {
+    final rs = await _conn.execute(
+      'SELECT table_schema, table_name, column_name '
+      'FROM information_schema.key_column_usage '
+      "WHERE referenced_table_schema = COALESCE(NULLIF(:s, ''), DATABASE()) "
+      'AND referenced_table_name = :t '
+      'ORDER BY table_name, column_name',
+      {'s': table.schema, 't': table.name},
+    );
+    return [
+      for (final r in rs.rows)
+        ColumnRef(
+          schema: r.colAt(0) ?? '',
+          table: r.colAt(1) ?? '',
+          column: r.colAt(2) ?? '',
+        ),
+    ];
+  }
+
+  @override
   Future<TableStats> tableStats(TableInfo table) async {
     final rs = await _conn.execute(
       'SELECT table_rows, data_length, index_length, table_comment '

@@ -24,6 +24,7 @@ class SchemaRepository {
   final Map<String, Future<List<IndexInfo>>> _indexes = {};
   final Map<String, Future<String>> _ddl = {};
   final Map<String, Future<TableStats>> _stats = {};
+  final Map<String, Future<List<ColumnRef>>> _inbound = {};
 
   /// Top-level schemas (Postgres). Empty where `!capabilities.hasSchemas`.
   Future<List<SchemaInfo>> schemas() => _memo(
@@ -55,6 +56,10 @@ class SchemaRepository {
   Future<TableStats> stats(TableInfo table) => _memo(_stats,
       '${table.schema} ${table.name}', () => introspector.tableStats(table));
 
+  /// Columns elsewhere whose FKs point at this table — what depends on it.
+  Future<List<ColumnRef>> referencedBy(TableInfo table) => _memo(_inbound,
+      '${table.schema} ${table.name}', () => introspector.referencedBy(table));
+
   /// An exact `count(*)`. **Not** memoized: the caller asked for a fresh count,
   /// and a cached one would defeat the point of asking.
   Future<int> rowCount(TableInfo table) => introspector.rowCount(table);
@@ -68,6 +73,7 @@ class SchemaRepository {
     _indexes.clear();
     _ddl.clear();
     _stats.clear();
+    _inbound.clear();
   }
 
   /// Memoize the *future*; evict the key if it rejects so a retry re-fetches.

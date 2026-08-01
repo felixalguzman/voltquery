@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/services.dart';
 
 import '../../../domain/models/schema.dart';
 import 'schema_repository.dart';
@@ -41,6 +42,7 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
   /// Filled only when the user asks — an exact count is a full scan.
   int? _exactRows;
   bool _counting = false;
+  int _tab = 0;
 
   Future<_Info> _load() async {
     // Columns and indexes are already cached from expanding the tree, so this
@@ -49,11 +51,17 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
       widget.repo.columns(widget.table),
       widget.repo.indexes(widget.table),
       widget.repo.stats(widget.table),
+      // Best-effort: a view or an engine that can't reproduce DDL shouldn't
+      // fail the whole dialog.
+      widget.repo.tableDdl(widget.table).catchError((_) => ''),
+      widget.repo.referencedBy(widget.table).catchError((_) => <ColumnRef>[]),
     ]);
     return _Info(
       columns: results[0] as List<ColumnInfo>,
       indexes: results[1] as List<IndexInfo>,
       stats: results[2] as TableStats,
+      ddl: results[3] as String,
+      referencedBy: results[4] as List<ColumnRef>,
     );
   }
 
@@ -105,13 +113,159 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
                       child: ProgressRing(strokeWidth: 2))),
             );
           }
-          return _body(snap.data!);
+          final info = snap.data!;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _tabStrip(),
+              const SizedBox(height: 12),
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: switch (_tab) {
+                    1 => _columnsTab(info),
+                    2 => _ddlTab(info),
+                    _ => _body(info),
+                  },
+                ),
+              ),
+            ],
+          );
         },
       ),
       actions: [
         FilledButton(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Close'),
+        ),
+      ],
+    );
+  }
+
+  Widget _tabStrip() => Row(
+        children: [
+          for (final (i, label) in ['Overview', 'Columns', 'DDL'].indexed)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: HoverButton(
+                onPressed: () => setState(() => _tab = i),
+                builder: (context, states) => Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _tab == i
+                        ? const Color(0x222FE6FF)
+                        : (states.isHovered ? const Color(0x14FFFFFF) : null),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: _tab == i ? _accent : Colors.transparent,
+                    ),
+                  ),
+                  child: Text(label,
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: _tab == i ? _accent : _textMid)),
+                ),
+              ),
+            ),
+        ],
+      );
+
+  /// The columns themselves — a count alone answers almost nothing you'd open
+  /// this dialog to find out.
+  Widget _columnsTab(_Info info) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final c in info.columns)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 16,
+                    child: Icon(
+                      c.isPrimaryKey
+                          ? FluentIcons.permissions
+                          : c.isForeignKey
+                              ? FluentIcons.link
+                              : FluentIcons.circle_ring,
+                      size: 10,
+                      color: c.isPrimaryKey
+                          ? _accent
+                          : c.isForeignKey
+                              ? _fk
+                              : _textLo,
+                    ),
+                  ),
+                  Expanded(
+                    flex: 4,
+                    child: SelectableText(c.name,
+                        style: const TextStyle(
+                            color: _text,
+                            fontSize: 12,
+                            fontFamily: 'monospace')),
+                  ),
+                  Expanded(
+                    flex: 4,
+                    child: Text(
+                      c.references != null
+                          ? '→ ${c.references}'
+                          : c.dataType,
+                      style: TextStyle(
+                          color: c.references != null ? _fk : _textMid,
+                          fontSize: 11,
+                          fontFamily: 'monospace'),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      [
+                        if (!c.nullable) 'NOT NULL',
+                        if (c.defaultValue != null)
+                          'default ${c.defaultValue}',
+                      ].join(' · '),
+                      style: const TextStyle(color: _textLo, fontSize: 10.5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      );
+
+  Widget _ddlTab(_Info info) {
+    if (info.ddl.isEmpty) {
+      return const Text('No DDL available for this object.',
+          style: TextStyle(color: _textLo, fontSize: 11.5));
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: Button(
+            onPressed: () =>
+                Clipboard.setData(ClipboardData(text: info.ddl)),
+            child: const Text('Copy', style: TextStyle(fontSize: 11)),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: _bg,
+            border: Border.all(color: _hair),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: SelectableText(info.ddl,
+              style: const TextStyle(
+                  color: _text, fontSize: 11.5, fontFamily: 'monospace')),
         ),
       ],
     );
@@ -163,6 +317,21 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 2),
                 child: Text('${c.name} → ${c.references}',
+                    style: const TextStyle(
+                        color: _fk, fontSize: 11.5, fontFamily: 'monospace')),
+              ),
+          ],
+          if (info.referencedBy.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _label('Referenced by (${info.referencedBy.length})'),
+            const SizedBox(height: 2),
+            const Text('What depends on this table.',
+                style: TextStyle(color: _textLo, fontSize: 10.5)),
+            const SizedBox(height: 4),
+            for (final r in info.referencedBy)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: Text('$r',
                     style: const TextStyle(
                         color: _fk, fontSize: 11.5, fontFamily: 'monospace')),
               ),
@@ -315,9 +484,13 @@ class _Info {
     required this.columns,
     required this.indexes,
     required this.stats,
+    required this.ddl,
+    required this.referencedBy,
   });
 
   final List<ColumnInfo> columns;
   final List<IndexInfo> indexes;
   final TableStats stats;
+  final String ddl;
+  final List<ColumnRef> referencedBy;
 }

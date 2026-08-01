@@ -28,6 +28,14 @@ abstract interface class SchemaIntrospector {
   /// a `--`-commented note instead so the clipboard is always meaningful.
   Future<String> tableDdl(TableInfo table);
 
+  /// Columns in **other** tables whose foreign keys point at [table].
+  ///
+  /// The inverse of [ColumnInfo.references], and the question the rest of the
+  /// UI can't answer: what depends on this table, and therefore what breaks if
+  /// its rows or shape change. Returns the referencing side — `orders.
+  /// customer_id` for `customers`.
+  Future<List<ColumnRef>> referencedBy(TableInfo table);
+
   /// Cheap statistics for [table] — estimated rows, on-disk size, comment.
   ///
   /// Must stay **catalog-only**: this runs when a user opens an info dialog, so

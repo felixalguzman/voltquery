@@ -231,6 +231,33 @@ class _SqliteSchemaIntrospector implements SchemaIntrospector {
   }
 
   @override
+  Future<List<ColumnRef>> referencedBy(TableInfo table) async {
+    // SQLite has no inbound-FK catalog: the only way is to ask every table what
+    // *it* references. That's one PRAGMA per table, so it's bounded here —
+    // beyond this the dialog would stall on a large schema, and an incomplete
+    // list is better than a frozen dialog. (A LIMIT rather than a silent cut:
+    // the count is what a user compares against.)
+    const maxTablesScanned = 300;
+    final tables = _db.select(
+      "SELECT name FROM sqlite_master WHERE type = 'table' "
+      "AND name NOT LIKE 'sqlite_%' ORDER BY name LIMIT $maxTablesScanned",
+    );
+    final out = <ColumnRef>[];
+    for (final row in tables) {
+      final other = row['name'] as String;
+      if (other == table.name) continue;
+      final fks =
+          _db.select("PRAGMA foreign_key_list('${other.replaceAll("'", "''")}')");
+      for (final fk in fks) {
+        if (fk['table'] == table.name) {
+          out.add(ColumnRef(table: other, column: fk['from'] as String));
+        }
+      }
+    }
+    return out;
+  }
+
+  @override
   Future<TableStats> tableStats(TableInfo table) async {
     // SQLite keeps no row estimate and its size stats need the optional dbstat
     // module, so there is genuinely nothing cheap to report — better an empty

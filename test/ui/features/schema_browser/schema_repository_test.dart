@@ -68,6 +68,10 @@ class _FakeIntrospector implements SchemaIntrospector {
   }
 
   @override
+  Future<List<ColumnRef>> referencedBy(TableInfo table) async =>
+      const [ColumnRef(table: 'orders', column: 'customer_id')];
+
+  @override
   Future<TableStats> tableStats(TableInfo table) async {
     statsCalls++;
     return const TableStats(estimatedRows: 42);
