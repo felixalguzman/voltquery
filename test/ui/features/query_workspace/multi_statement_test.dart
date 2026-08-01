@@ -122,7 +122,7 @@ void main() {
     // The active worksheet runs whatever the sidebar requests.
     container
         .read(requestedQueryProvider.notifier)
-        .request('SELECT * FROM customers; SELECT 1 AS n;');
+        .request('SELECT * FROM customers; SELECT 1 AS n;', run: true);
     await tester.pumpAndSettle();
 
     expect(find.text('Result 1'), findsOneWidget);

@@ -164,7 +164,10 @@ const _demoSchema = <String>[
       'id INTEGER PRIMARY KEY, '
       'customer_id INTEGER NOT NULL REFERENCES customers(id), '
       'placed_at DATETIME NOT NULL, '
-      'status TEXT NOT NULL DEFAULT \'pending\', '
+      // SQLite has no ENUM; a CHECK ... IN is the idiom, and the introspector
+      // reads it back so this column gets a validating dropdown.
+      'status TEXT NOT NULL DEFAULT \'pending\' '
+      'CHECK (status IN (\'pending\',\'shipped\',\'cancelled\')), '
       'shipped BOOLEAN NOT NULL DEFAULT 0, '
       'amount REAL NOT NULL)',
   // Composite primary key — proves multi-column row identity in the grid.
@@ -227,13 +230,26 @@ Future<List<TableInfo>> schemaTables(Ref ref) async {
   return session.schema.tables(const SchemaInfo(''));
 }
 
-/// A query the sidebar asks the *active* worksheet to load + run.
+/// SQL handed to the *active* worksheet, plus whether it should run.
+///
+/// History requests are **load-only**: history now contains the UPDATEs that
+/// grid edits generate, and re-executing one on a click would be destructive.
+class QueryRequest {
+  const QueryRequest(this.sql, {this.run = false});
+  final String sql;
+  final bool run;
+}
+
+/// A query the sidebar or history asks the *active* worksheet to load.
 @riverpod
 class RequestedQuery extends _$RequestedQuery {
   @override
-  String? build() => null;
+  QueryRequest? build() => null;
 
-  void request(String sql) => state = sql;
+  /// [run] defaults to false — loading is the safe default; a caller that
+  /// really means "execute this now" has to say so.
+  void request(String sql, {bool run = false}) =>
+      state = QueryRequest(sql, run: run);
   void clear() => state = null;
 }
 

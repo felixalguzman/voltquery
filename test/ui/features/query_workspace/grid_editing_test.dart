@@ -120,7 +120,11 @@ void main() {
     expect(orders!.editorFor('placed_at')!.kind.name, 'dateTime');
     expect(orders.editorFor('shipped')!.kind.name, 'boolean');
     expect(orders.editorFor('amount')!.kind.name, 'decimal');
-    expect(orders.editorFor('status')!.kind.name, 'text');
+    // SQLite has no ENUM, but the demo constrains status with CHECK ... IN,
+    // which the introspector reads back into a validating dropdown.
+    expect(orders.editorFor('status')!.kind.name, 'enumeration');
+    expect(orders.editorFor('status')!.options,
+        ['pending', 'shipped', 'cancelled']);
     expect(orders.editorFor('customer_id')!.kind.name, 'integer');
 
     final customers = await _editabilityOf(container, 'SELECT * FROM customers');

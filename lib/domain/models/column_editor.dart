@@ -62,6 +62,79 @@ class ColumnEditor {
   /// Binary columns are displayed but not editable inline (yet).
   bool get isReadOnly => kind == ColumnEditorKind.binary;
 
+  /// Why [value] can't be stored in this column, or null when it's fine.
+  ///
+  /// Checked before an edit is staged so a bad value is refused at the cell,
+  /// where the user can still see what they typed — rather than becoming SQL
+  /// that the engine rejects at apply time with a less obvious message.
+  String? validate(Object? value) {
+    if (value == null) {
+      return nullable ? null : 'This column is NOT NULL.';
+    }
+    final text = '$value'.trim();
+    switch (kind) {
+      case ColumnEditorKind.integer:
+        if (int.tryParse(text) == null) return 'Expected a whole number.';
+      case ColumnEditorKind.decimal:
+        if (num.tryParse(text) == null) return 'Expected a number.';
+      case ColumnEditorKind.boolean:
+        const ok = {'true', 'false', 't', 'f', '0', '1', 'yes', 'no'};
+        if (!ok.contains(text.toLowerCase())) return 'Expected true or false.';
+      case ColumnEditorKind.date:
+      case ColumnEditorKind.dateTime:
+        if (DateTime.tryParse(text.replaceFirst(' ', 'T')) == null) {
+          return 'Expected a date like 2026-08-01'
+              '${kind == ColumnEditorKind.dateTime ? ' 14:30:00' : ''}.';
+        }
+      case ColumnEditorKind.enumeration:
+        if (options.isNotEmpty && !options.contains(text)) {
+          return 'Must be one of: ${options.join(', ')}.';
+        }
+      case ColumnEditorKind.json:
+        if (!_looksLikeJson(text)) return 'Expected JSON.';
+      case ColumnEditorKind.text:
+      case ColumnEditorKind.time:
+      case ColumnEditorKind.binary:
+        break; // the engine is the better judge
+    }
+    return null;
+  }
+
+  /// A cheap structural check — balanced brackets and quotes. Deliberately not
+  /// a full parse: the engine validates properly, this just catches typos
+  /// before they become a failed statement.
+  static bool _looksLikeJson(String text) {
+    if (text.isEmpty) return false;
+    final first = text[0];
+    if (first != '{' && first != '[' && first != '"') {
+      // Scalars are valid JSON too.
+      return num.tryParse(text) != null ||
+          text == 'true' ||
+          text == 'false' ||
+          text == 'null';
+    }
+    var depth = 0;
+    var inString = false;
+    var escaped = false;
+    for (final c in text.split('')) {
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (c == r'\') {
+          escaped = true;
+        } else if (c == '"') {
+          inString = false;
+        }
+        continue;
+      }
+      if (c == '"') inString = true;
+      if (c == '{' || c == '[') depth++;
+      if (c == '}' || c == ']') depth--;
+      if (depth < 0) return false;
+    }
+    return depth == 0 && !inString;
+  }
+
   @override
   bool operator ==(Object other) =>
       other is ColumnEditor &&

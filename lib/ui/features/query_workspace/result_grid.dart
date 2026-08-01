@@ -105,14 +105,35 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
     if (editor == null) return;
 
     final original = widget.rows.rows[e.rowIdx].values[colIndex];
+    final value = _coerce(e.value, editor);
+
+    // Refuse a value the column can't hold *here*, where the user can still see
+    // what they typed — rather than letting it become SQL the engine rejects
+    // later with a more cryptic message.
+    final problem = editor.validate(value);
+    if (problem != null) {
+      _invalid(field.name, problem);
+      return;
+    }
     ref.read(gridEditsProvider(widget.gridId).notifier).stage(
           StagedEdit(
             rowIndex: e.rowIdx,
             column: field.name,
             oldValue: original,
-            newValue: _coerce(e.value, editor),
+            newValue: value,
           ),
         );
+  }
+
+  void _invalid(String column, String problem) {
+    displayInfoBar(
+      context,
+      builder: (context, close) => InfoBar(
+        title: Text('$column: $problem'),
+        severity: InfoBarSeverity.warning,
+        onClose: close,
+      ),
+    );
   }
 
   /// Turn pluto's edited value into what we'll send.
@@ -494,6 +515,14 @@ class _CellView extends ConsumerWidget {
     // Hovering a changed cell shows what it was — the staged value replaced the
     // original on screen, so this is the only way back to it before applying.
     return Tooltip(
+      style: const TooltipThemeData(
+        textStyle: TextStyle(
+          fontSize: 13,
+          fontFamily: 'monospace',
+          color: _text,
+        ),
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      ),
       message: '${_display(staged.oldValue)}  \u2192  ${_display(staged.newValue)}',
       child: Row(
         children: [
@@ -574,10 +603,35 @@ class _CellView extends ConsumerWidget {
     );
   }
 
+  /// Next value in the toggle cycle, **shaped like what the engine stored**.
+  ///
+  /// This matters for more than tidiness: the buffer drops an edit when the new
+  /// value equals the original, and it compares by string. SQLite and MySQL
+  /// hand back a BOOLEAN as int `0`/`1`, so returning a Dart `false` made
+  /// `'0' != 'false'` — toggling off and back on left a phantom pending change
+  /// that would have written a redundant UPDATE.
   Object? _nextBool(Object? current) {
-    if (current == null) return false;
-    if (!_truthy(current)) return true;
-    return (editor?.nullable ?? false) ? null : false;
+    final next = switch (current) {
+      null => true, // NULL -> true -> false -> NULL (when nullable)
+      _ when !_truthy(current) => true,
+      _ => (editor?.nullable ?? false) ? null : false,
+    };
+    if (next == null) return null;
+    return _asOriginalShape(next);
+  }
+
+  /// Match the original cell's representation so equality against it works.
+  Object _asOriginalShape(bool value) {
+    final sample = _original;
+    if (sample is num) return value ? 1 : 0;
+    if (sample is String) {
+      // Preserve whatever spelling the engine used ('t'/'f', 'true'/'false').
+      final lower = sample.toLowerCase();
+      if (lower == 't' || lower == 'f') return value ? 't' : 'f';
+      if (lower == '0' || lower == '1') return value ? '1' : '0';
+      return value ? 'true' : 'false';
+    }
+    return value;
   }
 
   static bool _truthy(Object? v) => switch (v) {

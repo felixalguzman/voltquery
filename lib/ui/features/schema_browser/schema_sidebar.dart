@@ -148,7 +148,13 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
       ];
 
   TreeViewItem _objectItem(TableInfo t, IconData icon) => TreeViewItem(
-        leading: Icon(icon, size: 13, color: _textMid),
+        // fluent hardcodes its expander chevron at 8px, which is a very small
+        // target — miss it and the row press opens a worksheet instead. The
+        // object icon doubles as a second, larger expand/collapse target.
+        leading: _ExpandTap(
+          onTap: () => _toggle(t),
+          child: Icon(icon, size: 13, color: _textMid),
+        ),
         content: ContextMenuRegion(
           actions: [
             MenuAction('Copy Name', () => _copy(t.name), icon: FluentIcons.copy),
@@ -177,6 +183,38 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
         },
         onExpandToggle: _onExpand,
       );
+
+  /// Expand/collapse the node for [t] — the leading icon's job (see
+  /// [_ExpandTap]). Mirrors what the chevron does, including the lazy load.
+  void _toggle(TableInfo t) {
+    final item = _findObjectItem(t);
+    if (item == null) return;
+    final next = !item.expanded;
+    setState(() => item.expanded = next);
+    if (next) _onExpand(item, true);
+  }
+
+  TreeViewItem? _findObjectItem(TableInfo t) {
+    for (final root in _roots ?? const <TreeViewItem>[]) {
+      final hit = _search(root, t.name);
+      if (hit != null) return hit;
+    }
+    return null;
+  }
+
+  /// Depth-first lookup by label — schemas nest their objects one level down.
+  TreeViewItem? _search(TreeViewItem node, String name) {
+    final content = node.content;
+    if (content is ContextMenuRegion) {
+      final child = content.child;
+      if (child is Text && child.data == name) return node;
+    }
+    for (final c in node.children) {
+      final hit = _search(c, name);
+      if (hit != null) return hit;
+    }
+    return null;
+  }
 
   // --- Context-menu actions --------------------------------------------------
 
@@ -387,4 +425,27 @@ class _Message extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         child: Text(text, style: TextStyle(color: color, fontSize: 11.5)),
       );
+}
+
+/// A larger tap target that sits on a tree node's leading icon and toggles
+/// expansion, compensating for fluent's 8px chevron.
+class _ExpandTap extends StatelessWidget {
+  const _ExpandTap({required this.onTap, required this.child});
+
+  final VoidCallback onTap;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        // Fills the leading slot so the whole icon area is clickable, not just
+        // the glyph.
+        child: Center(child: child),
+      ),
+    );
+  }
 }

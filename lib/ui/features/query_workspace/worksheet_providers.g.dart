@@ -235,15 +235,15 @@ final class SchemaTablesProvider
 
 String _$schemaTablesHash() => r'5c4b4f0f194daa2610fa398ed0d979517343c998';
 
-/// A query the sidebar asks the *active* worksheet to load + run.
+/// A query the sidebar or history asks the *active* worksheet to load.
 
 @ProviderFor(RequestedQuery)
 final requestedQueryProvider = RequestedQueryProvider._();
 
-/// A query the sidebar asks the *active* worksheet to load + run.
+/// A query the sidebar or history asks the *active* worksheet to load.
 final class RequestedQueryProvider
-    extends $NotifierProvider<RequestedQuery, String?> {
-  /// A query the sidebar asks the *active* worksheet to load + run.
+    extends $NotifierProvider<RequestedQuery, QueryRequest?> {
+  /// A query the sidebar or history asks the *active* worksheet to load.
   RequestedQueryProvider._()
     : super(
         from: null,
@@ -263,29 +263,29 @@ final class RequestedQueryProvider
   RequestedQuery create() => RequestedQuery();
 
   /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(String? value) {
+  Override overrideWithValue(QueryRequest? value) {
     return $ProviderOverride(
       origin: this,
-      providerOverride: $SyncValueProvider<String?>(value),
+      providerOverride: $SyncValueProvider<QueryRequest?>(value),
     );
   }
 }
 
-String _$requestedQueryHash() => r'502e7cd3a6f853a0fbddba30b17c0ba1e83dcfa5';
+String _$requestedQueryHash() => r'857b39d74466322e822a597ce62c9275986fd2d7';
 
-/// A query the sidebar asks the *active* worksheet to load + run.
+/// A query the sidebar or history asks the *active* worksheet to load.
 
-abstract class _$RequestedQuery extends $Notifier<String?> {
-  String? build();
+abstract class _$RequestedQuery extends $Notifier<QueryRequest?> {
+  QueryRequest? build();
   @$mustCallSuper
   @override
   WhenComplete runBuild() {
-    final ref = this.ref as $Ref<String?, String?>;
+    final ref = this.ref as $Ref<QueryRequest?, QueryRequest?>;
     final element =
         ref.element
             as $ClassProviderElement<
-              AnyNotifier<String?, String?>,
-              String?,
+              AnyNotifier<QueryRequest?, QueryRequest?>,
+              QueryRequest?,
               Object?,
               Object?
             >;
@@ -947,7 +947,7 @@ final class WorksheetProvider
   }
 }
 
-String _$worksheetHash() => r'9afb3cd8c7a97c76dc6f3e4df593dcfa18d58767';
+String _$worksheetHash() => r'68a315b6fe36fb2e4d1900fd53302281b0c145a4';
 
 /// Per-Worksheet result state (family keyed by WorksheetId).
 
