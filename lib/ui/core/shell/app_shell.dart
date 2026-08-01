@@ -172,9 +172,9 @@ class _AppShellState extends ConsumerState<AppShell> {
       MenuController controller, String title, List<_MenuAction> actions) {
     return BaseSubmenu(
       controller: controller,
+      // Click to open/close; do NOT open on hover.
+      requestOpenOnPointerEnter: false,
       requestCloseOnPointerExit: false,
-      // Without an onPressed the anchor is tap-disabled (hover-only). Toggle so
-      // clicking opens/closes too — the expected menubar behaviour.
       onPressed: () =>
           controller.isOpen ? controller.close() : controller.open(),
       menu: DecoratedBox(
