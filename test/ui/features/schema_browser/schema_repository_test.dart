@@ -12,6 +12,8 @@ class _FakeIntrospector implements SchemaIntrospector {
   int tableCalls = 0;
   int columnCalls = 0;
   int indexCalls = 0;
+  int tableDdlCalls = 0;
+  int indexDdlCalls = 0;
   bool failColumns = false;
 
   @override
@@ -55,6 +57,18 @@ class _FakeIntrospector implements SchemaIntrospector {
     return const [
       IndexInfo(name: 'ix_a', columns: ['a'], unique: false),
     ];
+  }
+
+  @override
+  Future<String> tableDdl(TableInfo table) async {
+    tableDdlCalls++;
+    return 'CREATE TABLE ${table.name} ()';
+  }
+
+  @override
+  Future<String> indexDdl(TableInfo table, IndexInfo index) async {
+    indexDdlCalls++;
+    return 'CREATE INDEX ${index.name} ON ${table.name} ()';
   }
 }
 
@@ -109,6 +123,26 @@ void main() {
     repo.invalidate();
     await repo.indexes(t);
     expect(fake.indexCalls, 2);
+  });
+
+  test('DDL is memoized (table + index keyed apart) and cleared by invalidate',
+      () async {
+    const t = TableInfo(name: 'orders', kind: ObjectKind.table, schema: 'public');
+    const ix = IndexInfo(name: 'ix_a', columns: ['a'], unique: false);
+
+    await repo.tableDdl(t);
+    await repo.tableDdl(t);
+    expect(fake.tableDdlCalls, 1); // memoized
+
+    await repo.indexDdl(t, ix);
+    await repo.indexDdl(t, ix);
+    expect(fake.indexDdlCalls, 1); // distinct key, also memoized
+
+    repo.invalidate();
+    await repo.tableDdl(t);
+    await repo.indexDdl(t, ix);
+    expect(fake.tableDdlCalls, 2);
+    expect(fake.indexDdlCalls, 2);
   });
 
   test('tables() returns both kinds for the caller to partition', () async {

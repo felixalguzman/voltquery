@@ -48,13 +48,16 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
     super.initState();
     // A tab opened from the sidebar carries a seed query; else the default.
     final seed = ref.read(worksheetSeedsProvider)[widget.worksheetId];
-    _code =
-        CodeLineEditingController.fromText(seed ?? 'SELECT * FROM customers;');
+    _code = CodeLineEditingController.fromText(
+        seed?.sql ?? 'SELECT * FROM customers;');
     if (seed != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         ref.read(worksheetSeedsProvider.notifier).take(widget.worksheetId);
-        ref.read(worksheetProvider(widget.worksheetId).notifier).run(seed);
+        // "Preview data" runs on open; "Open in editor" just loads the SQL.
+        if (seed.autoRun) {
+          ref.read(worksheetProvider(widget.worksheetId).notifier).run(seed.sql);
+        }
       });
     }
   }

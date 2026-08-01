@@ -11,13 +11,13 @@ import '../../features/query_workspace/worksheet_providers.dart';
 import '../../features/query_workspace/worksheet_tabs.dart';
 import '../../features/schema_browser/schema_providers.dart';
 import '../../features/schema_browser/schema_sidebar.dart';
+import '../menu/app_menu.dart';
 
-// TODO(theming #7): unify tokens into ui/core/theme.
+// TODO(theming #7): unify tokens into ui/core/theme. Menu-panel chrome now lives
+// in ui/core/menu/app_menu.dart (shared with the tree context menus, #53).
 const _panel = Color(0xFF16181D);
 const _hair = Color(0xFF262A31);
 const _text = Color(0xFFE6E8EC);
-const _textMid = Color(0xFF9BA1AD);
-const _accent = Color(0xFF2FE6FF);
 
 /// Auto-hiding scrollbars for the panels — fluent's default (Linux/Windows) keeps
 /// a persistent vertical bar; `thumbVisibility: false` shows it only while
@@ -196,23 +196,18 @@ class _AppShellState extends ConsumerState<AppShell> {
       onClose: _onMenuClose,
       onPressed: () =>
           controller.isOpen ? controller.close() : controller.open(),
-      menu: DecoratedBox(
-        decoration: BoxDecoration(
-          color: _panel,
-          border: Border.all(color: _hair),
-          borderRadius: BorderRadius.circular(6),
-          boxShadow: const [
-            BoxShadow(color: Color(0x66000000), blurRadius: 12, offset: Offset(0, 4)),
-          ],
-        ),
+      menu: MenuSurface(
         child: BaseMenuPanel(
           constraints: const BoxConstraints.tightFor(width: 232),
           children: [
             const SizedBox(height: 4),
             for (final a in actions)
               a.isSeparator
-                  ? const _MenuSeparator()
-                  : BaseMenuItem(onPressed: a.onPressed, child: _MenuRow(a)),
+                  ? const MenuDivider()
+                  : BaseMenuItem(
+                      onPressed: a.onPressed,
+                      child: MenuActionRow(a.label, accel: a.accel),
+                    ),
             const SizedBox(height: 4),
           ],
         ),
@@ -267,36 +262,3 @@ class _TopLabelState extends State<_TopLabel> {
   }
 }
 
-/// A dropdown row: label + optional accelerator hint, focus-highlighted.
-class _MenuRow extends StatelessWidget {
-  const _MenuRow(this.action);
-  final _MenuAction action;
-  @override
-  Widget build(BuildContext context) {
-    final focused = BaseMenuItem.isFocusHighlightShownOf(context);
-    return Container(
-      color: focused ? _accent.withValues(alpha: 0.16) : null,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: Row(children: [
-        Expanded(
-          child: Text(action.label,
-              style: const TextStyle(color: _text, fontSize: 12.5)),
-        ),
-        if (action.accel != null) ...[
-          const SizedBox(width: 24),
-          Text(action.accel!,
-              style: const TextStyle(color: _textMid, fontSize: 11)),
-        ],
-      ]),
-    );
-  }
-}
-
-class _MenuSeparator extends StatelessWidget {
-  const _MenuSeparator();
-  @override
-  Widget build(BuildContext context) => const Padding(
-        padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-        child: SizedBox(height: 1, child: ColoredBox(color: _hair)),
-      );
-}

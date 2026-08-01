@@ -19,4 +19,18 @@ abstract interface class SchemaIntrospector {
   Future<List<ColumnInfo>> columns(TableInfo table);
 
   Future<List<IndexInfo>> indexes(TableInfo table);
+
+  /// The `CREATE` statement for [table] (a table or a view), for the node
+  /// context menu's "Copy CREATE" (#53). Best-effort per engine: SQLite/MySQL
+  /// return the engine's own DDL; Postgres reconstructs tables from the catalog
+  /// (its columns/types/PK) since it exposes no `pg_get_tabledef`, and uses
+  /// `pg_get_viewdef` for views. Never throws for a missing definition — returns
+  /// a `--`-commented note instead so the clipboard is always meaningful.
+  Future<String> tableDdl(TableInfo table);
+
+  /// The `CREATE INDEX` statement for [index] on [table] ("Copy CREATE" on an
+  /// index node, #53). Postgres uses `pg_get_indexdef`; SQLite reads
+  /// `sqlite_master` (auto-indexes have no stored SQL → reconstructed);
+  /// MySQL reconstructs from the index's columns.
+  Future<String> indexDdl(TableInfo table, IndexInfo index);
 }

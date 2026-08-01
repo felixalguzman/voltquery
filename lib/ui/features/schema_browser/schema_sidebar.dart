@@ -1,8 +1,10 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../domain/drivers/driver_error.dart';
 import '../../../domain/models/schema.dart';
+import '../../core/menu/context_menu.dart';
 import '../query_workspace/worksheet_providers.dart';
 import 'schema_providers.dart';
 import 'schema_repository.dart';
@@ -127,7 +129,12 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
 
   TreeViewItem _schemaItem(SchemaInfo s) => TreeViewItem(
         leading: const Icon(FluentIcons.database, size: 13, color: _textMid),
-        content: Text(s.name, style: _mono),
+        content: ContextMenuRegion(
+          actions: [
+            MenuAction('Copy Name', () => _copy(s.name), icon: FluentIcons.copy)
+          ],
+          child: Text(s.name, style: _mono),
+        ),
         lazy: true,
         value: _Loader(() async => _objectItems(await widget.repo.tables(s))),
         onExpandToggle: _onExpand,
@@ -142,7 +149,20 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
 
   TreeViewItem _objectItem(TableInfo t, IconData icon) => TreeViewItem(
         leading: Icon(icon, size: 13, color: _textMid),
-        content: Text(t.name, overflow: TextOverflow.ellipsis, style: _mono),
+        content: ContextMenuRegion(
+          actions: [
+            MenuAction('Copy Name', () => _copy(t.name), icon: FluentIcons.copy),
+            MenuAction('Copy CREATE',
+                () => _copyDdl(() => widget.repo.tableDdl(t)),
+                icon: FluentIcons.code),
+            MenuAction.divider,
+            MenuAction('Open in Editor', () => _openTable(t, run: false),
+                icon: FluentIcons.open_file),
+            MenuAction('Preview Data', () => _openTable(t, run: true),
+                icon: FluentIcons.preview),
+          ],
+          child: Text(t.name, overflow: TextOverflow.ellipsis, style: _mono),
+        ),
         lazy: true,
         // Columns show immediately on expand; indexes hang under a lazy folder.
         value: _Loader(() async => [
@@ -151,17 +171,36 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
             ]),
         onInvoked: (item, reason) async {
           // The chevron also fires onInvoked(expandToggle) — ignore that; only a
-          // row press opens the table.
+          // row press opens the table (preview = seed + run).
           if (reason == TreeViewItemInvokeReason.expandToggle) return;
-          final name = t.name.replaceAll('"', '""');
-          // Open in a NEW worksheet tab — never clobber the current editor.
-          final id = ref.read(worksheetTabsProvider.notifier).add();
-          ref
-              .read(worksheetSeedsProvider.notifier)
-              .put(id, 'SELECT * FROM "$name" LIMIT 200;');
+          _openTable(t, run: true);
         },
         onExpandToggle: _onExpand,
       );
+
+  // --- Context-menu actions --------------------------------------------------
+
+  void _copy(String text) => Clipboard.setData(ClipboardData(text: text));
+
+  /// Fetch DDL (cached in the repo) then copy it. Never leaves the clipboard
+  /// empty — a fetch failure copies a `--`-commented note instead.
+  Future<void> _copyDdl(Future<String> Function() fetch) async {
+    try {
+      _copy(await fetch());
+    } catch (e) {
+      _copy('-- Failed to load DDL: $e');
+    }
+  }
+
+  /// Open [t] in a **new** worksheet tab (never clobbering the current editor).
+  /// [run] = Preview Data (auto-run); false = Open in Editor (load only).
+  void _openTable(TableInfo t, {required bool run}) {
+    final name = t.name.replaceAll('"', '""');
+    final id = ref.read(worksheetTabsProvider.notifier).add();
+    ref
+        .read(worksheetSeedsProvider.notifier)
+        .put(id, 'SELECT * FROM "$name" LIMIT 200;', autoRun: run);
+  }
 
   List<TreeViewItem> _columnItems(List<ColumnInfo> cols) => [
         for (final c in cols)
@@ -184,30 +223,36 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
             // share and truncate the type even with space free); the type takes
             // all remaining width and ellipsizes only when it genuinely can't
             // fit.
-            content: LayoutBuilder(builder: (context, cons) {
-              return Row(children: [
-                ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: cons.maxWidth * 0.55),
-                  child: Text(c.name,
-                      overflow: TextOverflow.ellipsis,
-                      softWrap: false,
-                      maxLines: 1,
-                      style: _mono.copyWith(fontSize: 12)),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(c.dataType,
-                      overflow: TextOverflow.ellipsis,
-                      softWrap: false,
-                      maxLines: 1,
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(
-                          color: _textLo,
-                          fontSize: 10.5,
-                          fontFamily: 'monospace')),
-                ),
-              ]);
-            }),
+            content: ContextMenuRegion(
+              actions: [
+                MenuAction('Copy Name', () => _copy(c.name),
+                    icon: FluentIcons.copy),
+              ],
+              child: LayoutBuilder(builder: (context, cons) {
+                return Row(children: [
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: cons.maxWidth * 0.55),
+                    child: Text(c.name,
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: false,
+                        maxLines: 1,
+                        style: _mono.copyWith(fontSize: 12)),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(c.dataType,
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: false,
+                        maxLines: 1,
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(
+                            color: _textLo,
+                            fontSize: 10.5,
+                            fontFamily: 'monospace')),
+                  ),
+                ]);
+              }),
+            ),
           ),
       ];
 
@@ -218,38 +263,48 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
             style: TextStyle(
                 color: _textMid, fontSize: 11.5, letterSpacing: 0.3)),
         lazy: true,
-        value: _Loader(() async => _indexItems(await widget.repo.indexes(t))),
+        value:
+            _Loader(() async => _indexItems(t, await widget.repo.indexes(t))),
         onExpandToggle: _onExpand,
       );
 
-  List<TreeViewItem> _indexItems(List<IndexInfo> indexes) => [
+  List<TreeViewItem> _indexItems(TableInfo t, List<IndexInfo> indexes) => [
         for (final ix in indexes)
           TreeViewItem(
             collapsable: false,
             leading: Icon(FluentIcons.number_symbol,
                 size: 11, color: ix.unique ? _accent : _textLo),
-            content: Row(children: [
-              Flexible(
-                child: Text(ix.name,
-                    overflow: TextOverflow.ellipsis,
-                    softWrap: false,
-                    maxLines: 1,
-                    style: _mono.copyWith(fontSize: 12)),
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                    '${ix.unique ? 'UNIQUE ' : ''}(${ix.columns.join(', ')})',
-                    overflow: TextOverflow.ellipsis,
-                    softWrap: false,
-                    maxLines: 1,
-                    textAlign: TextAlign.right,
-                    style: TextStyle(
-                        color: ix.unique ? _accent : _textLo,
-                        fontSize: 10.5,
-                        fontFamily: 'monospace')),
-              ),
-            ]),
+            content: ContextMenuRegion(
+              actions: [
+                MenuAction('Copy Name', () => _copy(ix.name),
+                    icon: FluentIcons.copy),
+                MenuAction('Copy CREATE',
+                    () => _copyDdl(() => widget.repo.indexDdl(t, ix)),
+                    icon: FluentIcons.code),
+              ],
+              child: Row(children: [
+                Flexible(
+                  child: Text(ix.name,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                      maxLines: 1,
+                      style: _mono.copyWith(fontSize: 12)),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                      '${ix.unique ? 'UNIQUE ' : ''}(${ix.columns.join(', ')})',
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                      maxLines: 1,
+                      textAlign: TextAlign.right,
+                      style: TextStyle(
+                          color: ix.unique ? _accent : _textLo,
+                          fontSize: 10.5,
+                          fontFamily: 'monospace')),
+                ),
+              ]),
+            ),
           ),
       ];
 

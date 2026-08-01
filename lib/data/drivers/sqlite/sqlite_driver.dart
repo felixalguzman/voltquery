@@ -177,6 +177,39 @@ class _SqliteSchemaIntrospector implements SchemaIntrospector {
     }
     return result;
   }
+
+  @override
+  Future<String> tableDdl(TableInfo table) async {
+    // sqlite_master stores the verbatim CREATE for tables and views.
+    final rs = _db.select(
+      "SELECT sql FROM sqlite_master "
+      "WHERE type IN ('table','view') AND name = ?",
+      [table.name],
+    );
+    final sql = rs.isEmpty ? null : rs.first['sql'] as String?;
+    if (sql == null || sql.isEmpty) {
+      return '-- No stored DDL for ${table.name}';
+    }
+    return '$sql;';
+  }
+
+  @override
+  Future<String> indexDdl(TableInfo table, IndexInfo index) async {
+    final rs = _db.select(
+      "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?",
+      [index.name],
+    );
+    final sql = rs.isEmpty ? null : rs.first['sql'] as String?;
+    // Auto-indexes (from PRIMARY KEY / UNIQUE) have a NULL sql — synthesize one.
+    if (sql == null || sql.isEmpty) {
+      final cols = index.columns.map((c) => '"$c"').join(', ');
+      final unique = index.unique ? 'UNIQUE ' : '';
+      return '-- Auto-created index (no stored DDL)\n'
+          'CREATE ${unique}INDEX "${index.name}" '
+          'ON "${table.name}" ($cols);';
+    }
+    return '$sql;';
+  }
 }
 
 /// Maps a raw `sqlite3` exception into the normalized [DriverError] taxonomy
