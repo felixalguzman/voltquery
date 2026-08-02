@@ -28,6 +28,47 @@ const _text = Color(0xFFE6E8EC);
 const _textMid = Color(0xFF9BA1AD);
 const _textLo = Color(0xFF5A6069);
 const _dirty = Color(0xFFE8B84B);
+const _added = Color(0xFF4CD97B);
+const _removed = Color(0xFFE05561);
+
+/// Which row of the *result* a grid row stands for — never where pluto happens
+/// to be showing it.
+///
+/// pluto sorts its rows in place and reports the view index, so keying a staged
+/// edit on `rowIdx` meant that sorting a column and then editing wrote to
+/// whichever row had moved into that visual slot. The identity therefore rides
+/// on the [PlutoRow] itself, and the view index is never used to address data.
+sealed class _RowRef {
+  const _RowRef();
+
+  /// The ref pluto is carrying for [row], or null if it isn't one of ours.
+  static _RowRef? of(PlutoRow row) {
+    final key = row.key;
+    return key is ValueKey<_RowRef> ? key.value : null;
+  }
+}
+
+/// A row that came back from the query, at [index] in [WorksheetRows.rows].
+class _ResultRef extends _RowRef {
+  const _ResultRef(this.index);
+  final int index;
+
+  @override
+  bool operator ==(Object other) => other is _ResultRef && other.index == index;
+  @override
+  int get hashCode => Object.hash('result', index);
+}
+
+/// A row the user is inserting, identified by [PendingRow.id].
+class _PendingRef extends _RowRef {
+  const _PendingRef(this.id);
+  final int id;
+
+  @override
+  bool operator ==(Object other) => other is _PendingRef && other.id == id;
+  @override
+  int get hashCode => Object.hash('pending', id);
+}
 
 /// The result grid. Read-only unless the result maps 1:1 onto one table's rows
 /// ([WorksheetRows.editability]), in which case cells become editable and edits
@@ -39,6 +80,7 @@ class ResultGrid extends ConsumerStatefulWidget {
     required this.rows,
     required this.worksheetId,
     required this.gridId,
+    this.sourceSql,
   });
 
   final WorksheetRows rows;
@@ -47,12 +89,21 @@ class ResultGrid extends ConsumerStatefulWidget {
   /// Identifies this grid's staged-edit buffer (one per result sub-tab).
   final String gridId;
 
+  /// The statement these rows came from. Re-run after a change that alters
+  /// which rows exist — an applied INSERT or DELETE leaves what's on screen
+  /// describing a table that no longer looks like that.
+  final String? sourceSql;
+
   @override
   ConsumerState<ResultGrid> createState() => _ResultGridState();
 }
 
 class _ResultGridState extends ConsumerState<ResultGrid> {
   GridEditability? get _edit => widget.rows.editability;
+
+  /// pluto owns its row list after `onLoaded` — the widget's `rows` argument is
+  /// read once — so adding and discarding new rows has to go through it.
+  PlutoGridStateManager? _sm;
   SqlDialect get _dialect =>
       SqlDialect.of(ref.read(currentConnectionProvider).engine);
   bool get _editable => _edit != null;
@@ -115,7 +166,10 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
     final editor = _edit?.editorFor(field.name);
     if (editor == null) return;
 
-    final original = widget.rows.rows[e.rowIdx].values[colIndex];
+    // From the row itself, never `e.rowIdx` — see [_RowRef].
+    final rowRef = _RowRef.of(e.row);
+    if (rowRef == null) return;
+
     final value = _coerce(e.value, editor);
 
     // Refuse a value the column can't hold *here*, where the user can still see
@@ -130,15 +184,20 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
     // widget tree is being finalized — and Riverpod (rightly) asserts against
     // mutating a provider during a build. Defer to the next microtask so the
     // frame can finish first.
-    final edit = StagedEdit(
-      rowIndex: e.rowIdx,
-      column: field.name,
-      oldValue: original,
-      newValue: value,
-    );
     Future.microtask(() {
       if (!mounted) return;
-      ref.read(gridEditsProvider(widget.gridId).notifier).stage(edit);
+      final notifier = ref.read(gridEditsProvider(widget.gridId).notifier);
+      switch (rowRef) {
+        case _PendingRef(:final id):
+          notifier.setPendingValue(id, field.name, value);
+        case _ResultRef(:final index):
+          notifier.stage(StagedEdit(
+            rowIndex: index,
+            column: field.name,
+            oldValue: widget.rows.rows[index].values[colIndex],
+            newValue: value,
+          ));
+      }
     });
   }
 
@@ -185,13 +244,31 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
       dialect: dialect,
       pkValuesFor: _pkValues,
     );
-    if (statements.isEmpty) return;
+    if (statements.isEmpty) {
+      // Reachable with changes staged: a new row nobody typed into produces no
+      // INSERT. Saying so beats a button that looks broken.
+      await displayInfoBar(
+        context,
+        builder: (context, close) => InfoBar(
+          title: const Text('Nothing to apply'),
+          content: const Text('New rows need at least one value.'),
+          severity: InfoBarSeverity.warning,
+          onClose: close,
+        ),
+      );
+      return;
+    }
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => _ReviewDialog(statements: statements),
     );
     if (confirmed != true || !mounted) return;
+
+    // Applying an INSERT or a DELETE changes *which* rows exist, so what's on
+    // screen stops describing the table. An UPDATE doesn't: the staged values
+    // are already rendered in place.
+    final structural = buf.deletes.isNotEmpty || buf.inserts.isNotEmpty;
 
     final result = await ref
         .read(worksheetProvider(widget.worksheetId).notifier)
@@ -203,16 +280,21 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
       await displayInfoBar(
         context,
         builder: (context, close) => InfoBar(
-          title: Text('${result.rowsAffected} row(s) updated'),
+          title: Text('${result.applied} statement(s) applied · '
+              '${result.rowsAffected} row(s)'),
           severity: InfoBarSeverity.success,
           onClose: close,
         ),
       );
+      final sql = widget.sourceSql;
+      if (structural && sql != null && mounted) {
+        await ref.read(worksheetProvider(widget.worksheetId).notifier).run(sql);
+      }
     } else {
       await displayInfoBar(
         context,
         builder: (context, close) => InfoBar(
-          title: const Text('Update failed'),
+          title: const Text('Apply failed'),
           content: Text(result.error!.message),
           severity: InfoBarSeverity.error,
           onClose: close,
@@ -220,6 +302,52 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
       );
     }
   }
+
+  /// Bring pluto's row list back in line with the buffer's new rows.
+  ///
+  /// Reconciliation rather than "append on click" because the buffer is the
+  /// source of truth and it can change from anywhere — Discard, a successful
+  /// Apply, a duplicate action in a context menu three cells away.
+  void _syncPendingRows(List<PendingRow> pending) {
+    final sm = _sm;
+    if (sm == null) return;
+
+    final onScreen = <int, PlutoRow>{};
+    for (final row in sm.rows) {
+      if (_RowRef.of(row) case _PendingRef(:final id)) onScreen[id] = row;
+    }
+    final wanted = {for (final p in pending) p.id};
+
+    final stale = [
+      for (final entry in onScreen.entries)
+        if (!wanted.contains(entry.key)) entry.value,
+    ];
+    if (stale.isNotEmpty) sm.removeRows(stale);
+
+    final fresh = [
+      for (final p in pending)
+        if (!onScreen.containsKey(p.id)) _pendingPlutoRow(p),
+    ];
+    if (fresh.isEmpty) return;
+    sm.appendRows(fresh);
+    // Land the caret in the new row: it's usually below the fold on a long
+    // result, and pluto scrolls the current cell into view.
+    final firstEditable = sm.columns.firstWhere(
+      (c) => !c.readOnly,
+      orElse: () => sm.columns.first,
+    );
+    sm.setCurrentCell(fresh.last.cells[firstEditable.field], sm.rows.length - 1);
+  }
+
+  /// A new row renders as all-empty; its values come from the buffer via
+  /// [_CellView], the same way a staged edit does.
+  PlutoRow _pendingPlutoRow(PendingRow p) => PlutoRow(
+        key: ValueKey<_RowRef>(_PendingRef(p.id)),
+        cells: {
+          for (var i = 0; i < widget.rows.fields.length; i++)
+            _fieldKey(i): PlutoCell(value: ''),
+        },
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -231,6 +359,13 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
     final nullDisplay =
         ref.watch(settingsProvider.select((s) => s.nullDisplay));
 
+    // After the frame, not during it: pluto's state manager notifies listeners
+    // when rows change, which is illegal mid-build.
+    ref.listen(
+      gridEditsProvider(widget.gridId).select((b) => b.inserts),
+      (_, next) => _syncPendingRows(next),
+    );
+
     final columns = [
       for (var i = 0; i < r.fields.length; i++)
         _column(i, r.fields[i].name, buf, nullDisplay),
@@ -238,6 +373,7 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
     final rows = [
       for (var rowIndex = 0; rowIndex < r.rows.length; rowIndex++)
         PlutoRow(
+          key: ValueKey<_RowRef>(_ResultRef(rowIndex)),
           cells: {
             for (var i = 0; i < r.fields.length; i++)
               _fieldKey(i): PlutoCell(
@@ -265,6 +401,10 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
               onChanged: (e) => _onChanged(e, buf),
               configuration: _config,
               onLoaded: (e) {
+                _sm = e.stateManager;
+                // A grid can be rebuilt with a buffer that already holds new
+                // rows (the widget re-mounted, e.g. switching result sub-tabs).
+                if (buf.inserts.isNotEmpty) _syncPendingRows(buf.inserts);
                 e.stateManager.setShowColumnFilter(false);
                 // Cell selection + arrow-key / Tab navigation + Ctrl+C copy
                 // (built into pluto_grid). setKeepFocus keeps the grid's focus
@@ -283,51 +423,75 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
   PlutoColumn _column(
       int i, String name, GridEditBuffer buf, String nullDisplay) {
     final editor = _edit?.editorFor(name);
-    // PK columns stay read-only: the staged UPDATE addresses the row *by* that
-    // value, so editing it in place would change the row's identity.
     final isPk = _edit?.isPrimaryKey(name) ?? false;
     // Booleans are edited by tapping the toggle in [_boolCell], so pluto's own
     // editor must stay out of the way.
     final isBool = editor?.kind == ColumnEditorKind.boolean;
-    final canEdit =
-        _editable && editor != null && !editor.isReadOnly && !isPk && !isBool;
+    final typeable =
+        _editable && editor != null && !editor.isReadOnly && !isBool;
+    final canEdit = typeable && !isPk;
 
     return PlutoColumn(
       title: name,
       field: _fieldKey(i),
       type: _plutoType(editor),
-      enableEditingMode: canEdit,
+      enableEditingMode: typeable,
       readOnly: !canEdit,
+      // A PK column is read-only on an *existing* row — the staged UPDATE
+      // addresses that row by this value, so editing it in place would change
+      // the row's identity out from under the statement. A new row has no
+      // identity yet, so its key has to be typeable or a table without a
+      // sequence could never gain a row.
+      checkReadOnly: isPk && typeable
+          ? (row, _) => _RowRef.of(row) is! _PendingRef
+          : null,
       // A read-only grid can never have a staged edit, so its cells don't need
       // to subscribe to anything — that's the whole cost avoided on the common
       // browse-a-big-table path.
       renderer: _editable
-          ? (ctx) => _CellView(
+          ? (ctx) {
+              // From the row, not `ctx.rowIdx`: see [_RowRef].
+              final rowRef = _RowRef.of(ctx.row);
+              if (rowRef == null) return const SizedBox.shrink();
+              return _CellView(
                 gridId: widget.gridId,
-                rowIndex: ctx.rowIdx,
+                rowRef: rowRef,
                 column: name,
                 colIndex: i,
                 editor: editor,
-                editable: !isPk,
+                // A new row has no identity to preserve, so even its primary
+                // key is fair game — you have to be able to supply one.
+                editable: !isPk || rowRef is _PendingRef,
                 rows: widget.rows,
                 onStage: _stage,
+                onSetPending: _setPending,
+                onToggleDelete: _toggleDelete,
+                onDuplicate: _duplicateRow,
+                onDiscardNew: _discardNewRow,
                 dialect: _dialect,
                 editability: _edit,
                 nullDisplay: nullDisplay,
-              )
+              );
+            }
           // Passed down rather than watched per cell: a read-only grid's cells
           // subscribe to nothing, which is the whole point of _StaticCell.
+          // Still addressed by row identity, not `ctx.rowIdx` — indexing the
+          // result by the view position is what made sorting a column look
+          // like it did nothing at all.
           : (ctx) => _StaticCell(
-                value: ctx.rowIdx < widget.rows.rows.length
-                    ? widget.rows.rows[ctx.rowIdx].values[i]
-                    : null,
+                value: switch (_RowRef.of(ctx.row)) {
+                  _ResultRef(:final index)
+                      when index < widget.rows.rows.length =>
+                    widget.rows.rows[index].values[i],
+                  _ => null,
+                },
                 nullDisplay: nullDisplay,
               ),
     );
   }
 
   /// Stage a value that didn't come from a pluto editor (the boolean toggle,
-  /// the date picker).
+  /// the date picker, Set NULL).
   void _stage(int rowIndex, String column, Object? newValue) {
     final colIndex = widget.rows.fields.indexWhere((f) => f.name == column);
     if (colIndex < 0) return;
@@ -345,6 +509,44 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
             newValue: newValue,
           ),
         );
+  }
+
+  /// The same, for a row that doesn't exist yet.
+  void _setPending(int id, String column, Object? newValue) {
+    final problem = _edit?.editorFor(column)?.validate(newValue);
+    if (problem != null) {
+      _invalid(column, problem);
+      return;
+    }
+    ref
+        .read(gridEditsProvider(widget.gridId).notifier)
+        .setPendingValue(id, column, newValue);
+  }
+
+  void _toggleDelete(int rowIndex) =>
+      ref.read(gridEditsProvider(widget.gridId).notifier).toggleDelete(rowIndex);
+
+  void _discardNewRow(int id) =>
+      ref.read(gridEditsProvider(widget.gridId).notifier).removePendingRow(id);
+
+  void _addRow([Map<String, Object?> seed = const {}]) =>
+      ref.read(gridEditsProvider(widget.gridId).notifier).addRow(seed);
+
+  /// Duplicate an existing row, **minus its primary key**.
+  ///
+  /// Copying the key would collide on the first INSERT; leaving it unset lets a
+  /// sequence or identity column assign the next one, and a table with a
+  /// natural key gets an empty cell to fill in — which is the honest prompt.
+  void _duplicateRow(int rowIndex) {
+    final e = _edit;
+    if (e == null || rowIndex >= widget.rows.rows.length) return;
+    final row = widget.rows.rows[rowIndex];
+    _addRow({
+      for (var i = 0; i < widget.rows.fields.length; i++)
+        if (!e.isPrimaryKey(widget.rows.fields[i].name) &&
+            e.editorFor(widget.rows.fields[i].name) != null)
+          widget.rows.fields[i].name: row.values[i],
+    });
   }
 
   Widget _statusBar(GridEditBuffer buf) {
@@ -372,9 +574,16 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
             ),
           ],
           const Spacer(),
+          // Always offered on an editable grid, not only once something is
+          // staged: adding the first row is exactly the case where there is
+          // nothing to right-click.
+          if (_editable) ...[
+            _barButton('Add Row', FluentIcons.add, _textMid, _addRow),
+            const SizedBox(width: 4),
+          ],
           if (pending > 0) ...[
             Text(
-              '$pending pending change${pending == 1 ? '' : 's'}',
+              _pendingSummary(buf),
               style: const TextStyle(color: _dirty, fontSize: 11),
             ),
             const SizedBox(width: 10),
@@ -397,6 +606,18 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
         ],
       ),
     );
+  }
+
+  /// "3 edits · 1 new · 2 deleted" — the kinds are worth separating, because
+  /// "5 pending changes" reads the same whether or not two of them drop rows.
+  static String _pendingSummary(GridEditBuffer buf) {
+    final parts = [
+      if (buf.edits.isNotEmpty) '${buf.edits.length} edit'
+          '${buf.edits.length == 1 ? '' : 's'}',
+      if (buf.inserts.isNotEmpty) '${buf.inserts.length} new',
+      if (buf.deletes.isNotEmpty) '${buf.deletes.length} deleted',
+    ];
+    return '${parts.join(' · ')} pending';
   }
 
   Widget _barButton(
@@ -564,44 +785,75 @@ class _StaticCell extends StatelessWidget {
 class _CellView extends ConsumerWidget {
   const _CellView({
     required this.gridId,
-    required this.rowIndex,
+    required this.rowRef,
     required this.column,
     required this.colIndex,
     required this.editor,
     required this.editable,
     required this.rows,
     required this.onStage,
+    required this.onSetPending,
+    required this.onToggleDelete,
+    required this.onDuplicate,
+    required this.onDiscardNew,
     required this.dialect,
     required this.nullDisplay,
     this.editability,
   });
 
   final String gridId;
-  final int rowIndex;
+  final _RowRef rowRef;
   final String column;
   final int colIndex;
   final ColumnEditor? editor;
   final bool editable;
   final WorksheetRows rows;
   final void Function(int rowIndex, String column, Object? value) onStage;
+  final void Function(int id, String column, Object? value) onSetPending;
+  final void Function(int rowIndex) onToggleDelete;
+  final void Function(int rowIndex) onDuplicate;
+  final void Function(int id) onDiscardNew;
   final SqlDialect dialect;
   final String nullDisplay;
   final GridEditability? editability;
 
-  Object? get _original => rowIndex < rows.rows.length
-      ? rows.rows[rowIndex].values[colIndex]
-      : null;
+  int? get _resultIndex => switch (rowRef) {
+        _ResultRef(:final index) => index,
+        _PendingRef() => null,
+      };
+
+  Object? get _original {
+    final i = _resultIndex;
+    if (i == null || i >= rows.rows.length) return null;
+    return rows.rows[i].values[colIndex];
+  }
+
+  /// Route a value to whichever half of the buffer owns this row.
+  void _put(Object? value) => switch (rowRef) {
+        _PendingRef(:final id) => onSetPending(id, column, value),
+        _ResultRef(:final index) => onStage(index, column, value),
+      };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (rowRef case _PendingRef(:final id)) {
+      return _pendingBody(context, ref, id);
+    }
+
+    final rowIndex = _resultIndex!;
     // `select` down to *this* cell's entry. Watching the whole buffer meant a
     // single staged edit rebuilt every visible cell, which is the sort of thing
     // that shows up as scroll jank on a large result.
     final staged = ref.watch(
       gridEditsProvider(gridId).select((b) => b.at(rowIndex, column)),
     );
+    final deleted = ref.watch(
+      gridEditsProvider(gridId).select((b) => b.isDeleted(rowIndex)),
+    );
     final value = staged != null ? staged.newValue : _original;
     final isDirty = staged != null;
+
+    if (deleted) return _deletedBody(value);
 
     final Widget inner = switch (editor?.kind) {
       ColumnEditorKind.boolean => _boolBody(context, value, isDirty),
@@ -635,12 +887,90 @@ class _CellView extends ConsumerWidget {
     );
   }
 
-  /// Cell + row actions. "Copy as SQL" and "Set NULL" live here rather than in
-  /// a toolbar because they are per-cell operations — and Set NULL is the only
-  /// way to reach a deliberate NULL, since empty text input on a nullable
-  /// column is ambiguous.
-  List<MenuAction> _actions(Object? value) {
-    final row = rowIndex < rows.rows.length ? rows.rows[rowIndex] : null;
+  /// A row staged for deletion still shows its data — struck through, so you
+  /// can see *what* is about to go — and stops offering cell edits, which
+  /// [GridEditBuffer.toggleDelete] discards anyway.
+  Widget _deletedBody(Object? value) => ContextMenuRegion(
+        actions: _actions(value, deleted: true),
+        child: Row(
+          children: [
+            Container(width: 2, height: 16, color: _removed),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                value == null ? nullDisplay : '$value',
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: _removed,
+                  fontSize: 12.5,
+                  fontFamily: 'monospace',
+                  decoration: TextDecoration.lineThrough,
+                  decorationColor: _removed,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  /// A cell of a row that doesn't exist yet.
+  ///
+  /// An untouched cell reads `default`, not NULL: the column is left out of the
+  /// INSERT entirely, so the engine's default or sequence decides. That is a
+  /// different outcome from writing NULL into it, and on a nullable column with
+  /// a default it's the difference between the default and nothing.
+  Widget _pendingBody(BuildContext context, WidgetRef ref, int id) {
+    final (specified, value) = ref.watch(
+      gridEditsProvider(gridId).select((b) => b.pendingCell(id, column)),
+    );
+
+    final Widget inner = !specified
+        ? const Text(
+            'default',
+            style: TextStyle(
+              color: _textLo,
+              fontSize: 11.5,
+              fontFamily: 'monospace',
+              fontStyle: FontStyle.italic,
+            ),
+          )
+        : switch (editor?.kind) {
+            ColumnEditorKind.boolean => _boolBody(context, value, false),
+            ColumnEditorKind.date ||
+            ColumnEditorKind.dateTime =>
+              _dateBody(context, value, false),
+            _ => value == null
+                ? _nullLabel()
+                : Text(
+                    '$value',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _added,
+                      fontSize: 12.5,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+          };
+
+    return ContextMenuRegion(
+      actions: _actions(value),
+      child: Row(
+        children: [
+          Container(width: 2, height: 16, color: _added),
+          const SizedBox(width: 6),
+          Flexible(child: inner),
+        ],
+      ),
+    );
+  }
+
+  /// Cell + row actions. These live here rather than in a toolbar because the
+  /// row you mean is the one you right-clicked — and Set NULL is the only way
+  /// to reach a deliberate NULL, since empty text input on a nullable column is
+  /// ambiguous.
+  List<MenuAction> _actions(Object? value, {bool deleted = false}) {
+    final i = _resultIndex;
+    final row = i != null && i < rows.rows.length ? rows.rows[i] : null;
     return [
       MenuAction(
         'Copy Cell',
@@ -663,18 +993,42 @@ class _CellView extends ConsumerWidget {
         () => _copy(_rowInsert(row)),
         icon: FluentIcons.code,
       ),
-      if (editable) ...[
+      // Cell edits are pointless on a row that is on its way out — staging the
+      // delete discarded them, and staging another would only re-add noise.
+      if (editable && !deleted) ...[
         MenuAction.divider,
         MenuAction(
           'Set NULL',
-          () => onStage(rowIndex, column, null),
+          () => _put(null),
           icon: FluentIcons.circle_ring,
         ),
         MenuAction(
           'Revert Cell',
-          () => onStage(rowIndex, column, _original),
+          () => _put(_original),
           icon: FluentIcons.undo,
         ),
+      ],
+      // Row-level writes, only on a grid that can write at all.
+      if (editability != null) ...[
+        MenuAction.divider,
+        if (i != null) ...[
+          MenuAction(
+            'Duplicate Row',
+            () => onDuplicate(i),
+            icon: FluentIcons.copy,
+          ),
+          MenuAction(
+            deleted ? 'Keep Row' : 'Delete Row',
+            () => onToggleDelete(i),
+            icon: deleted ? FluentIcons.undo : FluentIcons.delete,
+          ),
+        ],
+        if (rowRef case _PendingRef(:final id))
+          MenuAction(
+            'Discard New Row',
+            () => onDiscardNew(id),
+            icon: FluentIcons.cancel,
+          ),
       ],
     ];
   }
@@ -768,7 +1122,7 @@ class _CellView extends ConsumerWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       // Cycles false -> true -> (NULL where the column allows it) -> false.
-      onTap: () => onStage(rowIndex, column, _nextBool(value)),
+      onTap: () => _put(_nextBool(value)),
       child: MouseRegion(cursor: SystemMouseCursors.click, child: visual),
     );
   }
@@ -842,7 +1196,7 @@ class _CellView extends ConsumerWidget {
       ),
     );
     if (picked == null) return;
-    onStage(rowIndex, column, _formatDate(picked, withTime: withTime));
+    _put(_formatDate(picked, withTime: withTime));
   }
 
   /// Values arrive as text on SQLite/MySQL and may already be a DateTime on

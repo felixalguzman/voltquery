@@ -470,6 +470,14 @@ class GridEdits extends _$GridEdits {
   void stage(StagedEdit edit) => state = state.stage(edit);
   void discardCell(int rowIndex, String column) =>
       state = state.discardCell(rowIndex, column);
+  void toggleDelete(int rowIndex) => state = state.toggleDelete(rowIndex);
+  void addRow([Map<String, Object?> seed = const {}]) =>
+      state = state.addRow(seed);
+  void setPendingValue(int id, String column, Object? value) =>
+      state = state.setPendingValue(id, column, value);
+  void clearPendingValue(int id, String column) =>
+      state = state.clearPendingValue(id, column);
+  void removePendingRow(int id) => state = state.removePendingRow(id);
   void clear() => state = state.clear();
 }
 

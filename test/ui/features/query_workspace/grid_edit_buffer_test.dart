@@ -12,6 +12,10 @@ void main() {
     target: EditableTarget(table: 'customers'),
     primaryKey: ['id'],
     editors: {
+      // The resolver emits an editor for *every* column including the PK —
+      // read-only on an existing row, but a new row has to be able to supply
+      // one where the table has no sequence.
+      'id': ColumnEditor(kind: ColumnEditorKind.integer, nullable: false),
       'name': ColumnEditor(kind: ColumnEditorKind.text, nullable: true),
       'total': ColumnEditor(kind: ColumnEditorKind.decimal, nullable: true),
       'active': ColumnEditor(kind: ColumnEditorKind.boolean, nullable: false),
@@ -143,6 +147,143 @@ void main() {
       );
       expect(mysql.single, startsWith('UPDATE `customers`'));
     });
+  });
+
+  group('deleting rows', () {
+    test('toggleDelete marks and unmarks', () {
+      var b = const GridEditBuffer().toggleDelete(0);
+      expect(b.isDeleted(0), isTrue);
+      expect(b.isDeleted(1), isFalse);
+      expect(b.count, 1);
+      b = b.toggleDelete(0);
+      expect(b.isDeleted(0), isFalse);
+      expect(b.isEmpty, isTrue);
+    });
+
+    test('a DELETE is PK-qualified', () {
+      final b = const GridEditBuffer().toggleDelete(1);
+      expect(sqlOf(b), ['DELETE FROM "customers" WHERE "id" = 2;']);
+    });
+
+    test('a row with no resolvable PK is skipped, not mis-targeted', () {
+      // The dangerous failure mode is an unqualified DELETE; skipping is the
+      // only safe answer when the row can't be addressed.
+      final b = const GridEditBuffer().toggleDelete(9);
+      expect(sqlOf(b), isEmpty);
+    });
+
+    test('deleting a row discards its staged cell edits', () {
+      var b = stage(const GridEditBuffer(), 0, 'name', 'Ada', 'Grace');
+      b = stage(b, 1, 'name', 'Alan', 'Turing');
+      b = b.toggleDelete(0);
+
+      // Row 0's UPDATE is gone — it would have run *after* the DELETE and
+      // silently matched nothing. Row 1's survives.
+      expect(b.edits.length, 1);
+      final sql = sqlOf(b);
+      expect(sql, hasLength(2));
+      expect(sql[0], startsWith('DELETE'));
+      expect(sql[1], contains('"id" = 2'));
+    });
+  });
+
+  group('inserting rows', () {
+    test('a new row with no values produces no statement', () {
+      // `INSERT ... DEFAULT VALUES` is spelled three ways across our engines,
+      // and an empty row is far more likely to be a stray click.
+      final b = const GridEditBuffer().addRow();
+      expect(b.count, 1);
+      expect(b.isEmpty, isFalse);
+      expect(sqlOf(b), isEmpty);
+    });
+
+    test('only the columns the user set appear in the INSERT', () {
+      var b = const GridEditBuffer().addRow();
+      final id = b.inserts.single.id;
+      b = b.setPendingValue(id, 'name', 'Grace');
+      // `total` is deliberately left alone so its default still applies.
+      expect(sqlOf(b), [
+        '''INSERT INTO "customers" ("name") VALUES ('Grace');''',
+      ]);
+    });
+
+    test('a column set to NULL is different from one never touched', () {
+      var b = const GridEditBuffer().addRow();
+      final id = b.inserts.single.id;
+      b = b.setPendingValue(id, 'name', null);
+      expect(b.pendingCell(id, 'name'), (true, null));
+      expect(b.pendingCell(id, 'total'), (false, null));
+      expect(sqlOf(b).single, contains('("name") VALUES (NULL)'));
+
+      // ...and clearing it takes the column back out of the statement.
+      b = b.clearPendingValue(id, 'name');
+      expect(b.pendingCell(id, 'name'), (false, null));
+      expect(sqlOf(b), isEmpty);
+    });
+
+    test('editor kind drives encoding, PK included', () {
+      var b = const GridEditBuffer().addRow();
+      final id = b.inserts.single.id;
+      b = b.setPendingValue(id, 'id', '7');
+      b = b.setPendingValue(id, 'active', true);
+      final sql = sqlOf(b).single;
+      expect(sql, contains('"id"'));
+      expect(sql, contains('7')); // integer editor → bare literal
+      expect(sql, contains('TRUE')); // boolean on Postgres
+    });
+
+    test('a seeded row is how "duplicate" arrives', () {
+      final b = const GridEditBuffer().addRow({'name': 'Ada', 'total': 3});
+      expect(sqlOf(b).single,
+          '''INSERT INTO "customers" ("name", "total") VALUES ('Ada', 3);''');
+    });
+
+    test('discarding one new row leaves the others addressable', () {
+      var b = const GridEditBuffer().addRow({'name': 'a'});
+      b = b.addRow({'name': 'b'});
+      b = b.addRow({'name': 'c'});
+      final second = b.inserts[1].id;
+      b = b.removePendingRow(second);
+
+      expect(b.inserts.map((r) => r.values['name']), ['a', 'c']);
+      // Ids are never reused, so the row that shifted into slot 1 is still
+      // reached by its own id — the whole reason rows aren't keyed by position.
+      expect(b.pending(second), isNull);
+      b = b.setPendingValue(b.inserts[1].id, 'name', 'c2');
+      expect(b.inserts[1].values['name'], 'c2');
+      expect(b.inserts[0].values['name'], 'a');
+    });
+
+    test('a new row id is never reused, even after clear', () {
+      var b = const GridEditBuffer().addRow();
+      final first = b.inserts.single.id;
+      b = b.clear().addRow();
+      expect(b.inserts.single.id, isNot(first));
+    });
+  });
+
+  test('statement order is DELETE, then UPDATE, then INSERT', () {
+    // The order that survives a unique index: freeing a key before something
+    // else claims it. Reversing any pair breaks a case the other doesn't.
+    var b = stage(const GridEditBuffer(), 0, 'name', 'Ada', 'Grace');
+    b = b.toggleDelete(1);
+    b = b.addRow({'name': 'Katherine'});
+
+    final sql = sqlOf(b);
+    expect(sql, hasLength(3));
+    expect(sql[0], startsWith('DELETE'));
+    expect(sql[1], startsWith('UPDATE'));
+    expect(sql[2], startsWith('INSERT'));
+  });
+
+  test('count separates the three kinds', () {
+    var b = stage(const GridEditBuffer(), 0, 'name', 'Ada', 'Grace');
+    b = b.toggleDelete(1).addRow();
+    expect(b.edits.length, 1);
+    expect(b.deletes.length, 1);
+    expect(b.inserts.length, 1);
+    expect(b.count, 3);
+    expect(b.clear().isEmpty, isTrue);
   });
 
   test('primary-key columns are flagged read-only', () {
