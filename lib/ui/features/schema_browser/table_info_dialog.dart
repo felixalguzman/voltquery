@@ -50,7 +50,13 @@ class _TableInfoDialog extends StatefulWidget {
 }
 
 class _TableInfoDialogState extends State<_TableInfoDialog> {
-  late final Future<_Info> _info = _load();
+  /// The table currently shown. Following a relation swaps this rather than
+  /// opening another dialog — jumping through five tables should not leave five
+  /// dialogs stacked on screen.
+  late TableInfo _table = widget.table;
+  final _back = <TableInfo>[];
+
+  late Future<_Info> _info = _load();
 
   /// Filled only when the user asks — an exact count is a full scan.
   int? _exactRows;
@@ -61,13 +67,13 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
     // Columns and indexes are already cached from expanding the tree, so this
     // is usually just the stats round-trip.
     final results = await Future.wait([
-      widget.repo.columns(widget.table),
-      widget.repo.indexes(widget.table),
-      widget.repo.stats(widget.table),
+      widget.repo.columns(_table),
+      widget.repo.indexes(_table),
+      widget.repo.stats(_table),
       // Best-effort: a view or an engine that can't reproduce DDL shouldn't
       // fail the whole dialog.
-      widget.repo.tableDdl(widget.table).catchError((_) => ''),
-      widget.repo.referencedBy(widget.table).catchError((_) => <ColumnRef>[]),
+      widget.repo.tableDdl(_table).catchError((_) => ''),
+      widget.repo.referencedBy(_table).catchError((_) => <ColumnRef>[]),
     ]);
     return _Info(
       columns: results[0] as List<ColumnInfo>,
@@ -81,7 +87,7 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
   Future<void> _countExactly() async {
     setState(() => _counting = true);
     try {
-      final n = await widget.repo.rowCount(widget.table);
+      final n = await widget.repo.rowCount(_table);
       if (mounted) setState(() => _exactRows = n);
     } catch (_) {
       // A failed count shouldn't take the dialog down; the estimate stands.
@@ -92,7 +98,7 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final t = widget.table;
+    final t = _table;
     final qualified = t.schema.isEmpty ? t.name : '${t.schema}.${t.name}';
     // Sized to the window rather than fixed: a table with twenty indexes (or a
     // wide column list) was scrolling inside a small box while most of the
@@ -105,6 +111,16 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
       ),
       title: Row(
         children: [
+          if (_back.isNotEmpty) ...[
+            Tooltip(
+              message: 'Back to ${_back.last.name}',
+              child: IconButton(
+                icon: const Icon(FluentIcons.back, size: 13, color: _textMid),
+                onPressed: _goBack,
+              ),
+            ),
+            const SizedBox(width: 4),
+          ],
           Icon(t.kind == ObjectKind.view ? FluentIcons.page : FluentIcons.table,
               size: 15, color: _textMid),
           const SizedBox(width: 8),
@@ -145,7 +161,8 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
                   padding: const EdgeInsets.only(right: 12),
                   child: switch (_tab) {
                     1 => _columnsTab(info),
-                    2 => _ddlTab(info),
+                    2 => _relationsTab(info),
+                    3 => _ddlTab(info),
                     _ => _body(info),
                   },
                 ),
@@ -165,7 +182,8 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
 
   Widget _tabStrip() => Row(
         children: [
-          for (final (i, label) in ['Overview', 'Columns', 'DDL'].indexed)
+          for (final (i, label)
+              in ['Overview', 'Columns', 'Relations', 'DDL'].indexed)
             Padding(
               padding: const EdgeInsets.only(right: 4),
               child: HoverButton(
@@ -230,10 +248,9 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
           'Foreign keys ($fkCount)',
           active: _fkOnly,
           enabled: fkCount > 0,
-          onTap: () => setState(() {
-            _fkOnly = !_fkOnly;
-            _typeFilter = null;
-          }),
+          // Filters combine (AND) — they always did in the matching logic; it
+          // was only these setters clearing each other.
+          onTap: () => setState(() => _fkOnly = !_fkOnly),
         ),
         if (_typeFilter case final type?) ...[
           const SizedBox(width: 6),
@@ -326,16 +343,34 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
                   ),
                   Expanded(
                     flex: 4,
-                    child: Text(
-                      c.references != null
-                          ? '→ ${c.references}'
-                          : c.dataType,
-                      style: TextStyle(
+                    child: HoverButton(
+                      // The type filters to its own kind; a foreign key
+                      // navigates to what it points at, which is the thing you
+                      // actually wanted when you read it.
+                      onPressed: () => c.references == null
+                          ? setState(() => _typeFilter = c.dataType
+                              .split('(')
+                              .first
+                              .trim()
+                              .toUpperCase())
+                          : _goTo(c.references!),
+                      builder: (context, states) => Text(
+                        c.references != null
+                            ? '→ ${c.references}'
+                            : c.dataType,
+                        style: TextStyle(
                           color: c.references != null
                               ? _fk
                               : _colors.of(_kindOf(c)),
                           fontSize: 11,
-                          fontFamily: 'monospace'),
+                          fontFamily: 'monospace',
+                          decoration: states.isHovered
+                              ? TextDecoration.underline
+                              : null,
+                          decorationColor:
+                              c.references != null ? _fk : _colors.of(_kindOf(c)),
+                        ),
+                      ),
                     ),
                   ),
                   Expanded(
@@ -353,6 +388,114 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
               ),
             ),
         ];
+
+  /// Both directions of every relationship, each row a jump.
+  ///
+  /// Outbound and inbound answer different questions — "what does this need"
+  /// versus "what needs this" — and having them side by side is what makes the
+  /// dialog usable for walking a schema rather than inspecting one table.
+  Widget _relationsTab(_Info info) {
+    final outbound = info.columns.where((c) => c.references != null).toList();
+
+    if (outbound.isEmpty && info.referencedBy.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Text(
+          'This table has no foreign keys, and nothing references it.',
+          style: TextStyle(color: _textLo, fontSize: 11.5),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (outbound.isNotEmpty) ...[
+          _label('References (${outbound.length})'),
+          const SizedBox(height: 2),
+          const Text('What this table depends on.',
+              style: TextStyle(color: _textLo, fontSize: 10.5)),
+          const SizedBox(height: 6),
+          for (final c in outbound)
+            _relationRow(
+              from: c.name,
+              arrow: '→',
+              target: '${c.references}',
+              ref: c.references!,
+            ),
+          const SizedBox(height: 14),
+        ],
+        if (info.referencedBy.isNotEmpty) ...[
+          _label('Referenced by (${info.referencedBy.length})'),
+          const SizedBox(height: 2),
+          const Text('What depends on this table.',
+              style: TextStyle(color: _textLo, fontSize: 10.5)),
+          const SizedBox(height: 6),
+          for (final r in info.referencedBy)
+            _relationRow(
+              from: '${r.table}.${r.column}',
+              arrow: '←',
+              target: _table.name,
+              ref: r,
+              highlightSource: true,
+            ),
+        ],
+      ],
+    );
+  }
+
+  Widget _relationRow({
+    required String from,
+    required String arrow,
+    required String target,
+    required ColumnRef ref,
+    bool highlightSource = false,
+  }) =>
+      HoverButton(
+        onPressed: () => _goTo(ref),
+        builder: (context, states) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          margin: const EdgeInsets.only(bottom: 3),
+          decoration: BoxDecoration(
+            color: states.isHovered ? const Color(0x14FFFFFF) : _bg,
+            border: Border.all(color: _hair),
+            borderRadius: BorderRadius.circular(3),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  from,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      color: highlightSource ? _fk : _text,
+                      fontSize: 11.5,
+                      fontFamily: 'monospace'),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Text(arrow,
+                    style: const TextStyle(color: _textLo, fontSize: 11.5)),
+              ),
+              Expanded(
+                child: Text(
+                  target,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      color: highlightSource ? _text : _fk,
+                      fontSize: 11.5,
+                      fontFamily: 'monospace'),
+                ),
+              ),
+              Icon(FluentIcons.chevron_right,
+                  size: 8,
+                  color: states.isHovered ? _accent : _textLo),
+            ],
+          ),
+        ),
+      );
 
   Widget _ddlTab(_Info info) {
     if (info.ddl.isEmpty) {
@@ -648,7 +791,6 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
             // the count immediately raises.
             onPressed: () => setState(() {
               _typeFilter = e.key;
-              _fkOnly = false;
               _tab = 1;
             }),
             builder: (context, states) => Container(
@@ -674,6 +816,35 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
   /// Active Columns-tab filters.
   String? _typeFilter;
   bool _fkOnly = false;
+
+  /// Follow a relation, in place.
+  void _goTo(ColumnRef ref) {
+    final next = TableInfo(
+      name: ref.table,
+      kind: ObjectKind.table,
+      schema: ref.schema.isEmpty ? _table.schema : ref.schema,
+    );
+    if (next.name == _table.name && next.schema == _table.schema) return;
+    setState(() {
+      _back.add(_table);
+      _table = next;
+      _info = _load();
+      _exactRows = null;
+      _typeFilter = null;
+      _fkOnly = false;
+    });
+  }
+
+  void _goBack() {
+    if (_back.isEmpty) return;
+    setState(() {
+      _table = _back.removeLast();
+      _info = _load();
+      _exactRows = null;
+      _typeFilter = null;
+      _fkOnly = false;
+    });
+  }
 
   ColumnEditorKind _kindForType(String dataType) =>
       ColumnEditorResolver(widget.engine)
