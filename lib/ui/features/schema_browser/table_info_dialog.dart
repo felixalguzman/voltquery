@@ -377,10 +377,28 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
               ),
               const SizedBox(width: 8),
               Expanded(
+                child: _stat('Foreign keys', '${fks.length}',
+                    // Distinct parents matter more than the raw column count:
+                    // three columns pointing at one table is one dependency.
+                    sub: fks.isEmpty
+                        ? null
+                        : '${_distinctTargets(fks)} table'
+                            '${_distinctTargets(fks) == 1 ? "" : "s"}'),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _stat('Indexes', '${info.indexes.length}',
+                    sub: info.indexes.isEmpty
+                        ? null
+                        : '${info.indexes.where((i) => i.unique).length} '
+                            'unique'),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
                 child: _stat('Size', _bytes(info.stats.totalBytes),
                     sub: info.stats.indexBytes == null
                         ? null
-                        : '${_bytes(info.stats.indexBytes)} indexes'),
+                        : '${_bytes(info.stats.indexBytes)} idx'),
               ),
             ],
           ),
@@ -529,6 +547,10 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
   }
 
   static const _colors = SqlTypeColors.dark;
+
+  /// How many *distinct* tables this one points at.
+  static int _distinctTargets(List<ColumnInfo> fks) =>
+      fks.map((c) => c.references?.table ?? '').toSet().length;
 
   /// Semantic kind for a column, via the same resolver that drives the grid's
   /// editors — so the colour and the editor always agree about what a type is.

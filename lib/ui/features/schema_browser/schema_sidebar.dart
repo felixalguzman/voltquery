@@ -519,11 +519,13 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
     final label = _labelOf(root) ?? '';
     return GestureDetector(
       // Tapping collapses it — the reason you were scrolling back up.
+      //
+      // Via the controller: setting `item.expanded` directly changes the model
+      // without telling the TreeView to rebuild, so the tree stayed open and
+      // only this header reacted.
       onTap: () {
-        setState(() {
-          root.expanded = false;
-          _stickyRoot = null;
-        });
+        _controller.collapseItem(root);
+        setState(() => _stickyRoot = null);
       },
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
