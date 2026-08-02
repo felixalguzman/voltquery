@@ -177,8 +177,14 @@ void main() {
     container.read(schemaFilterProvider.notifier).set('der');
     await tester.pumpAndSettle();
 
-    expect(find.text('orders'), findsOneWidget);
-    expect(find.text('order_items'), findsOneWidget);
+    // Scoped to hit titles: a column hit also prints its owning table as the
+    // trailing label, so a bare find.text would count that too.
+    Finder hitTitled(String name) => find.descendant(
+          of: find.byType(HoverButton),
+          matching: find.text(name),
+        );
+    expect(hitTitled('orders'), findsWidgets);
+    expect(hitTitled('order_items'), findsWidgets);
     expect(find.text('customers'), findsNothing);
     expect(find.text('products'), findsNothing);
 
@@ -189,7 +195,7 @@ void main() {
     expect(find.text('customers'), findsOneWidget);
   });
 
-  testWidgets('the filter says so when nothing loaded matches',
+  testWidgets('a filter with no local match says so once the catalog agrees',
       (tester) async {
     final container = await _pumpApp(tester);
 
@@ -197,9 +203,27 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('No match'), findsOneWidget);
-    // The disclaimer matters: an empty result must not imply the column is
-    // absent from the database, only from what has been loaded.
-    expect(find.textContaining('loaded tables only'), findsOneWidget);
+  });
+
+  testWidgets('the filter escalates to the catalog for unloaded columns',
+      (tester) async {
+    final container = await _pumpApp(tester);
+
+    // `sku` lives on `products`, which has never been expanded — so it is not
+    // in the tree's loaded model and the local pass finds nothing. The catalog
+    // leg is the only thing that can answer, which is the whole point: the
+    // filter used to dead-end at "no match in what is loaded".
+    container.read(schemaFilterProvider.notifier).set('sku');
+    await tester.pumpAndSettle();
+
+    expect(find.text('ELSEWHERE IN DB'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(HoverButton),
+        matching: find.text('sku'),
+      ),
+      findsWidgets,
+    );
   });
 
   testWidgets('a filtered column hit opens its table', (tester) async {

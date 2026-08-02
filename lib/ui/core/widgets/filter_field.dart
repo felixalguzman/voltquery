@@ -134,56 +134,56 @@ class _FilterFieldState extends State<FilterField> {
         // sensible meaning.
         const SingleActivator(LogicalKeyboardKey.escape): _clear,
       },
-      child: Container(
+      // One border, drawn by the TextBox itself. Wrapping it in a bordered
+      // Container nested two rounded rectangles inside each other, which read
+      // as a rendering bug rather than a field.
+      child: SizedBox(
         height: 24,
-        padding: const EdgeInsets.symmetric(horizontal: 6),
-        decoration: BoxDecoration(
-          color: _bg,
-          border: Border.all(color: active ? _accent : _hair),
-          borderRadius: BorderRadius.circular(3),
-        ),
-        child: Row(children: [
-          Icon(FluentIcons.filter,
-              size: 10, color: active ? _accent : _textLo),
-          const SizedBox(width: 6),
-          Expanded(
-            child: TextBox(
-              controller: _controller,
-              focusNode: _focus,
-              autofocus: widget.autofocus,
-              placeholder: widget.placeholder,
-              onChanged: widget.onChanged,
-              // Strip the TextBox's own chrome — the Container above is the
-              // visible field, and nesting two borders looks like a bug.
-              decoration: const WidgetStatePropertyAll(BoxDecoration()),
-              foregroundDecoration:
-                  const WidgetStatePropertyAll(BoxDecoration()),
-              padding: EdgeInsets.zero,
-              style: const TextStyle(color: _text, fontSize: 11.5),
-              placeholderStyle:
-                  const TextStyle(color: _textLo, fontSize: 11.5),
-            ),
+        child: TextBox(
+          controller: _controller,
+          focusNode: _focus,
+          autofocus: widget.autofocus,
+          placeholder: widget.placeholder,
+          onChanged: widget.onChanged,
+          style: const TextStyle(color: _text, fontSize: 11.5),
+          placeholderStyle: const TextStyle(color: _textLo, fontSize: 11.5),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          decoration: WidgetStatePropertyAll(BoxDecoration(
+            color: _bg,
+            border: Border.all(color: active ? _accent : _hair),
+            borderRadius: BorderRadius.circular(3),
+          )),
+          // fluent draws a second, thicker underline on focus; the border
+          // above already says "focused".
+          foregroundDecoration: const WidgetStatePropertyAll(BoxDecoration()),
+          prefix: Padding(
+            padding: const EdgeInsets.only(left: 6),
+            child: Icon(FluentIcons.filter,
+                size: 9, color: active ? _accent : _textLo),
           ),
-          if (active) ...[
-            if (widget.matchCount != null)
-              Padding(
-                padding: const EdgeInsets.only(left: 4, right: 2),
-                child: Text('${widget.matchCount}',
-                    style: const TextStyle(
-                        color: _textLo,
-                        fontSize: 10,
-                        fontFamily: 'monospace')),
-              ),
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: _clear,
-              child: const Padding(
-                padding: EdgeInsets.only(left: 2),
-                child: Icon(FluentIcons.clear, size: 8, color: _textLo),
-              ),
-            ),
-          ],
-        ]),
+          // A bare gesture target, not an IconButton: fluent's button carries
+          // minimum-size constraints that overflow a 24px field.
+          suffix: active
+              ? GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _clear,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      if (widget.matchCount != null) ...[
+                        Text('${widget.matchCount}',
+                            style: const TextStyle(
+                                color: _textLo,
+                                fontSize: 10,
+                                fontFamily: 'monospace')),
+                        const SizedBox(width: 5),
+                      ],
+                      const Icon(FluentIcons.clear, size: 8, color: _textLo),
+                    ]),
+                  ),
+                )
+              : null,
+        ),
       ),
     );
   }
