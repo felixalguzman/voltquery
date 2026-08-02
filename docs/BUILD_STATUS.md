@@ -188,7 +188,7 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 - **Theming**: inline "Clean Dev-Tool" tokens (dark, cyan accent) — not yet in
   `ui/core/theme` (still TODO per #7).
 
-**322 tests** green (`flutter test`); `flutter analyze` clean.
+**323 tests** green (`flutter test`); `flutter analyze` clean.
 
 ## Deferred / known gaps
 

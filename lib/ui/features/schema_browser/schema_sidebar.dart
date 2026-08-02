@@ -943,13 +943,19 @@ class _FilterHit extends StatelessWidget {
         child: Row(children: [
           Icon(icon, size: 11, color: _textMid),
           const SizedBox(width: 8),
-          Flexible(
+          // Expanded, not Flexible: two Flexible children split the row evenly,
+          // so the name was ellipsising at half width while the schema label
+          // sat in space it didn't need. A Row lays inflexible children out
+          // first, so the schema takes what it needs (capped) and the name gets
+          // everything that's left.
+          Expanded(
             child:
                 Text(label, overflow: TextOverflow.ellipsis, style: _mono),
           ),
           if (trailing != null && trailing!.isNotEmpty) ...[
             const SizedBox(width: 8),
-            Flexible(
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 120),
               child: Text(
                 trailing!,
                 overflow: TextOverflow.ellipsis,
