@@ -137,7 +137,9 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
           actions: [
             MenuAction('Copy Name', () => _copy(s.name), icon: FluentIcons.copy)
           ],
-          child: Text(s.name, style: _mono),
+          child: _row(
+            Text(s.name, overflow: TextOverflow.ellipsis, style: _mono),
+          ),
         ),
         lazy: true,
         value: _Loader(() async => _objectItems(await widget.repo.tables(s))),
@@ -174,7 +176,7 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
             MenuAction('Table Info…', () => _showInfo(t),
                 icon: FluentIcons.info),
           ],
-          child: Builder(builder: (context) {
+          child: _row(Builder(builder: (context) {
             // The table you last opened stays marked, so after scrolling a few
             // hundred rows you can still see where you were.
             final isCurrent = _lastOpened == _keyOf(t);
@@ -186,7 +188,7 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
                       color: _accent, fontWeight: FontWeight.w600)
                   : _mono,
             );
-          }),
+          })),
         ),
         lazy: true,
         // Columns show immediately on expand; indexes hang under a lazy folder.
@@ -234,6 +236,17 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
     }
     return null;
   }
+
+  /// Uniform vertical padding for every tree row.
+  ///
+  /// Two reasons beyond comfort: a dense list of near-identical names is hard
+  /// to track a line through, and the sticky header maps scroll offset to a row
+  /// index — which only works while every row is the same height. That's also
+  /// why every label ellipsizes rather than wrapping.
+  static Widget _row(Widget child) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        child: child,
+      );
 
   // --- Context-menu actions --------------------------------------------------
 
@@ -322,7 +335,7 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
                     icon: FluentIcons.link,
                   ),
               ],
-              child: LayoutBuilder(builder: (context, cons) {
+              child: _row(LayoutBuilder(builder: (context, cons) {
                 return Row(children: [
                   ConstrainedBox(
                     constraints: BoxConstraints(maxWidth: cons.maxWidth * 0.55),
@@ -358,7 +371,7 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
                             fontFamily: 'monospace')),
                   ),
                 ]);
-              }),
+              })),
             ),
           ),
       ];
@@ -366,9 +379,9 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
   /// The lazy "Indexes" group under a table/view.
   TreeViewItem _indexesFolder(TableInfo t) => TreeViewItem(
         leading: const Icon(FluentIcons.folder, size: 12, color: _textLo),
-        content: const Text('Indexes',
+        content: _row(const Text('Indexes',
             style: TextStyle(
-                color: _textMid, fontSize: 11.5, letterSpacing: 0.3)),
+                color: _textMid, fontSize: 11.5, letterSpacing: 0.3))),
         lazy: true,
         value:
             _Loader(() async => _indexItems(t, await widget.repo.indexes(t))),
@@ -389,7 +402,7 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
                     () => _copyDdl(() => widget.repo.indexDdl(t, ix)),
                     icon: FluentIcons.code),
               ],
-              child: Row(children: [
+              child: _row(Row(children: [
                 Flexible(
                   child: Text(ix.name,
                       overflow: TextOverflow.ellipsis,
@@ -410,7 +423,7 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
                           fontSize: 10.5,
                           fontFamily: 'monospace')),
                 ),
-              ]),
+              ])),
             ),
           ),
       ];
@@ -498,7 +511,9 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
   /// Rows are a fixed height in fluent's TreeView, so the node at the top of the
   /// viewport is just an index into the flattened visible list — no layout
   /// measurement needed.
-  static const _rowHeight = 28.0;
+  /// Matches the padding in [_row] plus fluent's own row chrome. Uniform by
+  /// construction — labels ellipsize, so nothing wraps to a second line.
+  static const _rowHeight = 38.0;
 
   void _updateSticky(double pixels) {
     final roots = _roots;
