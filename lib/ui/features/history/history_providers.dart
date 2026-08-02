@@ -3,6 +3,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../data/repositories/history_repository.dart';
 import '../../../data/services/local_store.dart';
 import '../../../domain/models/history_entry.dart';
+import '../../core/widgets/filter_field.dart';
 
 part 'history_providers.g.dart';
 
@@ -35,4 +36,17 @@ class HideGeneratedHistory extends _$HideGeneratedHistory {
   bool build() => false;
 
   void toggle() => state = !state;
+}
+
+/// The history panel's filter box: whether it's showing, and its text. Matches
+/// against the SQL.
+@riverpod
+class HistoryFilter extends _$HistoryFilter {
+  @override
+  FilterState build() => const FilterState();
+
+  void set(String value) => state = FilterState(open: true, text: value);
+
+  void toggle() => state =
+      state.open ? const FilterState() : const FilterState(open: true);
 }

@@ -61,6 +61,7 @@ class SectionHeader extends StatelessWidget {
                     letterSpacing: 1.4,
                     fontWeight: FontWeight.w600)),
           ),
+          const SizedBox(width: 4),
           ...actions,
         ],
       ),

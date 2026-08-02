@@ -225,3 +225,65 @@ abstract class _$HideGeneratedHistory extends $Notifier<bool> {
     return element.handleCreate(ref, build);
   }
 }
+
+/// The history panel's filter box: whether it's showing, and its text. Matches
+/// against the SQL.
+
+@ProviderFor(HistoryFilter)
+final historyFilterProvider = HistoryFilterProvider._();
+
+/// The history panel's filter box: whether it's showing, and its text. Matches
+/// against the SQL.
+final class HistoryFilterProvider
+    extends $NotifierProvider<HistoryFilter, FilterState> {
+  /// The history panel's filter box: whether it's showing, and its text. Matches
+  /// against the SQL.
+  HistoryFilterProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'historyFilterProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$historyFilterHash();
+
+  @$internal
+  @override
+  HistoryFilter create() => HistoryFilter();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(FilterState value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<FilterState>(value),
+    );
+  }
+}
+
+String _$historyFilterHash() => r'f8e6549220c50f5eb66e5d785df430e89fe290b0';
+
+/// The history panel's filter box: whether it's showing, and its text. Matches
+/// against the SQL.
+
+abstract class _$HistoryFilter extends $Notifier<FilterState> {
+  FilterState build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<FilterState, FilterState>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<FilterState, FilterState>,
+              FilterState,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}

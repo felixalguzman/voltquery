@@ -8,6 +8,7 @@ import '../../../domain/models/schema.dart';
 import '../../core/theme/sql_type_colors.dart';
 import '../../../domain/sql/sql_statement_splitter.dart';
 import '../../core/menu/context_menu.dart';
+import '../../core/widgets/filter_field.dart';
 import '../../core/widgets/section_header.dart';
 import '../query_workspace/worksheet_providers.dart';
 import '../settings/settings_providers.dart';
@@ -48,6 +49,12 @@ class SchemaSidebar extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _header(ref),
+          if (!collapsed)
+            FilterRow(
+              state: ref.watch(schemaFilterProvider),
+              placeholder: 'Filter tables, columns…',
+              onChanged: ref.read(schemaFilterProvider.notifier).set,
+            ),
           Expanded(
             child: repo.when(
               loading: () => const _Spinner(),
@@ -61,17 +68,25 @@ class SchemaSidebar extends ConsumerWidget {
     );
   }
 
-  Widget _header(WidgetRef ref) => SectionHeader(
-        title: 'SCHEMA',
-        collapsed: collapsed,
-        onToggle: onToggle,
-        actions: [
-          IconButton(
-            icon: const Icon(FluentIcons.refresh, size: 12, color: _textMid),
-            onPressed: () => ref.invalidate(schemaRepositoryProvider),
-          ),
-        ],
-      );
+  Widget _header(WidgetRef ref) {
+    final filter = ref.watch(schemaFilterProvider);
+    return SectionHeader(
+      title: 'SCHEMA',
+      collapsed: collapsed,
+      onToggle: onToggle,
+      actions: [
+        IconButton(
+          icon: Icon(FluentIcons.filter,
+              size: 12, color: filter.open ? _accent : _textMid),
+          onPressed: ref.read(schemaFilterProvider.notifier).toggle,
+        ),
+        IconButton(
+          icon: const Icon(FluentIcons.refresh, size: 12, color: _textMid),
+          onPressed: () => ref.invalidate(schemaRepositoryProvider),
+        ),
+      ],
+    );
+  }
 }
 
 /// Carried in each expandable node's `value`: how to load its children, and a
@@ -94,6 +109,16 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
   final _controller = TreeViewController();
   List<TreeViewItem>? _roots;
   Object? _error;
+
+  /// A flat model of everything the tree has loaded, kept alongside the
+  /// `TreeViewItem`s so the filter has something to match against.
+  ///
+  /// The items themselves are widgets — matching would mean reading text back
+  /// out of them. And rebuilding the tree per keystroke would throw away every
+  /// lazy load and expansion, so filtering renders a **separate flat list**
+  /// instead and leaves the tree untouched underneath.
+  final _objects = <String, TableInfo>{};
+  final _columns = <String, List<ColumnInfo>>{};
 
   @override
   void initState() {
@@ -139,12 +164,17 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
         onExpandToggle: _onExpand,
       );
 
-  List<TreeViewItem> _objectItems(List<TableInfo> all) => [
-        for (final t in all.where((t) => t.kind == ObjectKind.table))
-          _objectItem(t, FluentIcons.table),
-        for (final t in all.where((t) => t.kind == ObjectKind.view))
-          _objectItem(t, FluentIcons.page),
-      ];
+  List<TreeViewItem> _objectItems(List<TableInfo> all) {
+    for (final t in all) {
+      _objects[_keyOf(t)] = t;
+    }
+    return [
+      for (final t in all.where((t) => t.kind == ObjectKind.table))
+        _objectItem(t, FluentIcons.table),
+      for (final t in all.where((t) => t.kind == ObjectKind.view))
+        _objectItem(t, FluentIcons.page),
+    ];
+  }
 
   TreeViewItem _objectItem(TableInfo t, IconData icon) => TreeViewItem(
         // fluent hardcodes its expander chevron at 8px, which is a very small
@@ -185,10 +215,11 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
         ),
         lazy: true,
         // Columns show immediately on expand; indexes hang under a lazy folder.
-        value: _Loader(() async => [
-              ..._columnItems(await widget.repo.columns(t)),
-              _indexesFolder(t),
-            ]),
+        value: _Loader(() async {
+          final cols = await widget.repo.columns(t);
+          _columns[_keyOf(t)] = cols;
+          return [..._columnItems(cols), _indexesFolder(t)];
+        }),
         onInvoked: (item, reason) async {
           // The chevron also fires onInvoked(expandToggle) — ignore that; only a
           // row press opens the table (preview = seed + run).
@@ -472,12 +503,80 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
     }
   }
 
+  /// Objects and loaded columns matching [filter], objects first.
+  ///
+  /// **Only what's loaded.** Columns of a table you've never expanded aren't in
+  /// memory, and going to the server per keystroke is the global search
+  /// dialog's job, not this box's. The footer says so rather than letting an
+  /// empty result imply the column doesn't exist.
+  (List<TableInfo>, List<(TableInfo, ColumnInfo)>) _matches(String filter) {
+    final objects = <TableInfo>[];
+    final columns = <(TableInfo, ColumnInfo)>[];
+    for (final entry in _objects.entries) {
+      final t = entry.value;
+      if (matchesFilter(t.name, filter)) objects.add(t);
+      for (final c in _columns[entry.key] ?? const <ColumnInfo>[]) {
+        if (matchesFilter(c.name, filter)) columns.add((t, c));
+      }
+    }
+    objects.sort((a, b) => a.name.compareTo(b.name));
+    columns.sort((a, b) {
+      final byTable = a.$1.name.compareTo(b.$1.name);
+      return byTable != 0 ? byTable : a.$2.name.compareTo(b.$2.name);
+    });
+    return (objects, columns);
+  }
+
+  Widget _filtered(String filter) {
+    final (objects, columns) = _matches(filter);
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      children: [
+        if (objects.isEmpty && columns.isEmpty)
+          const _Message('No match in what is loaded.', color: _textLo),
+        for (final t in objects)
+          _FilterHit(
+            icon: t.kind == ObjectKind.view ? FluentIcons.page : FluentIcons.table,
+            label: t.name,
+            onTap: () => _openTable(t, run: true),
+          ),
+        for (final (t, c) in columns)
+          _FilterHit(
+            icon: c.isPrimaryKey
+                ? FluentIcons.permissions
+                : c.isForeignKey
+                    ? FluentIcons.link
+                    : FluentIcons.circle_ring,
+            label: c.name,
+            // The table is what makes a column name meaningful — `id` on its
+            // own tells you nothing.
+            trailing: t.name,
+            onTap: () => _openTable(t, run: true),
+          ),
+        // Shown even with zero hits — that's precisely when an empty list
+        // would otherwise imply the column isn't in the database at all.
+        const Padding(
+          padding: EdgeInsets.fromLTRB(12, 8, 12, 4),
+          child: Text(
+            'Searching loaded tables only. Expand a table to include its '
+            'columns.',
+            style: TextStyle(color: _textLo, fontSize: 10, height: 1.3),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_error != null) return _Message('$_error', color: _err);
     final roots = _roots;
     if (roots == null) return const _Spinner();
     if (roots.isEmpty) return const _Message('(empty schema)', color: _textLo);
+
+    final filter = ref.watch(schemaFilterProvider);
+    if (filter.active) return _filtered(filter.text);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -631,6 +730,56 @@ class _ExpandTap extends StatelessWidget {
         // Fills the leading slot so the whole icon area is clickable, not just
         // the glyph.
         child: Center(child: child),
+      ),
+    );
+  }
+}
+
+/// One row in the filtered flat list. Deliberately not a `TreeViewItem` —
+/// filtering renders its own list so the tree underneath keeps every lazy load
+/// and expansion it had, and comes back untouched when the box is cleared.
+class _FilterHit extends StatelessWidget {
+  const _FilterHit({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.trailing,
+  });
+
+  final IconData icon;
+  final String label;
+
+  /// The owning table, for a column hit.
+  final String? trailing;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return HoverButton(
+      onPressed: onTap,
+      builder: (context, states) => Container(
+        color: states.isHovered ? const Color(0x142FE6FF) : null,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Row(children: [
+          Icon(icon, size: 11, color: _textMid),
+          const SizedBox(width: 8),
+          Flexible(
+            child:
+                Text(label, overflow: TextOverflow.ellipsis, style: _mono),
+          ),
+          if (trailing != null) ...[
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                trailing!,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                    color: _textLo, fontSize: 10.5, fontFamily: 'monospace'),
+              ),
+            ),
+          ],
+        ]),
       ),
     );
   }
