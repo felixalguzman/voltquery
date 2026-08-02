@@ -53,4 +53,31 @@ abstract interface class SchemaIntrospector {
   /// `sqlite_master` (auto-indexes have no stored SQL → reconstructed);
   /// MySQL reconstructs from the index's columns.
   Future<String> indexDdl(TableInfo table, IndexInfo index);
+
+  /// Tables, views and **columns** whose name contains [pattern], anywhere in
+  /// the database this session is connected to.
+  ///
+  /// This is what the sidebar's filter deliberately isn't: the filter matches
+  /// what the tree has already loaded, which on a schema with hundreds of
+  /// tables is almost nothing. Answering "which table has `secuencia_factura`?"
+  /// means asking the catalog.
+  ///
+  /// **Substring, case-insensitive** — same rule as the inline filter, since
+  /// real names are prefix-heavy. [limit] caps the result: a one-letter query
+  /// against `information_schema.columns` would otherwise return tens of
+  /// thousands of rows to render into a dialog nobody scrolls.
+  ///
+  /// Catalog-only, like [tableStats] — it runs per keystroke (debounced), so it
+  /// may never touch user tables.
+  ///
+  /// [scope] narrows what is asked for. It is a query parameter rather than a
+  /// filter on the way out because [limit] is shared: object hits are collected
+  /// first, so on a broad pattern they can fill the budget and leave no room
+  /// for columns. Asking for columns only is the difference between finding
+  /// yours and not.
+  Future<List<SchemaSearchHit>> search(
+    String pattern, {
+    int limit = 200,
+    SearchScope scope = SearchScope.all,
+  });
 }

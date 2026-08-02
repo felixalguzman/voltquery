@@ -335,6 +335,76 @@ class _MysqlIntrospector implements SchemaIntrospector {
   }
 
   @override
+  Future<List<SchemaSearchHit>> search(
+    String pattern, {
+    int limit = 200,
+    SearchScope scope = SearchScope.all,
+  }) async {
+    if (pattern.trim().isEmpty) return const [];
+    final like = '%${_escapeLike(pattern)}%';
+
+    // Across **every** user database, not just the session's: MySQL's schema
+    // level *is* the database, the tree browses all of them, and "which
+    // database has this table" is half the question being asked.
+    const notSystem = "table_schema NOT IN "
+        "('information_schema', 'mysql', 'performance_schema', 'sys')";
+
+    final objects = await _conn.execute(
+      'SELECT table_schema, table_name, table_type '
+      'FROM information_schema.tables '
+      "WHERE $notSystem AND table_name LIKE :p ESCAPE '\\\\' "
+      'ORDER BY table_schema, table_name LIMIT $limit',
+      {'p': like},
+    );
+    final hits = [
+      for (final r in objects.rows)
+        SchemaSearchHit(
+          kind: r.colAt(2) == 'VIEW' ? SchemaHitKind.view : SchemaHitKind.table,
+          name: r.colAt(1) ?? '',
+          table: TableInfo(
+            name: r.colAt(1) ?? '',
+            kind: r.colAt(2) == 'VIEW' ? ObjectKind.view : ObjectKind.table,
+            schema: r.colAt(0) ?? '',
+          ),
+        ),
+    ];
+
+    final remaining = limit - hits.length;
+    if (remaining <= 0 || !scope.includesColumns) return hits;
+    final columns = await _conn.execute(
+      'SELECT c.table_schema, c.table_name, c.column_name, c.column_type, '
+      '       t.table_type '
+      'FROM information_schema.columns c '
+      'JOIN information_schema.tables t '
+      '  ON t.table_schema = c.table_schema AND t.table_name = c.table_name '
+      "WHERE c.$notSystem AND c.column_name LIKE :p ESCAPE '\\\\' "
+      'ORDER BY c.table_schema, c.table_name, c.ordinal_position '
+      'LIMIT $remaining',
+      {'p': like},
+    );
+    hits.addAll([
+      for (final r in columns.rows)
+        SchemaSearchHit(
+          kind: SchemaHitKind.column,
+          name: r.colAt(2) ?? '',
+          dataType: r.colAt(3),
+          table: TableInfo(
+            name: r.colAt(1) ?? '',
+            kind: r.colAt(4) == 'VIEW' ? ObjectKind.view : ObjectKind.table,
+            schema: r.colAt(0) ?? '',
+          ),
+        ),
+    ]);
+    return hits;
+  }
+
+  /// `\` escapes LIKE's wildcards; the escape char itself has to go first.
+  static String _escapeLike(String raw) => raw
+      .replaceAll('\\', '\\\\')
+      .replaceAll('%', '\\%')
+      .replaceAll('_', '\\_');
+
+  @override
   Future<String> indexDdl(TableInfo table, IndexInfo index) async {
     // MySQL has no SHOW CREATE INDEX — reconstruct from the index's columns.
     final cols = index.columns.map(_ident).join(', ');

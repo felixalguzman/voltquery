@@ -56,6 +56,20 @@ class HistoryRepository {
         .go();
   }
 
+  /// Entries whose SQL contains [pattern], newest first.
+  ///
+  /// Goes to the database rather than filtering `watchRecent`'s 50: the sidebar
+  /// shows a window, and "when did I last touch this table?" is usually about
+  /// something older than that.
+  Future<List<HistoryEntry>> search(String pattern, {int limit = 50}) async {
+    if (pattern.trim().isEmpty) return const [];
+    final q = _db.select(_db.historyRows)
+      ..where((t) => t.sql.lower().contains(pattern.toLowerCase()))
+      ..orderBy([(t) => OrderingTerm.desc(t.startedAt)])
+      ..limit(limit);
+    return (await q.get()).map(_toDomain).toList();
+  }
+
   Stream<List<HistoryEntry>> watchRecent(int limit) {
     final q = _db.select(_db.historyRows)
       ..orderBy([(t) => OrderingTerm.desc(t.startedAt)])

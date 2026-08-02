@@ -452,6 +452,86 @@ class _PostgresIntrospector implements SchemaIntrospector {
   }
 
   @override
+  Future<List<SchemaSearchHit>> search(
+    String pattern, {
+    int limit = 200,
+    SearchScope scope = SearchScope.all,
+  }) async {
+    if (pattern.trim().isEmpty) return const [];
+    // ILIKE for case-insensitivity; wildcards escaped so `ven_factura` means a
+    // literal underscore rather than any character.
+    final like = '%${_escapeLike(pattern)}%';
+
+    // System schemas are noise here — nobody searching their own database
+    // wants `pg_catalog.pg_attribute` in the results.
+    const notSystem =
+        "table_schema NOT IN ('pg_catalog', 'information_schema')";
+
+    final objects = !scope.includesObjects
+        ? const []
+        : await _conn.execute(
+      pg.Sql.named('SELECT table_schema, table_name, table_type '
+          'FROM information_schema.tables '
+          "WHERE $notSystem AND table_name ILIKE @p ESCAPE '\\' "
+          'ORDER BY table_schema, table_name LIMIT @l'),
+      parameters: {'p': like, 'l': limit},
+    );
+    final hits = [
+      for (final row in objects)
+        SchemaSearchHit(
+          kind: (row[2] as String) == 'VIEW'
+              ? SchemaHitKind.view
+              : SchemaHitKind.table,
+          name: row[1] as String,
+          table: TableInfo(
+            name: row[1] as String,
+            kind: (row[2] as String) == 'VIEW'
+                ? ObjectKind.view
+                : ObjectKind.table,
+            schema: row[0] as String,
+          ),
+        ),
+    ];
+
+    final remaining = limit - hits.length;
+    if (remaining <= 0 || !scope.includesColumns) return hits;
+    final columns = await _conn.execute(
+      pg.Sql.named('SELECT c.table_schema, c.table_name, c.column_name, '
+          '       c.data_type, t.table_type '
+          'FROM information_schema.columns c '
+          'JOIN information_schema.tables t '
+          '  ON t.table_schema = c.table_schema '
+          ' AND t.table_name = c.table_name '
+          "WHERE c.$notSystem AND c.column_name ILIKE @p ESCAPE '\\' "
+          'ORDER BY c.table_schema, c.table_name, c.ordinal_position '
+          'LIMIT @l'),
+      parameters: {'p': like, 'l': remaining},
+    );
+    hits.addAll([
+      for (final row in columns)
+        SchemaSearchHit(
+          kind: SchemaHitKind.column,
+          name: row[2] as String,
+          dataType: row[3] as String?,
+          table: TableInfo(
+            name: row[1] as String,
+            kind: (row[4] as String) == 'VIEW'
+                ? ObjectKind.view
+                : ObjectKind.table,
+            schema: row[0] as String,
+          ),
+        ),
+    ]);
+    return hits;
+  }
+
+  /// `\` escapes LIKE's wildcards; the escape char itself has to go first.
+  static String _escapeLike(String raw) => raw
+      .replaceAll('\\', '\\\\')
+      .replaceAll('%', '\\%')
+      .replaceAll('_', '\\_');
+
+  @override
   Future<String> indexDdl(TableInfo table, IndexInfo index) async {
     final schemaName = table.schema.isEmpty ? 'public' : table.schema;
     final qualified = '${_ident(schemaName)}.${_ident(index.name)}';
