@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +13,7 @@ import '../../core/menu/context_menu.dart';
 import '../../core/widgets/filter_field.dart';
 import '../../core/widgets/section_header.dart';
 import '../query_workspace/worksheet_providers.dart';
+import '../search/search_providers.dart';
 import '../settings/settings_providers.dart';
 import 'schema_providers.dart';
 import 'schema_repository.dart';
@@ -120,6 +123,63 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
   final _objects = <String, TableInfo>{};
   final _columns = <String, List<ColumnInfo>>{};
 
+  /// The catalog leg of the filter.
+  ///
+  /// The inline filter used to stop at "no match in what is loaded", which is a
+  /// dead end when almost nothing is loaded — the honest answer to "is there a
+  /// `venta` table?" needs the catalog. So the box now escalates by itself
+  /// instead of asking you to go open a different dialog.
+  List<SchemaSearchHit> _remoteHits = const [];
+  Object? _remoteError;
+  bool _remoteBusy = false;
+  String _remoteQuery = '';
+  Timer? _remoteDebounce;
+
+  /// Longer than the search dialog's: here the local hits are already on
+  /// screen, so the catalog leg is a follow-up rather than the whole answer,
+  /// and it can afford to wait for you to stop typing.
+  static const _remoteDelay = Duration(milliseconds: 300);
+
+  void _scheduleRemote(String query) {
+    if (query == _remoteQuery) return;
+    _remoteQuery = query;
+    _remoteDebounce?.cancel();
+    if (query.length < kMinSearchLength) {
+      if (_remoteHits.isNotEmpty || _remoteBusy || _remoteError != null) {
+        setState(() {
+          _remoteHits = const [];
+          _remoteBusy = false;
+          _remoteError = null;
+        });
+      }
+      return;
+    }
+    setState(() {
+      _remoteBusy = true;
+      _remoteError = null;
+    });
+    _remoteDebounce = Timer(_remoteDelay, () => _runRemote(query));
+  }
+
+  Future<void> _runRemote(String query) async {
+    try {
+      final hits = await widget.repo.search(query, limit: 60);
+      // A slower earlier query must not overwrite a newer one's results.
+      if (!mounted || query != _remoteQuery) return;
+      setState(() {
+        _remoteHits = hits;
+        _remoteBusy = false;
+      });
+    } catch (e) {
+      if (!mounted || query != _remoteQuery) return;
+      setState(() {
+        _remoteError = e;
+        _remoteHits = const [];
+        _remoteBusy = false;
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -128,6 +188,7 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
 
   @override
   void dispose() {
+    _remoteDebounce?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -505,10 +566,8 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
 
   /// Objects and loaded columns matching [filter], objects first.
   ///
-  /// **Only what's loaded.** Columns of a table you've never expanded aren't in
-  /// memory, and going to the server per keystroke is the global search
-  /// dialog's job, not this box's. The footer says so rather than letting an
-  /// empty result imply the column doesn't exist.
+  /// Instant, because it only looks at what the tree already has. Anything
+  /// beyond that comes from [_remoteHits], which asks the catalog.
   (List<TableInfo>, List<(TableInfo, ColumnInfo)>) _matches(String filter) {
     final objects = <TableInfo>[];
     final columns = <(TableInfo, ColumnInfo)>[];
@@ -529,17 +588,37 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
 
   Widget _filtered(String filter) {
     final (objects, columns) = _matches(filter);
+    // What the catalog found that isn't already above — keyed so a table the
+    // tree has loaded isn't listed twice.
+    final seen = {
+      for (final t in objects) 'o:${_keyOf(t)}',
+      for (final (t, c) in columns) 'c:${_keyOf(t)}.${c.name}',
+    };
+    final remote = [
+      for (final h in _remoteHits)
+        if (!seen.contains(h.isColumn
+            ? 'c:${h.table.schema}.${h.table.name}.${h.name}'
+            : 'o:${h.table.schema}.${h.table.name}'))
+          h,
+    ];
+
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 4),
       children: [
-        if (objects.isEmpty && columns.isEmpty)
-          const _Message('No match in what is loaded.', color: _textLo),
+        // Same grouping the search dialog uses, so the two read alike rather
+        // than as two different features that happen to match names.
+        if (objects.isNotEmpty) _group('TABLES & VIEWS', objects.length),
         for (final t in objects)
           _FilterHit(
             icon: t.kind == ObjectKind.view ? FluentIcons.page : FluentIcons.table,
             label: t.name,
+            // Search has no sticky root header to say which schema you're
+            // inside, so every hit carries its own.
+            trailing: t.schema,
+            actions: _objectActions(t),
             onTap: () => _openTable(t, run: true),
           ),
+        if (columns.isNotEmpty) _group('COLUMNS', columns.length),
         for (final (t, c) in columns)
           _FilterHit(
             icon: c.isPrimaryKey
@@ -550,22 +629,104 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
             label: c.name,
             // The table is what makes a column name meaningful — `id` on its
             // own tells you nothing.
-            trailing: t.name,
+            trailing: t.schema.isEmpty ? t.name : '${t.schema}.${t.name}',
+            actions: [
+              MenuAction('Copy Column Name', () => _copy(c.name),
+                  icon: FluentIcons.copy),
+              MenuAction.divider,
+              ..._objectActions(t),
+            ],
             onTap: () => _openTable(t, run: true),
           ),
-        // Shown even with zero hits — that's precisely when an empty list
-        // would otherwise imply the column isn't in the database at all.
-        const Padding(
-          padding: EdgeInsets.fromLTRB(12, 8, 12, 4),
-          child: Text(
-            'Searching loaded tables only. Expand a table to include its '
-            'columns.',
-            style: TextStyle(color: _textLo, fontSize: 10, height: 1.3),
+        // The catalog leg. Kept in its own group rather than merged in: these
+        // are things the tree has never loaded, and saying where an answer came
+        // from is the difference between a filter and a search.
+        if (_remoteBusy)
+          const Padding(
+            padding: EdgeInsets.fromLTRB(12, 10, 12, 6),
+            child: Row(children: [
+              SizedBox(
+                  width: 10,
+                  height: 10,
+                  child: ProgressRing(strokeWidth: 1.5)),
+              SizedBox(width: 8),
+              Flexible(
+                child: Text('Searching database…',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: _textLo, fontSize: 10)),
+              ),
+            ]),
+          )
+        else if (remote.isNotEmpty)
+          _group('ELSEWHERE IN DB', remote.length),
+        for (final h in remote)
+          _FilterHit(
+            icon: switch (h.kind) {
+              SchemaHitKind.view => FluentIcons.page,
+              SchemaHitKind.column => FluentIcons.circle_ring,
+              SchemaHitKind.table => FluentIcons.table,
+            },
+            label: h.name,
+            trailing: h.isColumn ? h.qualifiedTable : h.table.schema,
+            actions: [
+              if (h.isColumn) ...[
+                MenuAction('Copy Column Name', () => _copy(h.name),
+                    icon: FluentIcons.copy),
+                MenuAction.divider,
+              ],
+              ..._objectActions(h.table),
+            ],
+            onTap: () => _openTable(h.table, run: true),
           ),
-        ),
+        if (_remoteError != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+            child: Text('Could not search the database: $_remoteError',
+                style: const TextStyle(color: _err, fontSize: 10, height: 1.3)),
+          ),
+        if (!_remoteBusy &&
+            objects.isEmpty &&
+            columns.isEmpty &&
+            remote.isEmpty &&
+            _remoteError == null)
+          const _Message('No match.', color: _textLo),
       ],
     );
   }
+
+  /// The same menu a tree node offers. A result you can't right-click is a
+  /// worse version of the row you'd have found by scrolling.
+  List<MenuAction> _objectActions(TableInfo t) => [
+        MenuAction('Copy Name', () => _copy(t.name), icon: FluentIcons.copy),
+        MenuAction('Copy CREATE', () => _copyDdl(() => widget.repo.tableDdl(t)),
+            icon: FluentIcons.code),
+        MenuAction.divider,
+        MenuAction('Open in Editor', () => _openTable(t, run: false),
+            icon: FluentIcons.open_file),
+        MenuAction('Preview Data', () => _openTable(t, run: true),
+            icon: FluentIcons.preview),
+        MenuAction.divider,
+        MenuAction('Table Info…', () => _showInfo(t), icon: FluentIcons.info),
+      ];
+
+  Widget _group(String label, int count) => Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+        child: Row(children: [
+          Flexible(
+            child: Text(label,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    color: _textLo,
+                    fontSize: 9,
+                    letterSpacing: 1.2,
+                    fontWeight: FontWeight.w600)),
+          ),
+          const SizedBox(width: 6),
+          Text('$count',
+              style: const TextStyle(
+                  color: _textLo, fontSize: 9, fontFamily: 'monospace')),
+        ]),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -575,7 +736,17 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
     if (roots.isEmpty) return const _Message('(empty schema)', color: _textLo);
 
     final filter = ref.watch(schemaFilterProvider);
-    if (filter.active) return _filtered(filter.text);
+    if (filter.active) {
+      // Scheduled from build so it follows the provider without a second
+      // listener; _scheduleRemote no-ops when the query hasn't changed.
+      WidgetsBinding.instance.addPostFrameCallback(
+          (_) => mounted ? _scheduleRemote(filter.text) : null);
+      return _filtered(filter.text);
+    }
+    if (_remoteQuery.isNotEmpty) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => mounted ? _scheduleRemote('') : null);
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -744,17 +915,26 @@ class _FilterHit extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.trailing,
+    this.actions = const [],
   });
 
   final IconData icon;
   final String label;
 
-  /// The owning table, for a column hit.
+  /// Where the hit lives — the owning table for a column, the schema for an
+  /// object. Search has no sticky header to supply that context.
   final String? trailing;
   final VoidCallback onTap;
+  final List<MenuAction> actions;
 
   @override
   Widget build(BuildContext context) {
+    final row = _row(context);
+    if (actions.isEmpty) return row;
+    return ContextMenuRegion(actions: actions, child: row);
+  }
+
+  Widget _row(BuildContext context) {
     return HoverButton(
       onPressed: onTap,
       builder: (context, states) => Container(
@@ -767,7 +947,7 @@ class _FilterHit extends StatelessWidget {
             child:
                 Text(label, overflow: TextOverflow.ellipsis, style: _mono),
           ),
-          if (trailing != null) ...[
+          if (trailing != null && trailing!.isNotEmpty) ...[
             const SizedBox(width: 8),
             Flexible(
               child: Text(

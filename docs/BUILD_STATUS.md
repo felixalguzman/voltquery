@@ -125,8 +125,12 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   loses click-title-to-collapse. The schema filter renders a **separate flat
   list** of hits instead of rebuilding the tree, so every lazy load and
   expansion survives being filtered and comes back untouched; it matches only
-  what's **loaded** and says so, since the global search dialog is what will go
-  to the server. The editor gets a real find/replace bar (`Ctrl+F`) — re_editor
+  what's **loaded** — and then **escalates to the catalog itself** on a 300ms
+  debounce, listing anything else it finds under its own group. Dead-ending at
+  "no match in what is loaded" was a dead end precisely when almost nothing is
+  loaded. Hits carry their schema (search has no sticky root header to supply
+  it) and keep the tree's right-click menu, so a result is never a worse
+  version of the row you'd have scrolled to. The editor gets a real find/replace bar (`Ctrl+F`) — re_editor
   had the whole engine (`CodeFindController`: matches, ordering, prev/next,
   regex, replace) and the binding already; it just had no `findBuilder`, so
   nothing appeared.
@@ -184,7 +188,7 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 - **Theming**: inline "Clean Dev-Tool" tokens (dark, cyan accent) — not yet in
   `ui/core/theme` (still TODO per #7).
 
-**321 tests** green (`flutter test`); `flutter analyze` clean.
+**322 tests** green (`flutter test`); `flutter analyze` clean.
 
 ## Deferred / known gaps
 
