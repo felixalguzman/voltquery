@@ -412,35 +412,60 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (outbound.isNotEmpty) ...[
-          _label('References (${outbound.length})'),
-          const SizedBox(height: 2),
-          const Text('What this table depends on.',
-              style: TextStyle(color: _textLo, fontSize: 10.5)),
-          const SizedBox(height: 6),
-          for (final c in outbound)
-            _relationRow(
-              from: c.name,
-              arrow: '→',
-              target: '${c.references}',
-              ref: c.references!,
-            ),
+          _collapsible(
+            key: 'rel-out',
+            title: 'References',
+            count: outbound.length,
+            subtitle: 'What this table depends on.',
+            children: [
+              for (final c in outbound)
+                _relationRow(
+                  from: c.name,
+                  arrow: '→',
+                  target: '${c.references}',
+                  ref: c.references!,
+                ),
+            ],
+          ),
           const SizedBox(height: 14),
         ],
-        if (info.referencedBy.isNotEmpty) ...[
-          _label('Referenced by (${info.referencedBy.length})'),
-          const SizedBox(height: 2),
-          const Text('What depends on this table.',
-              style: TextStyle(color: _textLo, fontSize: 10.5)),
-          const SizedBox(height: 6),
-          for (final r in info.referencedBy)
-            _relationRow(
-              from: '${r.table}.${r.column}',
-              arrow: '←',
-              target: _table.name,
-              ref: r,
-              highlightSource: true,
-            ),
-        ],
+        if (info.referencedBy.isNotEmpty)
+          _collapsible(
+            key: 'rel-in',
+            title: 'Referenced by',
+            count: info.referencedBy.length,
+            subtitle: 'What depends on this table.',
+            // A shared table can be referenced by hundreds; scanning that by
+            // eye is hopeless, so this list gets its own filter.
+            trailing: info.referencedBy.length > _inlineLimit
+                ? SizedBox(
+                    width: 180,
+                    height: 24,
+                    child: TextBox(
+                      placeholder: 'Filter…',
+                      style: const TextStyle(fontSize: 11),
+                      onChanged: (v) =>
+                          setState(() => _relationFilter = v.trim()),
+                    ),
+                  )
+                : null,
+            children: [
+              for (final r in _filteredInbound(info.referencedBy))
+                _relationRow(
+                  from: '${r.table}.${r.column}',
+                  arrow: '←',
+                  target: _table.name,
+                  ref: r,
+                  highlightSource: true,
+                ),
+              if (_filteredInbound(info.referencedBy).isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Text('Nothing matches that filter.',
+                      style: TextStyle(color: _textLo, fontSize: 11)),
+                ),
+            ],
+          ),
       ],
     );
   }
@@ -650,50 +675,72 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
                   'grid, since there is no way to address one.'),
           if (fks.isNotEmpty) ...[
             const SizedBox(height: 12),
-            _label('Foreign keys'),
-            const SizedBox(height: 4),
-            for (final c in fks)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: Text('${c.name} → ${c.references}',
-                    style: const TextStyle(
-                        color: _fk, fontSize: 11.5, fontFamily: 'monospace')),
-              ),
+            _collapsible(
+              key: 'fk',
+              title: 'Foreign keys',
+              count: fks.length,
+              children: [
+                for (final c in _preview(fks))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Text('${c.name} → ${c.references}',
+                        style: const TextStyle(
+                            color: _fk,
+                            fontSize: 11.5,
+                            fontFamily: 'monospace')),
+                  ),
+                if (fks.length > _inlineLimit) _seeAll(fks.length),
+              ],
+            ),
           ],
           if (info.referencedBy.isNotEmpty) ...[
             const SizedBox(height: 12),
-            _label('Referenced by (${info.referencedBy.length})'),
-            const SizedBox(height: 2),
-            const Text('What depends on this table.',
-                style: TextStyle(color: _textLo, fontSize: 10.5)),
-            const SizedBox(height: 4),
-            for (final r in info.referencedBy)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: Text('$r',
-                    style: const TextStyle(
-                        color: _fk, fontSize: 11.5, fontFamily: 'monospace')),
-              ),
+            _collapsible(
+              key: 'refby',
+              title: 'Referenced by',
+              count: info.referencedBy.length,
+              subtitle: 'What depends on this table.',
+              children: [
+                for (final r in _preview(info.referencedBy))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Text('$r',
+                        style: const TextStyle(
+                            color: _fk,
+                            fontSize: 11.5,
+                            fontFamily: 'monospace')),
+                  ),
+                if (info.referencedBy.length > _inlineLimit)
+                  _seeAll(info.referencedBy.length),
+              ],
+            ),
           ],
           const SizedBox(height: 12),
-          _label('Indexes (${info.indexes.length})'),
-          const SizedBox(height: 4),
-          if (info.indexes.isEmpty)
+          if (info.indexes.isEmpty) ...[
+            _label('Indexes (0)'),
+            const SizedBox(height: 4),
             const Text('None',
-                style: TextStyle(color: _textLo, fontSize: 11.5))
-          else
-            for (final ix in info.indexes)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: Text(
-                  '${ix.unique ? "UNIQUE " : ""}${ix.name} '
-                  '(${ix.columns.join(", ")})',
-                  style: TextStyle(
-                      color: ix.unique ? _accent : _textMid,
-                      fontSize: 11.5,
-                      fontFamily: 'monospace'),
-                ),
-              ),
+                style: TextStyle(color: _textLo, fontSize: 11.5)),
+          ] else
+            _collapsible(
+              key: 'idx',
+              title: 'Indexes',
+              count: info.indexes.length,
+              children: [
+                for (final ix in info.indexes)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Text(
+                      '${ix.unique ? "UNIQUE " : ""}${ix.name} '
+                      '(${ix.columns.join(", ")})',
+                      style: TextStyle(
+                          color: ix.unique ? _accent : _textMid,
+                          fontSize: 11.5,
+                          fontFamily: 'monospace'),
+                    ),
+                  ),
+              ],
+            ),
         ],
       ),
     );
@@ -813,6 +860,30 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
 
   static const _colors = SqlTypeColors.dark;
 
+  /// Which Overview/Relations sections are collapsed. Long sections start
+  /// collapsed — a table referenced by 959 others buries everything below it.
+  final _collapsed = <String>{};
+
+  bool _isCollapsed(String key, int count) =>
+      _collapsed.contains(key) ||
+      (!_collapsed.contains('!$key') && count > _inlineLimit);
+
+  void _toggleSection(String key, int count) => setState(() {
+        if (_isCollapsed(key, count)) {
+          _collapsed
+            ..remove(key)
+            ..add('!$key'); // explicitly opened
+        } else {
+          _collapsed
+            ..add(key)
+            ..remove('!$key');
+        }
+      });
+
+  /// Above this a section collapses by default and Overview shows a preview
+  /// rather than the whole list.
+  static const _inlineLimit = 8;
+
   /// Active Columns-tab filters.
   String? _typeFilter;
   bool _fkOnly = false;
@@ -903,6 +974,92 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
                     color: _accent, fontSize: 11.5, fontFamily: 'monospace')),
         ],
       );
+
+  String _relationFilter = '';
+
+  /// Substring, case-insensitive — table names here share long prefixes
+  /// (`act_`, `ven_`), so prefix matching would filter almost nothing.
+  List<ColumnRef> _filteredInbound(List<ColumnRef> all) {
+    if (_relationFilter.isEmpty) return all;
+    final needle = _relationFilter.toLowerCase();
+    return all
+        .where((r) =>
+            r.table.toLowerCase().contains(needle) ||
+            r.column.toLowerCase().contains(needle))
+        .toList();
+  }
+
+  /// Overview shows a preview; the full list lives on Relations, which is built
+  /// for it.
+  List<T> _preview<T>(List<T> all) =>
+      all.length <= _inlineLimit ? all : all.take(_inlineLimit).toList();
+
+  Widget _seeAll(int total) => Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: HoverButton(
+          onPressed: () => setState(() => _tab = 2),
+          builder: (context, states) => Text(
+            'and ${total - _inlineLimit} more — see Relations',
+            style: const TextStyle(color: _accent, fontSize: 10.5),
+          ),
+        ),
+      );
+
+  /// A section that can be folded away, with its count in the header — so a
+  /// list of 959 doesn't push everything else off the tab.
+  Widget _collapsible({
+    required String key,
+    required String title,
+    required int count,
+    String? subtitle,
+    required List<Widget> children,
+    Widget? trailing,
+  }) {
+    final collapsed = _isCollapsed(key, count);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        HoverButton(
+          onPressed: () => _toggleSection(key, count),
+          builder: (context, states) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            child: Row(
+              children: [
+                Icon(
+                  collapsed
+                      ? FluentIcons.chevron_right
+                      : FluentIcons.chevron_down,
+                  size: 8,
+                  color: _textLo,
+                ),
+                const SizedBox(width: 6),
+                _label('$title ($count)'),
+                const SizedBox(width: 8),
+                ?trailing,
+              ],
+            ),
+          ),
+        ),
+        if (!collapsed) ...[
+          if (subtitle != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 14, bottom: 4),
+              child: Text(subtitle,
+                  style: const TextStyle(color: _textLo, fontSize: 10.5)),
+            ),
+          Padding(
+            padding: const EdgeInsets.only(left: 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: children,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
 
   Widget _label(String text) => Text(text.toUpperCase(),
       style: const TextStyle(
