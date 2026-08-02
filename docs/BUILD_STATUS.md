@@ -97,6 +97,19 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   beyond), dims generated rows, tags them, and has a **hide-generated** filter —
   off by default, because a filter you must turn on can't quietly hide a
   destructive UPDATE from you.
+- **Filter & find** — one `matchesFilter` (substring, case-insensitive, *not*
+  prefix: real names are prefix-heavy, `ven_factura` / `secuencia_ncf`) behind a
+  shared `ui/core/widgets/filter_field.dart`. Schema and History each get a
+  toggle in their section header opening a full-width `FilterRow` beneath it —
+  under rather than inside the header because losing the section title also
+  loses click-title-to-collapse. The schema filter renders a **separate flat
+  list** of hits instead of rebuilding the tree, so every lazy load and
+  expansion survives being filtered and comes back untouched; it matches only
+  what's **loaded** and says so, since the global search dialog is what will go
+  to the server. The editor gets a real find/replace bar (`Ctrl+F`) — re_editor
+  had the whole engine (`CodeFindController`: matches, ordering, prev/next,
+  regex, replace) and the binding already; it just had no `findBuilder`, so
+  nothing appeared.
 - **App shell** (`ui/core/shell/app_shell.dart`): a **menu bar** (File / Query /
   View) built on **base_menu** (headless menus, WAI-ARIA keyboard nav; needs
   Flutter ≥3.44.4, repo on 3.44.8) over the sidebar | workspace split. The
@@ -151,7 +164,7 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 - **Theming**: inline "Clean Dev-Tool" tokens (dark, cyan accent) — not yet in
   `ui/core/theme` (still TODO per #7).
 
-**288 tests** green (`flutter test`); `flutter analyze` clean.
+**296 tests** green (`flutter test`); `flutter analyze` clean.
 
 ## Deferred / known gaps
 
@@ -220,6 +233,16 @@ See `docs/research/feature-gaps.md` (parity) and `docs/research/differentiators.
 (offense) for the surveyed backlog these were picked from.
 
 ### Agreed but not built
+
+**Global search dialog** (agreed 2026-08-01, the second half of the type-to-filter
+work): one dialog that sees everything at once, **catalog-backed** so it finds
+tables and columns you have never expanded — needs a new
+`SchemaIntrospector.search()` across the driver trio (`information_schema` on
+PG/MySQL, `sqlite_master` joined to `pragma_table_info` on SQLite). Results
+grouped by kind, **ordered by where focus currently is** (editor focused → text
+matches first), with the other sources still searched in the background and
+offered below. Enter acts per kind: table → open worksheet, column → reveal,
+history → load into editor, worksheet hit → focus tab and jump to the line.
 
 **Settings pane** — *built 2026-08-01*, see the Settings bullet above. Left out
 deliberately: Appearance/theme (blocked on #7) and keybinding customization.

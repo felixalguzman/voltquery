@@ -9,6 +9,7 @@ import 'package:re_highlight/styles/atom-one-dark.dart';
 
 import '../../../domain/sql/sql_statement_splitter.dart';
 import '../settings/settings_providers.dart';
+import 'editor_find_panel.dart';
 import 'result_grid.dart';
 import 'worksheet_providers.dart';
 import 'worksheet_state.dart';
@@ -183,6 +184,10 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
           child: CodeEditor(
             controller: _code,
             shortcutsActivatorsBuilder: const _SqlEditorShortcuts(),
+            // Ctrl+F was already bound by re_editor; without a builder there
+            // was simply no panel for it to show.
+            findBuilder: (context, controller, readOnly) =>
+                EditorFindPanel(controller: controller, readOnly: readOnly),
             style: CodeEditorStyle(
               fontSize: ref.watch(settingsProvider).editorFontSize,
               fontFamily: ref.watch(settingsProvider).editorFontFamily,

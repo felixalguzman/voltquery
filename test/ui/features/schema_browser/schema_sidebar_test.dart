@@ -9,6 +9,7 @@ import 'package:voltquery/ui/core/shell/app_shell.dart';
 import 'package:voltquery/ui/features/connections/connection_providers.dart';
 import 'package:voltquery/ui/features/history/history_providers.dart';
 import 'package:voltquery/ui/features/query_workspace/worksheet_providers.dart';
+import 'package:voltquery/ui/features/schema_browser/schema_providers.dart';
 import 'package:voltquery/ui/features/settings/settings_providers.dart';
 // requestedQueryProvider drives the active worksheet from the sidebar.
 
@@ -164,6 +165,65 @@ void main() {
     await tester.tap(find.text('products'));
     await tester.pumpAndSettle();
     expect(find.text('Query 3'), findsOneWidget);
+  });
+
+  testWidgets('the filter narrows the tree to matching tables', (tester) async {
+    final container = await _pumpApp(tester);
+
+    expect(find.text('customers'), findsOneWidget);
+    expect(find.text('orders'), findsOneWidget);
+
+    // Substring, not prefix: "der" sits inside "orders" and "order_items".
+    container.read(schemaFilterProvider.notifier).set('der');
+    await tester.pumpAndSettle();
+
+    expect(find.text('orders'), findsOneWidget);
+    expect(find.text('order_items'), findsOneWidget);
+    expect(find.text('customers'), findsNothing);
+    expect(find.text('products'), findsNothing);
+
+    // Clearing restores the tree — including whatever was expanded, since
+    // filtering renders a separate list rather than rebuilding the tree.
+    container.read(schemaFilterProvider.notifier).set('');
+    await tester.pumpAndSettle();
+    expect(find.text('customers'), findsOneWidget);
+  });
+
+  testWidgets('the filter says so when nothing loaded matches',
+      (tester) async {
+    final container = await _pumpApp(tester);
+
+    container.read(schemaFilterProvider.notifier).set('no_such_table');
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('No match'), findsOneWidget);
+    // The disclaimer matters: an empty result must not imply the column is
+    // absent from the database, only from what has been loaded.
+    expect(find.textContaining('loaded tables only'), findsOneWidget);
+  });
+
+  testWidgets('a filtered column hit opens its table', (tester) async {
+    final container = await _pumpApp(tester);
+
+    // Columns only enter the index once their table is expanded.
+    await tester.tap(find.byIcon(FluentIcons.chevron_right).at(1));
+    await tester.pumpAndSettle();
+    expect(find.text('email'), findsOneWidget);
+
+    container.read(schemaFilterProvider.notifier).set('email');
+    await tester.pumpAndSettle();
+
+    // Scoped to the results list — the filter box itself now contains the
+    // word "email" too.
+    final hit = find.descendant(
+      of: find.byType(ListView),
+      matching: find.text('email'),
+    );
+    expect(hit, findsOneWidget);
+    await tester.tap(hit);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Query 2'), findsOneWidget);
   });
 
   testWidgets('the table preview LIMIT comes from settings', (tester) async {

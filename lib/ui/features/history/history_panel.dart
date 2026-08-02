@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/menu/confirm.dart';
 import '../../core/menu/context_menu.dart';
+import '../../core/widgets/filter_field.dart';
 import '../../core/widgets/section_header.dart';
 
 import '../../../domain/models/history_entry.dart';
@@ -32,6 +33,7 @@ class HistoryPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final history = ref.watch(recentHistoryProvider);
     final hideGenerated = ref.watch(hideGeneratedHistoryProvider);
+    final filter = ref.watch(historyFilterProvider);
     // No top border: the pane resizer above draws that line now, and a second
     // one here overflows the section when it collapses to header height.
     return Container(
@@ -44,6 +46,11 @@ class HistoryPanel extends ConsumerWidget {
             collapsed: collapsed,
             onToggle: onToggle,
             actions: [
+              IconButton(
+                icon: Icon(FluentIcons.search,
+                    size: 12, color: filter.open ? _accent : _textLo),
+                onPressed: ref.read(historyFilterProvider.notifier).toggle,
+              ),
               Tooltip(
                 message: hideGenerated
                     ? 'Showing only what you ran'
@@ -61,18 +68,27 @@ class HistoryPanel extends ConsumerWidget {
               ),
             ],
           ),
+          if (!collapsed)
+            FilterRow(
+              state: filter,
+              placeholder: 'Filter SQL…',
+              onChanged: ref.read(historyFilterProvider.notifier).set,
+            ),
           Expanded(
             child: history.when(
               loading: () => const SizedBox.shrink(),
               error: (e, _) => _pad('$e'),
               data: (all) {
-                final list = hideGenerated
-                    ? all.where((e) => !e.source.isGenerated).toList()
-                    : all;
+                final list = all
+                    .where((e) => !hideGenerated || !e.source.isGenerated)
+                    .where((e) => matchesFilter(e.sql, filter.text))
+                    .toList();
                 if (list.isEmpty) {
-                  return _pad(all.isEmpty
-                      ? '(no history)'
-                      : '(nothing you ran by hand)');
+                  return _pad(switch ((all.isEmpty, filter.active)) {
+                    (true, _) => '(no history)',
+                    (_, true) => '(no match)',
+                    _ => '(nothing you ran by hand)',
+                  });
                 }
                 return ListView(
                   padding: const EdgeInsets.symmetric(vertical: 4),
