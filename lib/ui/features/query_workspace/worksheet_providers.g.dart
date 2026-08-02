@@ -593,13 +593,21 @@ abstract class _$WorksheetOrigins extends $Notifier<Map<String, String>> {
   }
 }
 
+/// Watches settings, so changing the render cap takes effect on the next run
+/// rather than the next launch.
+
 @ProviderFor(worksheetRunner)
 final worksheetRunnerProvider = WorksheetRunnerProvider._();
+
+/// Watches settings, so changing the render cap takes effect on the next run
+/// rather than the next launch.
 
 final class WorksheetRunnerProvider
     extends
         $FunctionalProvider<WorksheetRunner, WorksheetRunner, WorksheetRunner>
     with $Provider<WorksheetRunner> {
+  /// Watches settings, so changing the render cap takes effect on the next run
+  /// rather than the next launch.
   WorksheetRunnerProvider._()
     : super(
         from: null,
@@ -633,7 +641,7 @@ final class WorksheetRunnerProvider
   }
 }
 
-String _$worksheetRunnerHash() => r'9405638bb3eea57d1e21e8b6c06fac79e78486ae';
+String _$worksheetRunnerHash() => r'b5c89e54403b1a8b238c73a2a480b3c642743def';
 
 /// Pending cell edits for one result grid, keyed `<worksheetId>:<resultIndex>`
 /// so each result sub-tab stages independently.
@@ -1160,7 +1168,7 @@ final class WorksheetProvider
   }
 }
 
-String _$worksheetHash() => r'68a315b6fe36fb2e4d1900fd53302281b0c145a4';
+String _$worksheetHash() => r'd942b78724f8ced6460d7843bd096936f4468ab1';
 
 /// Per-Worksheet result state (family keyed by WorksheetId).
 

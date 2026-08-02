@@ -13,6 +13,7 @@ import '../../../domain/sql/dml_builder.dart';
 import '../../../domain/sql/editable_result.dart';
 import '../../../domain/sql/sql_statement_splitter.dart';
 import '../../core/menu/context_menu.dart';
+import '../settings/settings_providers.dart';
 import 'grid_edit_buffer.dart';
 import 'grid_editability.dart';
 import 'worksheet_providers.dart';
@@ -226,10 +227,13 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
         ? ref.watch(gridEditsProvider(widget.gridId))
         : const GridEditBuffer();
     final r = widget.rows;
+    // `select` so a change to any *other* setting doesn't rebuild the grid.
+    final nullDisplay =
+        ref.watch(settingsProvider.select((s) => s.nullDisplay));
 
     final columns = [
       for (var i = 0; i < r.fields.length; i++)
-        _column(i, r.fields[i].name, buf),
+        _column(i, r.fields[i].name, buf, nullDisplay),
     ];
     final rows = [
       for (var rowIndex = 0; rowIndex < r.rows.length; rowIndex++)
@@ -276,7 +280,8 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
     );
   }
 
-  PlutoColumn _column(int i, String name, GridEditBuffer buf) {
+  PlutoColumn _column(
+      int i, String name, GridEditBuffer buf, String nullDisplay) {
     final editor = _edit?.editorFor(name);
     // PK columns stay read-only: the staged UPDATE addresses the row *by* that
     // value, so editing it in place would change the row's identity.
@@ -308,11 +313,15 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
                 onStage: _stage,
                 dialect: _dialect,
                 editability: _edit,
+                nullDisplay: nullDisplay,
               )
+          // Passed down rather than watched per cell: a read-only grid's cells
+          // subscribe to nothing, which is the whole point of _StaticCell.
           : (ctx) => _StaticCell(
                 value: ctx.rowIdx < widget.rows.rows.length
                     ? widget.rows.rows[ctx.rowIdx].values[i]
                     : null,
+                nullDisplay: nullDisplay,
               ),
     );
   }
@@ -514,16 +523,17 @@ class _ReviewDialog extends StatelessWidget {
 /// A cell in a read-only grid: no provider subscription at all, since nothing
 /// can ever stage an edit here. Keeps the browse-a-large-table path cheap.
 class _StaticCell extends StatelessWidget {
-  const _StaticCell({required this.value});
+  const _StaticCell({required this.value, required this.nullDisplay});
 
   final Object? value;
+  final String nullDisplay;
 
   @override
   Widget build(BuildContext context) {
     if (value == null) {
-      return const Text(
-        'NULL',
-        style: TextStyle(
+      return Text(
+        nullDisplay,
+        style: const TextStyle(
           color: _textLo,
           fontSize: 11.5,
           fontFamily: 'monospace',
@@ -562,6 +572,7 @@ class _CellView extends ConsumerWidget {
     required this.rows,
     required this.onStage,
     required this.dialect,
+    required this.nullDisplay,
     this.editability,
   });
 
@@ -574,6 +585,7 @@ class _CellView extends ConsumerWidget {
   final WorksheetRows rows;
   final void Function(int rowIndex, String column, Object? value) onStage;
   final SqlDialect dialect;
+  final String nullDisplay;
   final GridEditability? editability;
 
   Object? get _original => rowIndex < rows.rows.length
@@ -692,11 +704,11 @@ class _CellView extends ConsumerWidget {
     return DmlBuilder(dialect).insert(target, cells) ?? '';
   }
 
-  static String _display(Object? v) => v == null ? 'NULL' : '$v';
+  String _display(Object? v) => v == null ? nullDisplay : '$v';
 
-  Widget _nullLabel() => const Text(
-        'NULL',
-        style: TextStyle(
+  Widget _nullLabel() => Text(
+        nullDisplay,
+        style: const TextStyle(
           color: _textLo,
           fontSize: 11.5,
           fontFamily: 'monospace',
@@ -742,7 +754,7 @@ class _CellView extends ConsumerWidget {
         ),
         const SizedBox(width: 6),
         Text(
-          isNull ? 'NULL' : (on ? 'true' : 'false'),
+          isNull ? nullDisplay : (on ? 'true' : 'false'),
           style: TextStyle(
             color: isNull ? _textLo : (isDirty ? _dirty : _textMid),
             fontSize: 11.5,

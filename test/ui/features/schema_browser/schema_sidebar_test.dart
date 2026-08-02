@@ -9,6 +9,7 @@ import 'package:voltquery/ui/core/shell/app_shell.dart';
 import 'package:voltquery/ui/features/connections/connection_providers.dart';
 import 'package:voltquery/ui/features/history/history_providers.dart';
 import 'package:voltquery/ui/features/query_workspace/worksheet_providers.dart';
+import 'package:voltquery/ui/features/settings/settings_providers.dart';
 // requestedQueryProvider drives the active worksheet from the sidebar.
 
 /// Integration for the lazy schema tree (issue #13): the sidebar lists the demo
@@ -163,5 +164,21 @@ void main() {
     await tester.tap(find.text('products'));
     await tester.pumpAndSettle();
     expect(find.text('Query 3'), findsOneWidget);
+  });
+
+  testWidgets('the table preview LIMIT comes from settings', (tester) async {
+    final container = await _pumpApp(tester);
+
+    // `customers` has 4 seeded rows; asserting on the row count proves the
+    // setting reached the generated SQL, not merely the editor buffer.
+    await container
+        .read(settingsProvider.notifier)
+        .edit((s) => s.copyWith(tablePreviewLimit: 2));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('customers'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('2 row(s)'), findsOneWidget);
   });
 }

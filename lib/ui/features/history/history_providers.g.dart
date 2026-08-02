@@ -146,3 +146,82 @@ final class RecentHistoryProvider
 }
 
 String _$recentHistoryHash() => r'5acf59e0c529afffa49ad0543affc0b4c5b9cb98';
+
+/// Whether the panel hides statements the app composed (grid edits, Table
+/// Info's exact `count(*)`) rather than ones the user typed.
+///
+/// Session-scoped, and **off** by default: showing everything that actually ran
+/// against the database is the honest default, and a filter you have to turn on
+/// can't quietly hide a destructive UPDATE from you.
+
+@ProviderFor(HideGeneratedHistory)
+final hideGeneratedHistoryProvider = HideGeneratedHistoryProvider._();
+
+/// Whether the panel hides statements the app composed (grid edits, Table
+/// Info's exact `count(*)`) rather than ones the user typed.
+///
+/// Session-scoped, and **off** by default: showing everything that actually ran
+/// against the database is the honest default, and a filter you have to turn on
+/// can't quietly hide a destructive UPDATE from you.
+final class HideGeneratedHistoryProvider
+    extends $NotifierProvider<HideGeneratedHistory, bool> {
+  /// Whether the panel hides statements the app composed (grid edits, Table
+  /// Info's exact `count(*)`) rather than ones the user typed.
+  ///
+  /// Session-scoped, and **off** by default: showing everything that actually ran
+  /// against the database is the honest default, and a filter you have to turn on
+  /// can't quietly hide a destructive UPDATE from you.
+  HideGeneratedHistoryProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'hideGeneratedHistoryProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$hideGeneratedHistoryHash();
+
+  @$internal
+  @override
+  HideGeneratedHistory create() => HideGeneratedHistory();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(bool value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<bool>(value),
+    );
+  }
+}
+
+String _$hideGeneratedHistoryHash() =>
+    r'586444e6f4ab8dedddf8cdf72dc756b25709cb70';
+
+/// Whether the panel hides statements the app composed (grid edits, Table
+/// Info's exact `count(*)`) rather than ones the user typed.
+///
+/// Session-scoped, and **off** by default: showing everything that actually ran
+/// against the database is the honest default, and a filter you have to turn on
+/// can't quietly hide a destructive UPDATE from you.
+
+abstract class _$HideGeneratedHistory extends $Notifier<bool> {
+  bool build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<bool, bool>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<bool, bool>,
+              bool,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}

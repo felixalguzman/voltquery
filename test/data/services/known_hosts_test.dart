@@ -80,4 +80,45 @@ void main() {
       );
     });
   });
+
+  /// The settings pane can only offer to revoke what it can list.
+  group('entries()', () {
+    test('lists trusted hosts with their type and fingerprint', () async {
+      await store.trust('bastion.example.com', 2222, fp);
+
+      final all = await store.entries();
+
+      expect(all, hasLength(1));
+      expect(all.single.host, 'bastion.example.com');
+      expect(all.single.port, 2222);
+      expect(all.single.keyType, 'ssh-ed25519');
+      expect(all.single.fingerprint, 'SHA256:abc123');
+    });
+
+    test('is empty before anything is trusted', () async {
+      expect(await store.entries(), isEmpty);
+    });
+
+    test('drops the entry that forget() removes', () async {
+      await store.trust('a', 22, fp);
+      await store.trust('b', 22, other);
+
+      await store.forget('a', 22);
+
+      expect((await store.entries()).map((h) => h.host), ['b']);
+    });
+
+    test('an IPv6 host keeps its colons and only loses the port', () {
+      // `host:port` split on the *last* colon, or every v6 address parses wrong.
+      final h = KnownHost.parse('::1:22', 'ssh-rsa SHA256:x');
+      expect(h.host, '::1');
+      expect(h.port, 22);
+    });
+
+    test('a value with no key type is still listed, so it stays revocable', () {
+      final h = KnownHost.parse('old-host:22', 'SHA256:legacy');
+      expect(h.keyType, isEmpty);
+      expect(h.fingerprint, 'SHA256:legacy');
+    });
+  });
 }

@@ -1,13 +1,18 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:re_editor/re_editor.dart';
 import 'package:re_highlight/languages/sql.dart';
 import 'package:re_highlight/styles/atom-one-dark.dart';
 
 import '../../../domain/models/column_editor.dart';
 import '../../../domain/models/engine.dart';
+import '../../../domain/models/history_entry.dart';
 import '../../../domain/models/schema.dart';
+import '../../../domain/sql/sql_statement_splitter.dart';
 import '../../core/theme/sql_type_colors.dart';
+import '../history/history_providers.dart';
+import '../query_workspace/worksheet_providers.dart';
 import 'schema_repository.dart';
 
 // TODO(theming #7): unify tokens into ui/core/theme.
@@ -18,6 +23,7 @@ const _text = Color(0xFFE6E8EC);
 const _textMid = Color(0xFF9BA1AD);
 const _textLo = Color(0xFF5A6069);
 const _fk = Color(0xFFB98CFF);
+const _default = Color(0xFFE0B978);
 
 /// Quick facts about a table: size, shape, keys and indexes, without writing a
 /// query for any of it.
@@ -34,7 +40,7 @@ Future<void> showTableInfoDialog(
   );
 }
 
-class _TableInfoDialog extends StatefulWidget {
+class _TableInfoDialog extends ConsumerStatefulWidget {
   const _TableInfoDialog({
     required this.table,
     required this.repo,
@@ -46,10 +52,10 @@ class _TableInfoDialog extends StatefulWidget {
   final Engine engine;
 
   @override
-  State<_TableInfoDialog> createState() => _TableInfoDialogState();
+  ConsumerState<_TableInfoDialog> createState() => _TableInfoDialogState();
 }
 
-class _TableInfoDialogState extends State<_TableInfoDialog> {
+class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
   /// The table currently shown. Following a relation swaps this rather than
   /// opening another dialog — jumping through five tables should not leave five
   /// dialogs stacked on screen.
@@ -86,14 +92,53 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
 
   Future<void> _countExactly() async {
     setState(() => _counting = true);
+    final started = DateTime.now();
+    final sw = Stopwatch()..start();
     try {
       final n = await widget.repo.rowCount(_table);
+      sw.stop();
       if (mounted) setState(() => _exactRows = n);
-    } catch (_) {
+      await _recordCount(started, sw.elapsedMilliseconds, rows: n);
+    } on Object catch (e) {
       // A failed count shouldn't take the dialog down; the estimate stands.
+      sw.stop();
+      await _recordCount(started, sw.elapsedMilliseconds, error: '$e');
     } finally {
       if (mounted) setState(() => _counting = false);
     }
+  }
+
+  /// An exact count is a full table scan the user asked for — the one
+  /// introspection query that belongs in history, tagged [HistorySource.tool]
+  /// so it never masquerades as something they typed.
+  ///
+  /// The SQL is rebuilt here through the same dialect helper the app uses for
+  /// user-facing statements; each driver composes its own `count(*)` internally
+  /// and doesn't hand it back.
+  Future<void> _recordCount(
+    DateTime started,
+    int ms, {
+    int? rows,
+    String? error,
+  }) async {
+    if (!mounted) return;
+    final conn = ref.read(currentConnectionProvider);
+    final target = SqlDialect.of(widget.engine)
+        .qualify(_table.name, schema: _table.schema);
+    await ref.read(historyRepositoryProvider).record(
+          HistoryEntry(
+            connectionName: conn.name,
+            engine: conn.engine.name,
+            databaseName: conn.defaultDatabase,
+            sql: 'SELECT count(*) FROM $target;',
+            startedAt: started,
+            durationMs: ms,
+            status: error == null ? HistoryStatus.ok : HistoryStatus.error,
+            source: HistorySource.tool,
+            rowCount: rows,
+            errorMessage: error,
+          ),
+        );
   }
 
   @override
@@ -104,6 +149,10 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
     // wide column list) was scrolling inside a small box while most of the
     // screen sat empty.
     final screen = MediaQuery.sizeOf(context);
+    // One height for every tab. Sizing to content meant the dialog jumped —
+    // and moved the tab strip out from under the pointer — every time you
+    // switched from a long tab to a short one.
+    final bodyHeight = (screen.height * 0.62).clamp(240.0, 520.0);
     return ContentDialog(
       constraints: BoxConstraints(
         maxWidth: screen.width.clamp(420.0, 900.0),
@@ -140,9 +189,9 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
                 style: const TextStyle(color: Color(0xFFFF6B6B), fontSize: 12));
           }
           if (!snap.hasData) {
-            return const SizedBox(
-              height: 120,
-              child: Center(
+            return SizedBox(
+              height: bodyHeight,
+              child: const Center(
                   child: SizedBox(
                       width: 18,
                       height: 18,
@@ -156,15 +205,19 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
             children: [
               _tabStrip(),
               const SizedBox(height: 12),
-              Flexible(
+              SizedBox(
+                height: bodyHeight,
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.only(right: 12),
-                  child: switch (_tab) {
-                    1 => _columnsTab(info),
-                    2 => _relationsTab(info),
-                    3 => _ddlTab(info),
-                    _ => _body(info),
-                  },
+                  child: Align(
+                    alignment: Alignment.topLeft,
+                    child: switch (_tab) {
+                      1 => _columnsTab(info),
+                      2 => _relationsTab(info),
+                      3 => _ddlTab(info),
+                      _ => _body(info),
+                    },
+                  ),
                 ),
               ),
             ],
@@ -373,21 +426,55 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
                       ),
                     ),
                   ),
-                  Expanded(
-                    flex: 3,
-                    child: Text(
-                      [
-                        if (!c.nullable) 'NOT NULL',
-                        if (c.defaultValue != null)
-                          'default ${c.defaultValue}',
-                      ].join(' · '),
-                      style: const TextStyle(color: _textLo, fontSize: 10.5),
-                    ),
-                  ),
+                  Expanded(flex: 3, child: _constraints(c)),
                 ],
               ),
             ),
         ];
+
+  /// Nullability and the column default.
+  ///
+  /// The default gets its own weight and a monospace value: it's the one piece
+  /// of this row that's *data* — what actually lands in the column when an
+  /// INSERT omits it — and it was previously dimmed into the same grey run-on
+  /// as the NOT NULL flag, which made it easy to miss entirely.
+  Widget _constraints(ColumnInfo c) {
+    final hasDefault = c.defaultValue != null;
+    if (c.nullable && !hasDefault) {
+      return const Text('NULL allowed',
+          style: TextStyle(color: _textLo, fontSize: 10.5));
+    }
+    return Wrap(
+      spacing: 6,
+      runSpacing: 3,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        if (!c.nullable)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              border: Border.all(color: _hair),
+              borderRadius: BorderRadius.circular(3),
+            ),
+            child: const Text('NOT NULL',
+                style: TextStyle(
+                    color: _textMid, fontSize: 9.5, letterSpacing: 0.4)),
+          ),
+        if (hasDefault)
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            const Text('default ',
+                style: TextStyle(color: _textLo, fontSize: 10.5)),
+            Flexible(
+              child: SelectableText(
+                '${c.defaultValue}',
+                style: const TextStyle(
+                    color: _default, fontSize: 11, fontFamily: 'monospace'),
+              ),
+            ),
+          ]),
+      ],
+    );
+  }
 
   /// Both directions of every relationship, each row a jump.
   ///

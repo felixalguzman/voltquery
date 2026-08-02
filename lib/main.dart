@@ -1,20 +1,49 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'data/repositories/history_repository.dart';
+import 'data/repositories/settings_repository.dart';
+import 'data/services/local_store.dart';
 import 'ui/core/shell/app_shell.dart';
+import 'ui/core/shell/window_chrome.dart';
+import 'ui/features/history/history_providers.dart';
 import 'ui/features/query_workspace/worksheet_providers.dart';
+import 'ui/features/settings/vault_auto_lock.dart';
 
 /// VoltQuery — futuristic cross-platform SQL database manager (DBeaver alt).
 ///
 /// Architecture: `docs/design/architecture.md`. This first slice wires the
 /// query workspace (re_editor → SQLite driver → pluto_grid) against a seeded
 /// in-memory demo database. Shell, theming, and the rest land slice-by-slice.
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   // Clear demo temp DBs from earlier runs so the demo starts pristine (its path
   // is a fresh temp file per launch — see demoConnection).
   sweepDemoDbs();
-  // TODO(build): window_manager setup (size, min-size, title) before runApp.
-  runApp(const ProviderScope(child: VoltQueryApp()));
+  await initWindowChrome();
+
+  // Opened here rather than lazily inside the provider so the title bar can be
+  // settled *before* the first frame: reading it from the provider would show
+  // the bar for a frame and then yank it, which reads as a glitch.
+  final store = LocalStore();
+  final settings = await SettingsRepository(store).read();
+  await applyTitleBarVisibility(settings.titleBarVisible);
+
+  if (settings.historyRetentionEnabled) {
+    // Best-effort: a failed prune must not stop the app opening. Worst case the
+    // history stays longer than asked, which is the harmless direction.
+    try {
+      await HistoryRepository(store).prune(
+        keepDays: settings.historyRetentionDays,
+        keepRows: settings.historyRetentionRows,
+      );
+    } catch (_) {}
+  }
+
+  runApp(ProviderScope(
+    overrides: [localStoreProvider.overrideWithValue(store)],
+    child: const VoltQueryApp(),
+  ));
 }
 
 class VoltQueryApp extends StatelessWidget {
@@ -44,6 +73,7 @@ class _Home extends StatelessWidget {
   // The shell always renders — a connection failure must never brick the app.
   // Session errors surface inline (schema sidebar / worksheet result), and the
   // Connections panel stays reachable to unlock the vault or switch connections.
-  Widget build(BuildContext context) =>
-      const ScaffoldPage(padding: EdgeInsets.zero, content: AppShell());
+  Widget build(BuildContext context) => const VaultAutoLock(
+        child: ScaffoldPage(padding: EdgeInsets.zero, content: AppShell()),
+      );
 }

@@ -18,6 +18,11 @@ class HistoryRows extends Table {
   DateTimeColumn get startedAt => dateTime()();
   IntColumn get durationMs => integer()();
   TextColumn get status => text()();
+
+  /// [HistorySource] name. Defaults to `editor` so rows written before this
+  /// column existed — all of which were worksheet runs — stay correct.
+  TextColumn get source =>
+      text().withDefault(const Constant('editor'))();
   IntColumn get rowCount => integer().nullable()();
   TextColumn get errorKind => text().nullable()();
   TextColumn get errorMessage => text().nullable()();
@@ -59,10 +64,25 @@ class ConnectionRows extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// App settings as typed key-value (`docs/design/persistence.md`): one row per
+/// top-level setting, [value] a JSON-encoded scalar.
+///
+/// A row per setting rather than one blob (which is what [ConnectionRows.options]
+/// does) because these are written one knob at a time from a settings pane, and
+/// because a key this build doesn't know must survive a round-trip through an
+/// older version rather than be dropped by a whole-object rewrite.
+class SettingsRows extends Table {
+  TextColumn get key => text()();
+  TextColumn get value => text()();
+
+  @override
+  Set<Column> get primaryKey => {key};
+}
+
 /// The app's own **drift** store — `voltquery.db` in the app-support dir.
 /// Secret-free (ADR-0005). Uses drift here (fixed compile-time schema), not the
 /// raw `sqlite3` we use for arbitrary *user* databases (ADR-0003).
-@DriftDatabase(tables: [HistoryRows, ConnectionRows])
+@DriftDatabase(tables: [HistoryRows, ConnectionRows, SettingsRows])
 class LocalStore extends _$LocalStore {
   LocalStore() : super(_openFile());
 
@@ -70,7 +90,7 @@ class LocalStore extends _$LocalStore {
   LocalStore.memory() : super(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -96,6 +116,8 @@ class LocalStore extends _$LocalStore {
               "'connectTimeoutSeconds', 15)",
             );
           }
+          if (from < 5) await m.createTable(settingsRows);
+          if (from < 6) await m.addColumn(historyRows, historyRows.source);
         },
       );
 }

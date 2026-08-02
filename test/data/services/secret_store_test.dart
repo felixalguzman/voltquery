@@ -43,4 +43,77 @@ void main() {
       throwsA(isA<SecretBoxAuthenticationError>()),
     );
   });
+
+  /// Re-keying rewraps the DEK. The contract that matters: the old password
+  /// stops working, the new one works, and every stored secret survives — a
+  /// password change that silently emptied the vault would be catastrophic and
+  /// unnoticed until the next connection.
+  group('changeMasterPassword', () {
+    late Directory dir;
+    late File file;
+
+    setUp(() {
+      dir = Directory.systemTemp.createTempSync('vq_vault_rekey');
+      file = File('${dir.path}/credentials.vault');
+    });
+    tearDown(() => dir.deleteSync(recursive: true));
+
+    test('secrets survive; the old password stops working', () async {
+      final store = VaultSecretStore(file, kdf: fastKdf);
+      await store.unlock('old-pw');
+      await store.write('conn-1', 's3cr3t');
+
+      await store.changeMasterPassword('old-pw', 'new-pw');
+
+      // Still usable in this session — the DEK never changed.
+      expect(await store.read('conn-1'), 's3cr3t');
+
+      final withNew = VaultSecretStore(file, kdf: fastKdf);
+      await withNew.unlock('new-pw');
+      expect(await withNew.read('conn-1'), 's3cr3t');
+
+      final withOld = VaultSecretStore(file, kdf: fastKdf);
+      await expectLater(
+        () => withOld.unlock('old-pw'),
+        throwsA(isA<SecretBoxAuthenticationError>()),
+      );
+    });
+
+    test('a wrong current password changes nothing', () async {
+      final store = VaultSecretStore(file, kdf: fastKdf);
+      await store.unlock('old-pw');
+      await store.write('conn-1', 's3cr3t');
+
+      await expectLater(
+        () => store.changeMasterPassword('not-it', 'new-pw'),
+        throwsA(isA<SecretBoxAuthenticationError>()),
+      );
+
+      // The original password must still open the vault.
+      final reopened = VaultSecretStore(file, kdf: fastKdf);
+      await reopened.unlock('old-pw');
+      expect(await reopened.read('conn-1'), 's3cr3t');
+    });
+
+    test('works while locked, and leaves it locked', () async {
+      final store = VaultSecretStore(file, kdf: fastKdf);
+      await store.unlock('old-pw');
+      await store.write('conn-1', 's3cr3t');
+      store.lock();
+
+      await store.changeMasterPassword('old-pw', 'new-pw');
+
+      expect(store.isLocked, isTrue);
+      await store.unlock('new-pw');
+      expect(await store.read('conn-1'), 's3cr3t');
+    });
+
+    test('refuses when there is no vault yet', () async {
+      final store = VaultSecretStore(file, kdf: fastKdf);
+      await expectLater(
+        () => store.changeMasterPassword('a', 'b'),
+        throwsA(isA<StateError>()),
+      );
+    });
+  });
 }

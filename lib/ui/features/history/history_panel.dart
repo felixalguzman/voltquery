@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/menu/confirm.dart';
 import '../../core/menu/context_menu.dart';
+import '../../core/widgets/section_header.dart';
 
 import '../../../domain/models/history_entry.dart';
 import '../query_workspace/worksheet_providers.dart';
@@ -22,30 +23,62 @@ const _err = Color(0xFFFF6B6B);
 /// Recent query history (persisted, ADR-0005). Click an entry to reload its SQL
 /// into the active worksheet.
 class HistoryPanel extends ConsumerWidget {
-  const HistoryPanel({super.key});
+  const HistoryPanel({super.key, this.collapsed = false, this.onToggle});
+
+  final bool collapsed;
+  final VoidCallback? onToggle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final history = ref.watch(recentHistoryProvider);
+    final hideGenerated = ref.watch(hideGeneratedHistoryProvider);
+    // No top border: the pane resizer above draws that line now, and a second
+    // one here overflows the section when it collapses to header height.
     return Container(
-      decoration: const BoxDecoration(
-        color: _panel,
-        border: Border(top: BorderSide(color: _hair)),
-      ),
+      decoration: const BoxDecoration(color: _panel),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const _Header(),
+          SectionHeader(
+            title: 'HISTORY',
+            collapsed: collapsed,
+            onToggle: onToggle,
+            actions: [
+              Tooltip(
+                message: hideGenerated
+                    ? 'Showing only what you ran'
+                    : 'Showing everything that ran',
+                child: IconButton(
+                  icon: Icon(
+                    hideGenerated ? FluentIcons.filter_solid : FluentIcons.filter,
+                    size: 12,
+                    color: hideGenerated ? _accent : _textLo,
+                  ),
+                  onPressed: () => ref
+                      .read(hideGeneratedHistoryProvider.notifier)
+                      .toggle(),
+                ),
+              ),
+            ],
+          ),
           Expanded(
             child: history.when(
               loading: () => const SizedBox.shrink(),
               error: (e, _) => _pad('$e'),
-              data: (list) => list.isEmpty
-                  ? _pad('(no history)')
-                  : ListView(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      children: [for (final e in list) _row(context, ref, e)],
-                    ),
+              data: (all) {
+                final list = hideGenerated
+                    ? all.where((e) => !e.source.isGenerated).toList()
+                    : all;
+                if (list.isEmpty) {
+                  return _pad(all.isEmpty
+                      ? '(no history)'
+                      : '(nothing you ran by hand)');
+                }
+                return ListView(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  children: [for (final e in list) _row(context, ref, e)],
+                );
+              },
             ),
           ),
         ],
@@ -53,15 +86,51 @@ class HistoryPanel extends ConsumerWidget {
     );
   }
 
+  /// Says who wrote the statement, for anything the user didn't type.
+  Widget _sourceTag(HistorySource source) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+        decoration: BoxDecoration(
+          border: Border.all(color: _hair),
+          borderRadius: BorderRadius.circular(3),
+        ),
+        child: Text(source.label,
+            style: const TextStyle(
+                color: _textMid, fontSize: 9, letterSpacing: 0.3)),
+      );
+
   Widget _pad(String s) => Padding(
       padding: const EdgeInsets.all(12),
       child: Text(s, style: const TextStyle(color: _textLo, fontSize: 12)));
 
+  /// "just now" · "14:32" · "Mar 4 14:32".
+  ///
+  /// The stamp was always stored and never shown, so "did I run that before or
+  /// after the deploy?" had no answer. Relative for the last hour (the common
+  /// "what did I just do" case), clock time for today, date beyond that.
+  static String _when(DateTime at) {
+    final now = DateTime.now();
+    final ago = now.difference(at);
+    if (ago.inMinutes < 1) return 'just now';
+    if (ago.inMinutes < 60) return '${ago.inMinutes}m ago';
+    final hhmm = '${at.hour.toString().padLeft(2, '0')}:'
+        '${at.minute.toString().padLeft(2, '0')}';
+    final sameDay =
+        at.year == now.year && at.month == now.month && at.day == now.day;
+    if (sameDay) return hhmm;
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', //
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${months[at.month - 1]} ${at.day} $hhmm';
+  }
+
   Widget _row(BuildContext context, WidgetRef ref, HistoryEntry e) {
     final ok = e.status == HistoryStatus.ok;
-    final meta = ok
-        ? '${e.rowCount ?? 0} rows · ${e.durationMs} ms'
-        : (e.errorKind ?? 'error');
+    final meta = [
+      _when(e.startedAt),
+      if (ok) '${e.rowCount ?? 0} rows' else (e.errorKind ?? 'error'),
+      '${e.durationMs} ms',
+    ].join(' · ');
     return ContextMenuRegion(
       actions: [
         MenuAction(
@@ -117,11 +186,26 @@ class HistoryPanel extends ConsumerWidget {
                   e.sql.replaceAll('\n', ' '),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      color: _textHi, fontSize: 12, fontFamily: 'monospace'),
+                  style: TextStyle(
+                      // Generated statements are dimmed rather than hidden:
+                      // they really ran, so they stay auditable, but they
+                      // shouldn't compete with what you typed.
+                      color: e.source.isGenerated ? _textMid : _textHi,
+                      fontSize: 12,
+                      fontFamily: 'monospace'),
                 ),
-                Text(meta,
-                    style: const TextStyle(color: _textLo, fontSize: 10.5)),
+                Row(children: [
+                  if (e.source.isGenerated) ...[
+                    _sourceTag(e.source),
+                    const SizedBox(width: 6),
+                  ],
+                  Flexible(
+                    child: Text(meta,
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                            const TextStyle(color: _textLo, fontSize: 10.5)),
+                  ),
+                ]),
               ],
             ),
           ),
@@ -155,21 +239,3 @@ class HistoryPanel extends ConsumerWidget {
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header();
-  @override
-  Widget build(BuildContext context) => Container(
-        height: 30,
-        padding: const EdgeInsets.only(left: 12),
-        alignment: Alignment.centerLeft,
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: _hair)),
-        ),
-        child: const Text('HISTORY',
-            style: TextStyle(
-                color: _textMid,
-                fontSize: 10.5,
-                letterSpacing: 1.4,
-                fontWeight: FontWeight.w600)),
-      );
-}
