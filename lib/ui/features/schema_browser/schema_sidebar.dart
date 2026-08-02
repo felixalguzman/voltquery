@@ -266,6 +266,16 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
 
   void _openTable(TableInfo t, {required bool run}) {
     setState(() => _lastOpened = _keyOf(t));
+
+    // Already open? Go back to it. Spawning another tab for a table you're
+    // already looking at is how you end up with thirteen worksheets.
+    final tabs = ref.read(worksheetTabsProvider);
+    final origins = ref.read(worksheetOriginsProvider.notifier);
+    final existing = origins.find(_keyOf(t), tabs.ids);
+    if (existing != null) {
+      ref.read(worksheetTabsProvider.notifier).select(existing);
+      return;
+    }
     // Quote for the *connection's* dialect: MySQL reads "t" as a string
     // literal unless ANSI_QUOTES is on, so a double-quoted name is a syntax
     // error there. Qualify with the owning schema/database too — the tree can
@@ -277,6 +287,7 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
     ref
         .read(worksheetSeedsProvider.notifier)
         .put(id, 'SELECT * FROM $target LIMIT 200;', autoRun: run);
+    origins.put(id, _keyOf(t));
   }
 
   List<TreeViewItem> _columnItems(List<ColumnInfo> cols) => [

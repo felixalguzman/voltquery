@@ -419,6 +419,32 @@ class HostKeyPrompt extends _$HostKeyPrompt {
       state = prompt;
 }
 
+/// Which table each worksheet was opened for, when it came from the schema
+/// tree.
+///
+/// Lets a second click on the same table return to the tab it already has
+/// rather than opening another one — clicking five tables should leave five
+/// tabs, not five per click.
+@Riverpod(keepAlive: true)
+class WorksheetOrigins extends _$WorksheetOrigins {
+  @override
+  Map<String, String> build() => const {};
+
+  void put(String worksheetId, String tableKey) =>
+      state = {...state, worksheetId: tableKey};
+
+  /// The worksheet already showing [tableKey], if one is still open.
+  String? find(String tableKey, Iterable<String> openIds) {
+    for (final e in state.entries) {
+      if (e.value == tableKey && openIds.contains(e.key)) return e.key;
+    }
+    return null;
+  }
+
+  void forget(String worksheetId) =>
+      state = {...state}..remove(worksheetId);
+}
+
 @riverpod
 WorksheetRunner worksheetRunner(Ref ref) => const WorksheetRunner();
 

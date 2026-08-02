@@ -194,11 +194,107 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
 
   /// The columns themselves — a count alone answers almost nothing you'd open
   /// this dialog to find out.
-  Widget _columnsTab(_Info info) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final c in info.columns)
+  Widget _columnsTab(_Info info) {
+    final shown = info.columns.where((c) {
+      if (_fkOnly && !c.isForeignKey) return false;
+      if (_typeFilter != null &&
+          c.dataType.split('(').first.trim().toUpperCase() != _typeFilter) {
+        return false;
+      }
+      return true;
+    }).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _columnFilters(info, shown.length),
+        const SizedBox(height: 8),
+        if (shown.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Text('No columns match this filter.',
+                style: TextStyle(color: _textLo, fontSize: 11.5)),
+          ),
+        ..._columnRows(shown),
+      ],
+    );
+  }
+
+  Widget _columnFilters(_Info info, int shownCount) {
+    final fkCount = info.columns.where((c) => c.isForeignKey).length;
+    final filtered = _typeFilter != null || _fkOnly;
+    return Row(
+      children: [
+        _filterChip(
+          'Foreign keys ($fkCount)',
+          active: _fkOnly,
+          enabled: fkCount > 0,
+          onTap: () => setState(() {
+            _fkOnly = !_fkOnly;
+            _typeFilter = null;
+          }),
+        ),
+        if (_typeFilter case final type?) ...[
+          const SizedBox(width: 6),
+          _filterChip(type, active: true,
+              onTap: () => setState(() => _typeFilter = null)),
+        ],
+        const Spacer(),
+        Text(
+          filtered
+              ? '$shownCount of ${info.columns.length}'
+              : '${info.columns.length} columns',
+          style: const TextStyle(color: _textLo, fontSize: 10.5),
+        ),
+        if (filtered) ...[
+          const SizedBox(width: 8),
+          HoverButton(
+            onPressed: () => setState(() {
+              _typeFilter = null;
+              _fkOnly = false;
+            }),
+            builder: (context, states) => const Text('Clear',
+                style: TextStyle(color: _accent, fontSize: 10.5)),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _filterChip(String label,
+          {required bool active,
+          required VoidCallback onTap,
+          bool enabled = true}) =>
+      HoverButton(
+        onPressed: enabled ? onTap : null,
+        builder: (context, states) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: active
+                ? const Color(0x222FE6FF)
+                : (states.isHovered ? const Color(0x14FFFFFF) : _bg),
+            border: Border.all(color: active ? _accent : _hair),
+            borderRadius: BorderRadius.circular(3),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(label,
+                style: TextStyle(
+                    color: enabled
+                        ? (active ? _accent : _textMid)
+                        : _textLo,
+                    fontSize: 10.5,
+                    fontFamily: 'monospace')),
+            if (active) ...[
+              const SizedBox(width: 5),
+              const Icon(FluentIcons.clear, size: 7, color: _accent),
+            ],
+          ]),
+        ),
+      );
+
+  List<Widget> _columnRows(List<ColumnInfo> columns) => [
+          for (final c in columns)
             Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Row(
@@ -256,8 +352,7 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
                 ],
               ),
             ),
-        ],
-      );
+        ];
 
   Widget _ddlTab(_Info info) {
     if (info.ddl.isEmpty) {
@@ -518,10 +613,29 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
       counts[base.isEmpty ? 'UNTYPED' : base] =
           (counts[base.isEmpty ? 'UNTYPED' : base] ?? 0) + 1;
     }
+    // Grouped by meaning rather than by frequency: scanning a table's shape is
+    // easier when every numeric type sits together, then dates, then text —
+    // a count-descending list interleaves them arbitrarily.
+    int rank(String type) => switch (_kindForType(type)) {
+          ColumnEditorKind.integer || ColumnEditorKind.decimal => 0,
+          ColumnEditorKind.date ||
+          ColumnEditorKind.dateTime ||
+          ColumnEditorKind.time =>
+            1,
+          ColumnEditorKind.text => 2,
+          ColumnEditorKind.boolean => 3,
+          ColumnEditorKind.enumeration => 4,
+          ColumnEditorKind.json => 5,
+          ColumnEditorKind.binary => 6,
+        };
     final ordered = counts.entries.toList()
-      ..sort((a, b) => b.value == a.value
-          ? a.key.compareTo(b.key)
-          : b.value.compareTo(a.value));
+      ..sort((a, b) {
+        final byKind = rank(a.key).compareTo(rank(b.key));
+        if (byKind != 0) return byKind;
+        return b.value == a.value
+            ? a.key.compareTo(b.key)
+            : b.value.compareTo(a.value);
+      });
     if (ordered.isEmpty) return const SizedBox.shrink();
 
     return Wrap(
@@ -529,24 +643,42 @@ class _TableInfoDialogState extends State<_TableInfoDialog> {
       runSpacing: 4,
       children: [
         for (final e in ordered)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-            decoration: BoxDecoration(
-              color: _bg,
-              border: Border.all(color: _hair),
-              borderRadius: BorderRadius.circular(3),
+          HoverButton(
+            // Clicking a type answers "which columns are those?" — the question
+            // the count immediately raises.
+            onPressed: () => setState(() {
+              _typeFilter = e.key;
+              _fkOnly = false;
+              _tab = 1;
+            }),
+            builder: (context, states) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(
+                color: states.isHovered ? const Color(0x14FFFFFF) : _bg,
+                border: Border.all(color: _hair),
+                borderRadius: BorderRadius.circular(3),
+              ),
+              child: Text('${e.value} × ${e.key}',
+                  style: TextStyle(
+                      color: _colorForType(e.key),
+                      fontSize: 10.5,
+                      fontFamily: 'monospace')),
             ),
-            child: Text('${e.value} × ${e.key}',
-                style: TextStyle(
-                    color: e.value == 0 ? _textMid : _colorForType(e.key),
-                    fontSize: 10.5,
-                    fontFamily: 'monospace')),
           ),
       ],
     );
   }
 
   static const _colors = SqlTypeColors.dark;
+
+  /// Active Columns-tab filters.
+  String? _typeFilter;
+  bool _fkOnly = false;
+
+  ColumnEditorKind _kindForType(String dataType) =>
+      ColumnEditorResolver(widget.engine)
+          .resolve(dataType, nullable: true)
+          .kind;
 
   /// How many *distinct* tables this one points at.
   static int _distinctTargets(List<ColumnInfo> fks) =>
