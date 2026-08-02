@@ -183,6 +183,79 @@ void main() {
     );
   });
 
+  test('tableStats sizes the table but never estimates rows', () async {
+    await session.execute('CREATE TABLE t (id INTEGER PRIMARY KEY, a TEXT)');
+    await session.execute("INSERT INTO t (a) VALUES ('x'), ('y')");
+
+    final stats = await session.schema
+        .tableStats(const TableInfo(name: 't', kind: ObjectKind.table));
+
+    // SQLite keeps no row estimate, and producing one would mean the full scan
+    // this method exists to avoid.
+    expect(stats.estimatedRows, isNull);
+    // Size, though, comes free from the dbstat module (present in the bundled
+    // library) — it sums the pages the table actually occupies.
+    expect(stats.totalBytes, isNotNull);
+    expect(stats.totalBytes, greaterThan(0));
+  });
+
+  test('rowCount is exact, and separate from tableStats', () async {
+    await session.execute('CREATE TABLE t (id INTEGER PRIMARY KEY)');
+    await session.execute('INSERT INTO t (id) VALUES (1), (2), (3)');
+
+    final n = await session.schema
+        .rowCount(const TableInfo(name: 't', kind: ObjectKind.table));
+    expect(n, 3);
+  });
+
+  test('rowCount quotes the table name', () async {
+    await session.execute('CREATE TABLE "odd name" (id INTEGER)');
+    await session.execute('INSERT INTO "odd name" VALUES (1)');
+    expect(
+      await session.schema
+          .rowCount(const TableInfo(name: 'odd name', kind: ObjectKind.table)),
+      1,
+    );
+  });
+
+  test('referencedBy finds inbound foreign keys', () async {
+    await session.execute('CREATE TABLE customers (id INTEGER PRIMARY KEY)');
+    await session.execute('CREATE TABLE orders ('
+        'id INTEGER PRIMARY KEY, '
+        'customer_id INTEGER REFERENCES customers(id))');
+    await session.execute('CREATE TABLE notes ('
+        'id INTEGER PRIMARY KEY, '
+        'about INTEGER REFERENCES customers(id))');
+
+    // The inverse of ColumnInfo.references: what depends on this table. There
+    // is no other way to answer that from the UI.
+    final inbound = await session.schema
+        .referencedBy(const TableInfo(name: 'customers', kind: ObjectKind.table));
+    final described = inbound.map((r) => '${r.table}.${r.column}').toSet();
+    expect(described, {'orders.customer_id', 'notes.about'});
+  });
+
+  test('referencedBy is empty for a table nothing points at', () async {
+    await session.execute('CREATE TABLE lonely (id INTEGER PRIMARY KEY)');
+    expect(
+      await session.schema
+          .referencedBy(const TableInfo(name: 'lonely', kind: ObjectKind.table)),
+      isEmpty,
+    );
+  });
+
+  test('a self-referencing table does not report itself', () async {
+    // Walking every table would otherwise list the table's own FK as inbound,
+    // which is true but useless noise in a "what depends on this" list.
+    await session.execute('CREATE TABLE tree ('
+        'id INTEGER PRIMARY KEY, parent INTEGER REFERENCES tree(id))');
+    expect(
+      await session.schema
+          .referencedBy(const TableInfo(name: 'tree', kind: ObjectKind.table)),
+      isEmpty,
+    );
+  });
+
   test('SQLite capabilities: no server, no schemas, no query-cancel', () {
     expect(driver.engine, Engine.sqlite);
     final c = driver.capabilities;

@@ -515,6 +515,84 @@ abstract class _$HostKeyPrompt
   }
 }
 
+/// Which table each worksheet was opened for, when it came from the schema
+/// tree.
+///
+/// Lets a second click on the same table return to the tab it already has
+/// rather than opening another one — clicking five tables should leave five
+/// tabs, not five per click.
+
+@ProviderFor(WorksheetOrigins)
+final worksheetOriginsProvider = WorksheetOriginsProvider._();
+
+/// Which table each worksheet was opened for, when it came from the schema
+/// tree.
+///
+/// Lets a second click on the same table return to the tab it already has
+/// rather than opening another one — clicking five tables should leave five
+/// tabs, not five per click.
+final class WorksheetOriginsProvider
+    extends $NotifierProvider<WorksheetOrigins, Map<String, String>> {
+  /// Which table each worksheet was opened for, when it came from the schema
+  /// tree.
+  ///
+  /// Lets a second click on the same table return to the tab it already has
+  /// rather than opening another one — clicking five tables should leave five
+  /// tabs, not five per click.
+  WorksheetOriginsProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'worksheetOriginsProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$worksheetOriginsHash();
+
+  @$internal
+  @override
+  WorksheetOrigins create() => WorksheetOrigins();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(Map<String, String> value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<Map<String, String>>(value),
+    );
+  }
+}
+
+String _$worksheetOriginsHash() => r'c6954a5d84191c8f02b51e4463123ef7814ecb5f';
+
+/// Which table each worksheet was opened for, when it came from the schema
+/// tree.
+///
+/// Lets a second click on the same table return to the tab it already has
+/// rather than opening another one — clicking five tables should leave five
+/// tabs, not five per click.
+
+abstract class _$WorksheetOrigins extends $Notifier<Map<String, String>> {
+  Map<String, String> build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<Map<String, String>, Map<String, String>>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<Map<String, String>, Map<String, String>>,
+              Map<String, String>,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}
+
 @ProviderFor(worksheetRunner)
 final worksheetRunnerProvider = WorksheetRunnerProvider._();
 

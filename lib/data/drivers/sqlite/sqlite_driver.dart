@@ -231,6 +231,75 @@ class _SqliteSchemaIntrospector implements SchemaIntrospector {
   }
 
   @override
+  Future<List<ColumnRef>> referencedBy(TableInfo table) async {
+    // SQLite has no inbound-FK catalog: the only way is to ask every table what
+    // *it* references. That's one PRAGMA per table, so it's bounded here —
+    // beyond this the dialog would stall on a large schema, and an incomplete
+    // list is better than a frozen dialog. (A LIMIT rather than a silent cut:
+    // the count is what a user compares against.)
+    const maxTablesScanned = 300;
+    final tables = _db.select(
+      "SELECT name FROM sqlite_master WHERE type = 'table' "
+      "AND name NOT LIKE 'sqlite_%' ORDER BY name LIMIT $maxTablesScanned",
+    );
+    final out = <ColumnRef>[];
+    for (final row in tables) {
+      final other = row['name'] as String;
+      if (other == table.name) continue;
+      final fks =
+          _db.select("PRAGMA foreign_key_list('${other.replaceAll("'", "''")}')");
+      for (final fk in fks) {
+        if (fk['table'] == table.name) {
+          out.add(ColumnRef(table: other, column: fk['from'] as String));
+        }
+      }
+    }
+    return out;
+  }
+
+  @override
+  Future<TableStats> tableStats(TableInfo table) async {
+    // SQLite keeps no row estimate — reporting one would mean a full scan,
+    // which this method must not do.
+    //
+    // Size, though, *is* available when the build includes the optional dbstat
+    // module (most do, including the bundled desktop library): it sums the
+    // actual pages a table occupies. Indexes are attributed separately, since
+    // dbstat rows are per b-tree. If dbstat isn't compiled in the query throws
+    // and we fall back to reporting nothing rather than guessing.
+    try {
+      final name = table.name.replaceAll("'", "''");
+      final rs = _db.select(
+        "SELECT SUM(pgsize) FROM dbstat WHERE name = '$name'",
+      );
+      final tableBytes = rs.isEmpty ? null : rs.first.values.first as int?;
+
+      // Index pages live under the index's own name in dbstat.
+      final idx = _db.select(
+        "SELECT SUM(s.pgsize) FROM dbstat s "
+        "JOIN sqlite_master m ON m.name = s.name "
+        "WHERE m.type = 'index' AND m.tbl_name = '$name'",
+      );
+      final indexBytes = idx.isEmpty ? null : idx.first.values.first as int?;
+
+      if (tableBytes == null && indexBytes == null) return const TableStats();
+      return TableStats(
+        totalBytes: (tableBytes ?? 0) + (indexBytes ?? 0),
+        indexBytes: indexBytes,
+      );
+    } catch (_) {
+      return const TableStats();
+    }
+  }
+
+  @override
+  Future<int> rowCount(TableInfo table) async {
+    final name = table.name.replaceAll('"', '""');
+    final rs = _db.select('SELECT count(*) FROM "$name"');
+    return (rs.first.values.first as int?) ?? 0;
+  }
+
+  @override
   Future<String> indexDdl(TableInfo table, IndexInfo index) async {
     final rs = _db.select(
       "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?",

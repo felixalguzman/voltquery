@@ -3,12 +3,15 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../domain/drivers/driver_error.dart';
+import '../../../domain/models/column_editor.dart';
 import '../../../domain/models/schema.dart';
+import '../../core/theme/sql_type_colors.dart';
 import '../../../domain/sql/sql_statement_splitter.dart';
 import '../../core/menu/context_menu.dart';
 import '../query_workspace/worksheet_providers.dart';
 import 'schema_providers.dart';
 import 'schema_repository.dart';
+import 'table_info_dialog.dart';
 
 // TODO(theming #7): unify these tokens into ui/core/theme.
 const _panel = Color(0xFF16181D);
@@ -134,7 +137,9 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
           actions: [
             MenuAction('Copy Name', () => _copy(s.name), icon: FluentIcons.copy)
           ],
-          child: Text(s.name, style: _mono),
+          child: _row(
+            Text(s.name, overflow: TextOverflow.ellipsis, style: _mono),
+          ),
         ),
         lazy: true,
         value: _Loader(() async => _objectItems(await widget.repo.tables(s))),
@@ -167,8 +172,23 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
                 icon: FluentIcons.open_file),
             MenuAction('Preview Data', () => _openTable(t, run: true),
                 icon: FluentIcons.preview),
+            MenuAction.divider,
+            MenuAction('Table Info…', () => _showInfo(t),
+                icon: FluentIcons.info),
           ],
-          child: Text(t.name, overflow: TextOverflow.ellipsis, style: _mono),
+          child: _row(Builder(builder: (context) {
+            // The table you last opened stays marked, so after scrolling a few
+            // hundred rows you can still see where you were.
+            final isCurrent = _lastOpened == _keyOf(t);
+            return Text(
+              t.name,
+              overflow: TextOverflow.ellipsis,
+              style: isCurrent
+                  ? _mono.copyWith(
+                      color: _accent, fontWeight: FontWeight.w600)
+                  : _mono,
+            );
+          })),
         ),
         lazy: true,
         // Columns show immediately on expand; indexes hang under a lazy folder.
@@ -217,9 +237,28 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
     return null;
   }
 
+  /// Uniform vertical padding for every tree row.
+  ///
+  /// Two reasons beyond comfort: a dense list of near-identical names is hard
+  /// to track a line through, and the sticky header maps scroll offset to a row
+  /// index — which only works while every row is the same height. That's also
+  /// why every label ellipsizes rather than wrapping.
+  static Widget _row(Widget child) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        child: child,
+      );
+
   // --- Context-menu actions --------------------------------------------------
 
   void _copy(String text) => Clipboard.setData(ClipboardData(text: text));
+
+  /// Size, shape, keys and indexes without writing a query for any of it.
+  void _showInfo(TableInfo t) => showTableInfoDialog(
+        context,
+        table: t,
+        repo: widget.repo,
+        engine: ref.read(currentConnectionProvider).engine,
+      );
 
   /// Fetch DDL (cached in the repo) then copy it. Never leaves the clipboard
   /// empty — a fetch failure copies a `--`-commented note instead.
@@ -233,7 +272,23 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
 
   /// Open [t] in a **new** worksheet tab (never clobbering the current editor).
   /// [run] = Preview Data (auto-run); false = Open in Editor (load only).
+  /// Identity of the last table opened from the tree.
+  String? _lastOpened;
+
+  static String _keyOf(TableInfo t) => '${t.schema}.${t.name}';
+
   void _openTable(TableInfo t, {required bool run}) {
+    setState(() => _lastOpened = _keyOf(t));
+
+    // Already open? Go back to it. Spawning another tab for a table you're
+    // already looking at is how you end up with thirteen worksheets.
+    final tabs = ref.read(worksheetTabsProvider);
+    final origins = ref.read(worksheetOriginsProvider.notifier);
+    final existing = origins.find(_keyOf(t), tabs.ids);
+    if (existing != null) {
+      ref.read(worksheetTabsProvider.notifier).select(existing);
+      return;
+    }
     // Quote for the *connection's* dialect: MySQL reads "t" as a string
     // literal unless ANSI_QUOTES is on, so a double-quoted name is a syntax
     // error there. Qualify with the owning schema/database too — the tree can
@@ -245,6 +300,7 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
     ref
         .read(worksheetSeedsProvider.notifier)
         .put(id, 'SELECT * FROM $target LIMIT 200;', autoRun: run);
+    origins.put(id, _keyOf(t));
   }
 
   List<TreeViewItem> _columnItems(List<ColumnInfo> cols) => [
@@ -279,7 +335,7 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
                     icon: FluentIcons.link,
                   ),
               ],
-              child: LayoutBuilder(builder: (context, cons) {
+              child: _row(LayoutBuilder(builder: (context, cons) {
                 return Row(children: [
                   ConstrainedBox(
                     constraints: BoxConstraints(maxWidth: cons.maxWidth * 0.55),
@@ -302,14 +358,20 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
                         maxLines: 1,
                         textAlign: TextAlign.right,
                         style: TextStyle(
-                            color: c.references == null
-                                ? _textLo
-                                : const Color(0xFFB98CFF),
+                            color: c.references != null
+                                ? const Color(0xFFB98CFF)
+                                : SqlTypeColors.dark.of(
+                                    ColumnEditorResolver(
+                                            ref.read(currentConnectionProvider)
+                                                .engine)
+                                        .resolve(c.dataType,
+                                            nullable: c.nullable)
+                                        .kind),
                             fontSize: 10.5,
                             fontFamily: 'monospace')),
                   ),
                 ]);
-              }),
+              })),
             ),
           ),
       ];
@@ -317,9 +379,9 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
   /// The lazy "Indexes" group under a table/view.
   TreeViewItem _indexesFolder(TableInfo t) => TreeViewItem(
         leading: const Icon(FluentIcons.folder, size: 12, color: _textLo),
-        content: const Text('Indexes',
+        content: _row(const Text('Indexes',
             style: TextStyle(
-                color: _textMid, fontSize: 11.5, letterSpacing: 0.3)),
+                color: _textMid, fontSize: 11.5, letterSpacing: 0.3))),
         lazy: true,
         value:
             _Loader(() async => _indexItems(t, await widget.repo.indexes(t))),
@@ -340,7 +402,7 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
                     () => _copyDdl(() => widget.repo.indexDdl(t, ix)),
                     icon: FluentIcons.code),
               ],
-              child: Row(children: [
+              child: _row(Row(children: [
                 Flexible(
                   child: Text(ix.name,
                       overflow: TextOverflow.ellipsis,
@@ -361,7 +423,7 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
                           fontSize: 10.5,
                           fontFamily: 'monospace')),
                 ),
-              ]),
+              ])),
             ),
           ),
       ];
@@ -416,14 +478,118 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
     final roots = _roots;
     if (roots == null) return const _Spinner();
     if (roots.isEmpty) return const _Message('(empty schema)', color: _textLo);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-      child: TreeView(
-        controller: _controller,
-        selectionMode: TreeViewSelectionMode.none,
-        shrinkWrap: false,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Which expanded root you're inside, pinned while you scroll. In a
+        // schema with hundreds of tables the header scrolls away immediately,
+        // and collapsing it meant scrolling all the way back up to find it.
+        if (_stickyRoot case final root?) _stickyHeader(root),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (n) {
+                if (n is ScrollUpdateNotification ||
+                    n is ScrollEndNotification) {
+                  _updateSticky(n.metrics.pixels);
+                }
+                return false;
+              },
+              child: TreeView(
+                controller: _controller,
+                selectionMode: TreeViewSelectionMode.none,
+                shrinkWrap: false,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Rows are a fixed height in fluent's TreeView, so the node at the top of the
+  /// viewport is just an index into the flattened visible list — no layout
+  /// measurement needed.
+  /// Matches the padding in [_row] plus fluent's own row chrome. Uniform by
+  /// construction — labels ellipsize, so nothing wraps to a second line.
+  static const _rowHeight = 38.0;
+
+  void _updateSticky(double pixels) {
+    final roots = _roots;
+    if (roots == null) return;
+    final flat = <(TreeViewItem, TreeViewItem)>[]; // (node, its root)
+    void walk(TreeViewItem node, TreeViewItem root) {
+      flat.add((node, root));
+      if (!node.expanded) return;
+      for (final c in node.children) {
+        walk(c, root);
+      }
+    }
+
+    for (final r in roots) {
+      walk(r, r);
+    }
+
+    final index = (pixels / _rowHeight).floor();
+    // Only a *descendant* needs the reminder; sitting on the root itself
+    // already shows it.
+    final root = index > 0 && index < flat.length ? flat[index].$2 : null;
+    final showFor = (root != null && flat[index].$1 != root) ? root : null;
+    if (showFor != _stickyRoot) setState(() => _stickyRoot = showFor);
+  }
+
+  TreeViewItem? _stickyRoot;
+
+  Widget _stickyHeader(TreeViewItem root) {
+    final label = _labelOf(root) ?? '';
+    return GestureDetector(
+      // Tapping collapses it — the reason you were scrolling back up.
+      //
+      // Via the controller: setting `item.expanded` directly changes the model
+      // without telling the TreeView to rebuild, so the tree stayed open and
+      // only this header reacted.
+      onTap: () {
+        _controller.collapseItem(root);
+        setState(() => _stickyRoot = null);
+      },
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Container(
+          height: 24,
+          padding: const EdgeInsets.only(left: 8, right: 6),
+          decoration: const BoxDecoration(
+            color: Color(0xFF1B1E24),
+            border: Border(bottom: BorderSide(color: _hair)),
+          ),
+          child: Row(children: [
+            const Icon(FluentIcons.chevron_down, size: 8, color: _textLo),
+            const SizedBox(width: 8),
+            const Icon(FluentIcons.database, size: 11, color: _textMid),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(label,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: _textMid, fontSize: 11.5, fontFamily: 'monospace')),
+            ),
+            const Text('collapse',
+                style: TextStyle(color: _textLo, fontSize: 9.5)),
+          ]),
+        ),
       ),
     );
+  }
+
+  /// The text a node renders, dug out of the ContextMenuRegion we wrap it in.
+  static String? _labelOf(TreeViewItem node) {
+    final content = node.content;
+    if (content is ContextMenuRegion) {
+      final child = content.child;
+      if (child is Text) return child.data;
+    }
+    if (content is Text) return content.data;
+    return null;
   }
 }
 

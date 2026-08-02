@@ -142,4 +142,26 @@ void main() {
     expect(find.text('Query 2'), findsOneWidget);
     expect(find.textContaining('row(s)'), findsNothing);
   });
+
+  testWidgets('clicking the same table returns to its tab, not a new one',
+      (tester) async {
+    await _pumpApp(tester);
+
+    // First click opens a worksheet for it.
+    await tester.tap(find.text('customers'));
+    await tester.pumpAndSettle();
+    expect(find.text('Query 2'), findsOneWidget);
+    expect(find.text('Query 3'), findsNothing);
+
+    // Clicking it again should go back to that worksheet rather than spawning
+    // another — otherwise a few clicks leave a dozen identical tabs.
+    await tester.tap(find.text('customers'));
+    await tester.pumpAndSettle();
+    expect(find.text('Query 3'), findsNothing);
+
+    // A *different* table still gets its own.
+    await tester.tap(find.text('products'));
+    await tester.pumpAndSettle();
+    expect(find.text('Query 3'), findsOneWidget);
+  });
 }

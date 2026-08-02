@@ -28,6 +28,26 @@ abstract interface class SchemaIntrospector {
   /// a `--`-commented note instead so the clipboard is always meaningful.
   Future<String> tableDdl(TableInfo table);
 
+  /// Columns in **other** tables whose foreign keys point at [table].
+  ///
+  /// The inverse of [ColumnInfo.references], and the question the rest of the
+  /// UI can't answer: what depends on this table, and therefore what breaks if
+  /// its rows or shape change. Returns the referencing side — `orders.
+  /// customer_id` for `customers`.
+  Future<List<ColumnRef>> referencedBy(TableInfo table);
+
+  /// Cheap statistics for [table] — estimated rows, on-disk size, comment.
+  ///
+  /// Must stay **catalog-only**: this runs when a user opens an info dialog, so
+  /// it may not scan the table. Engines that keep no estimate return the fields
+  /// they can and leave the rest null rather than counting rows.
+  Future<TableStats> tableStats(TableInfo table);
+
+  /// An exact `count(*)`. Separate from [tableStats] because on a large table
+  /// this is a full scan, and the caller should be the one deciding to pay for
+  /// it.
+  Future<int> rowCount(TableInfo table);
+
   /// The `CREATE INDEX` statement for [index] on [table] ("Copy CREATE" on an
   /// index node, #53). Postgres uses `pg_get_indexdef`; SQLite reads
   /// `sqlite_master` (auto-indexes have no stored SQL → reconstructed);

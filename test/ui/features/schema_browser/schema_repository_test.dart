@@ -13,6 +13,8 @@ class _FakeIntrospector implements SchemaIntrospector {
   int columnCalls = 0;
   int indexCalls = 0;
   int tableDdlCalls = 0;
+  int statsCalls = 0;
+  int rowCountCalls = 0;
   int indexDdlCalls = 0;
   bool failColumns = false;
 
@@ -63,6 +65,22 @@ class _FakeIntrospector implements SchemaIntrospector {
   Future<String> tableDdl(TableInfo table) async {
     tableDdlCalls++;
     return 'CREATE TABLE ${table.name} ()';
+  }
+
+  @override
+  Future<List<ColumnRef>> referencedBy(TableInfo table) async =>
+      const [ColumnRef(table: 'orders', column: 'customer_id')];
+
+  @override
+  Future<TableStats> tableStats(TableInfo table) async {
+    statsCalls++;
+    return const TableStats(estimatedRows: 42);
+  }
+
+  @override
+  Future<int> rowCount(TableInfo table) async {
+    rowCountCalls++;
+    return 42;
   }
 
   @override
@@ -173,5 +191,23 @@ void main() {
     final cols = await repo.columns(t); // retry succeeds, not the poisoned entry
     expect(cols.single.name, 'id');
     expect(fake.columnCalls, 2);
+  });
+
+  test('stats are memoized, but an exact row count never is', () async {
+    const t = TableInfo(name: 'orders', kind: ObjectKind.table, schema: 'public');
+
+    await repo.stats(t);
+    await repo.stats(t);
+    expect(fake.statsCalls, 1);
+
+    // Asking for an exact count means asking *now* — serving a cached number
+    // would defeat the point of the button that triggers it.
+    await repo.rowCount(t);
+    await repo.rowCount(t);
+    expect(fake.rowCountCalls, 2);
+
+    repo.invalidate();
+    await repo.stats(t);
+    expect(fake.statsCalls, 2);
   });
 }

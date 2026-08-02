@@ -81,6 +81,37 @@ class ColumnInfo {
   final ColumnRef? references;
 }
 
+/// Cheap, catalog-derived statistics about a table.
+///
+/// Row counts are **estimates** on the engines that keep them (Postgres
+/// `reltuples`, MySQL `table_rows`), because `SELECT count(*)` on a large table
+/// is a full scan — not something a dialog should trigger just by opening.
+/// An exact count stays available on request.
+class TableStats {
+  const TableStats({
+    this.estimatedRows,
+    this.totalBytes,
+    this.indexBytes,
+    this.comment,
+  });
+
+  /// Null when the engine keeps no estimate (SQLite).
+  final int? estimatedRows;
+
+  /// Table + indexes on disk, where the engine can say.
+  final int? totalBytes;
+  final int? indexBytes;
+
+  /// `COMMENT ON TABLE` / MySQL table comment.
+  final String? comment;
+
+  bool get isEmpty =>
+      estimatedRows == null &&
+      totalBytes == null &&
+      indexBytes == null &&
+      (comment == null || comment!.isEmpty);
+}
+
 class IndexInfo {
   const IndexInfo({
     required this.name,

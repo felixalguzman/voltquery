@@ -37,7 +37,11 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   "Copy CREATE" fetches per-engine DDL (SQLite `sqlite_master`; MySQL `SHOW
   CREATE`; Postgres `pg_get_viewdef`/`pg_get_indexdef`, tables reconstructed from
   the catalog with a header note) via new `SchemaIntrospector.tableDdl`/
-  `indexDdl`, cached in the `SchemaRepository`.
+  `indexDdl`, cached in the `SchemaRepository`. **Table Info…** opens a dialog
+  with catalog-cheap stats — estimated rows (Postgres `reltuples`, MySQL
+  `table_rows`; SQLite keeps none and says so), on-disk size, PK, FKs and
+  indexes — plus an opt-in exact `count(*)`, kept separate because on a large
+  table that is a full scan.
 - **Demo database** (temp-file SQLite, seeded per run): `customers`, `products`,
   `orders`, `order_items` (composite PK), a PK-less `audit_log` and a
   `customer_orders` view, with FKs and three indexes. Shaped to exercise the
@@ -146,6 +150,14 @@ See `docs/research/feature-gaps.md` (parity) and `docs/research/differentiators.
 (offense) for the surveyed backlog these were picked from.
 
 ### Agreed but not built
+
+**Type-to-filter across the app** (asked for 2026-08-01): start typing to narrow
+the schema tree, query history, and the table-info Columns/DDL tabs. Each of
+those is already a list the user scans by eye, and the schema tree in particular
+is unusable by scrolling once a database has hundreds of tables. Wants one
+shared filter widget rather than three, and should match on substring rather
+than prefix (column names are prefix-heavy: `secuencia_`, `ven_`).
+
 
 **Remember expanded schema-tree nodes per connection** (design settled
 2026-08-01): persist expanded *paths* (`schema/table`, `schema/table/Indexes`)
