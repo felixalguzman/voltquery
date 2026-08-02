@@ -4,7 +4,7 @@ Snapshot of the implementation so a fresh session (or you) can pick up. The
 **spec** (what to build) lives in [`docs/README.md`](README.md) → CONTEXT.md,
 ADRs 0001–0009, `docs/design/*`. This file tracks **what's built** so far.
 
-## Done (60 PRs merged to `master`)
+## Done (79 PRs merged to `master`)
 
 Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/MariaDB**
 — all interchangeable behind the driver port (ADR-0003).
@@ -188,7 +188,25 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 - **Theming**: inline "Clean Dev-Tool" tokens (dark, cyan accent) — not yet in
   `ui/core/theme` (still TODO per #7).
 
-**323 tests** green (`flutter test`); `flutter analyze` clean.
+- **Grid row writes** (#79): **Add Row** (status bar), **Duplicate Row** and
+  **Delete Row** (row context menu), all staged into the same buffer as cell
+  edits and reviewed as SQL before anything runs. New rows render green with
+  untouched cells reading `default` (the column is left out of the `INSERT`, so
+  a sequence or engine default still applies — not the same as NULL); deleted
+  rows render struck through in red and stay readable until Apply. Statements
+  are emitted **DELETE → UPDATE → INSERT**, the order that survives a unique
+  index. Applying anything structural re-runs the source query, since the rows
+  on screen no longer describe the table. A duplicate deliberately omits the
+  primary key.
+  - Row identity now travels on the `PlutoRow` key (`_RowRef`) rather than the
+    view index. pluto sorts in place and reports view positions, so indexing
+    `WorksheetRows.rows` by `ctx.rowIdx` meant **sorting a column changed
+    nothing on screen** — the cells kept painting result order. Writes were
+    self-consistent with that (no wrong-row UPDATE), but sort was inert on both
+    editable and read-only grids. Fixed for both, which is also what makes
+    row-delete safe to add.
+
+**342 tests** green (`flutter test`); `flutter analyze` clean.
 
 ## Deferred / known gaps
 
@@ -236,11 +254,9 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 
 1. NavigationView rail + grid keyboard cell nav (#21 remainder).
 2. Background isolate for the SQLite driver — unblocks true Cancel + timeouts.
-3. **Grid write-path** *(inline editing landed)* — domain layer, typed editors,
-   staged buffer and SQL review panel shipped in #63/#64, hardened in #66.
-   Remaining: **row insert/delete/clone**, **"Copy as SQL"**, an explicit
-   **Set NULL** action (empty input on a nullable column currently means NULL,
-   so a deliberate `''` is unreachable), and a **JSON** editor.
+3. **Grid write-path** — domain layer, typed editors, staged buffer and SQL
+   review panel shipped in #63/#64, hardened in #66; row insert/delete/clone in
+   #79. Remaining: a **JSON** editor, and multi-row select → delete in one go.
 4. **Result grid engine** (#67) — pluto_grid is unmaintained; migrate to the
    active `trina_grid` fork, then measure. A custom `VoltGrid` on
    `two_dimensional_scrollables` is the agreed long-term destination but is

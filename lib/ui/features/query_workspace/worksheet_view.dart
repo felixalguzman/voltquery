@@ -392,7 +392,8 @@ Widget _scriptBody(
   final body = outcomes.isEmpty
       ? _centered('Run canceled before any statement ran.')
       : outcomes.length == 1
-          ? _single(outcomes.first.result, worksheetId, 0)
+          ? _single(outcomes.first.result, worksheetId, 0,
+              sql: outcomes.first.sql)
           : _ScriptView(outcomes: outcomes, worksheetId: worksheetId);
   if (!canceled) return body;
   return Column(children: [
@@ -408,12 +409,14 @@ Widget _scriptBody(
 }
 
 /// Renders one statement's payload — the original single-result view.
-Widget _single(WorksheetResult r, String worksheetId, int gridIndex) =>
+Widget _single(WorksheetResult r, String worksheetId, int gridIndex,
+        {String? sql}) =>
     switch (r) {
   WorksheetRows() => ResultGrid(
     rows: r,
     worksheetId: worksheetId,
     gridId: '$worksheetId:$gridIndex:${identityHashCode(r)}',
+    sourceSql: sql,
   ),
   WorksheetMessage(:final text) => _banner(
     text,
@@ -479,6 +482,7 @@ class _ScriptViewState extends State<_ScriptView> {
           worksheetId: widget.worksheetId,
           gridId: '${widget.worksheetId}:$i:'
               '${identityHashCode(o.result)}',
+          sourceSql: o.sql,
         ),
       _messagesLog(widget.outcomes),
     ];
