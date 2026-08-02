@@ -8,7 +8,9 @@ import '../../../domain/models/schema.dart';
 import '../../core/theme/sql_type_colors.dart';
 import '../../../domain/sql/sql_statement_splitter.dart';
 import '../../core/menu/context_menu.dart';
+import '../../core/widgets/section_header.dart';
 import '../query_workspace/worksheet_providers.dart';
+import '../settings/settings_providers.dart';
 import 'schema_providers.dart';
 import 'schema_repository.dart';
 import 'table_info_dialog.dart';
@@ -30,16 +32,18 @@ const _mono = TextStyle(color: _text, fontSize: 12.5, fontFamily: 'monospace');
 /// Tapping an object loads `SELECT *` into the worksheet; expanding it (chevron)
 /// reveals its columns.
 class SchemaSidebar extends ConsumerWidget {
-  const SchemaSidebar({super.key});
+  const SchemaSidebar({super.key, this.collapsed = false, this.onToggle});
+
+  final bool collapsed;
+  final VoidCallback? onToggle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.watch(schemaRepositoryProvider);
+    // The sidebar/workspace divider is the pane resizer, not a border here —
+    // drawing both doubles the line and overflows a collapsed section.
     return Container(
-      decoration: const BoxDecoration(
-        color: _panel,
-        border: Border(right: BorderSide(color: _hair)),
-      ),
+      decoration: const BoxDecoration(color: _panel),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -57,28 +61,17 @@ class SchemaSidebar extends ConsumerWidget {
     );
   }
 
-  Widget _header(WidgetRef ref) {
-    return Container(
-      height: 34,
-      padding: const EdgeInsets.only(left: 12, right: 6),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: _hair)),
-      ),
-      child: Row(children: [
-        const Text('SCHEMA',
-            style: TextStyle(
-                color: _textLo,
-                fontSize: 10.5,
-                letterSpacing: 1.4,
-                fontWeight: FontWeight.w600)),
-        const Spacer(),
-        IconButton(
-          icon: const Icon(FluentIcons.refresh, size: 12, color: _textMid),
-          onPressed: () => ref.invalidate(schemaRepositoryProvider),
-        ),
-      ]),
-    );
-  }
+  Widget _header(WidgetRef ref) => SectionHeader(
+        title: 'SCHEMA',
+        collapsed: collapsed,
+        onToggle: onToggle,
+        actions: [
+          IconButton(
+            icon: const Icon(FluentIcons.refresh, size: 12, color: _textMid),
+            onPressed: () => ref.invalidate(schemaRepositoryProvider),
+          ),
+        ],
+      );
 }
 
 /// Carried in each expandable node's `value`: how to load its children, and a
@@ -279,6 +272,12 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
 
   void _openTable(TableInfo t, {required bool run}) {
     setState(() => _lastOpened = _keyOf(t));
+    // Hand focus back after a press. fluent's TreeViewItem requests focus on
+    // press and only clears its `_focusedByPress` flag when the node *loses*
+    // focus — so a row that keeps focus across the rebuild keeps drawing a
+    // focus ring, and clicking several tables left a trail of outlined rows.
+    // The editor is where you want the caret after opening a table anyway.
+    FocusManager.instance.primaryFocus?.unfocus();
 
     // Already open? Go back to it. Spawning another tab for a table you're
     // already looking at is how you end up with thirteen worksheets.
@@ -297,9 +296,10 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
     final dialect = SqlDialect.of(ref.read(currentConnectionProvider).engine);
     final target = dialect.qualify(t.name, schema: t.schema);
     final id = ref.read(worksheetTabsProvider.notifier).add();
+    final limit = ref.read(settingsProvider).tablePreviewLimit;
     ref
         .read(worksheetSeedsProvider.notifier)
-        .put(id, 'SELECT * FROM $target LIMIT 200;', autoRun: run);
+        .put(id, 'SELECT * FROM $target LIMIT $limit;', autoRun: run);
     origins.put(id, _keyOf(t));
   }
 

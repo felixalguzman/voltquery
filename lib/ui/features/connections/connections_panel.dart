@@ -8,22 +8,23 @@ import 'package:uuid/uuid.dart';
 
 import '../../../data/services/secret_store.dart';
 import '../../../domain/models/connection.dart';
+import '../../../domain/models/connection_options.dart';
 import '../../../domain/models/engine.dart';
 import '../query_workspace/worksheet_providers.dart';
+import '../settings/settings_providers.dart';
 import 'connection_providers.dart';
 import 'master_password_dialog.dart';
 import '../../core/menu/confirm.dart';
 import '../../core/menu/context_menu.dart';
+import '../../core/widgets/section_header.dart';
 import 'server_form.dart';
 
 // TODO(theming #7): unify tokens into ui/core/theme.
 const _panel = Color(0xFF16181D);
-const _hair = Color(0xFF262A31);
 const _accent = Color(0xFF2FE6FF);
 const _accentDim = Color(0x1F2FE6FF);
 const _textHi = Color(0xFFE6E8EC);
 const _textMid = Color(0xFF9BA1AD);
-const _textLo = Color(0xFF5A6069);
 
 /// Engine → brand glyph (simple_icons) + brand colour. One source for the
 /// connections list rows and the new-connection dialog.
@@ -37,7 +38,10 @@ const _textLo = Color(0xFF5A6069);
 /// sessions); "+" adds a SQLite file; hover a saved one to delete. Wires the
 /// #14 wizard's connection-list role — the full add-wizard arrives with Postgres.
 class ConnectionsPanel extends ConsumerWidget {
-  const ConnectionsPanel({super.key});
+  const ConnectionsPanel({super.key, this.collapsed = false, this.onToggle});
+
+  final bool collapsed;
+  final VoidCallback? onToggle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -68,20 +72,11 @@ class ConnectionsPanel extends ConsumerWidget {
   }
 
   Widget _header(BuildContext context, WidgetRef ref, bool unlocked) =>
-      Container(
-        height: 30,
-        padding: const EdgeInsets.only(left: 12, right: 6),
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: _hair)),
-        ),
-        child: Row(children: [
-          const Text('CONNECTIONS',
-              style: TextStyle(
-                  color: _textLo,
-                  fontSize: 10.5,
-                  letterSpacing: 1.4,
-                  fontWeight: FontWeight.w600)),
-          const Spacer(),
+      SectionHeader(
+        title: 'CONNECTIONS',
+        collapsed: collapsed,
+        onToggle: onToggle,
+        actions: [
           IconButton(
             icon: Icon(unlocked ? FluentIcons.unlock : FluentIcons.lock,
                 size: 12, color: unlocked ? _accent : _textMid),
@@ -91,7 +86,7 @@ class ConnectionsPanel extends ConsumerWidget {
             icon: const Icon(FluentIcons.add, size: 12, color: _textMid),
             onPressed: () => _addMenu(context, ref),
           ),
-        ]),
+        ],
       );
 
   Future<void> _toggleLock(
@@ -201,7 +196,15 @@ class ConnectionsPanel extends ConsumerWidget {
 
   Future<void> _addServer(
       BuildContext context, WidgetRef ref, Engine engine) async {
-    final result = await showServerConnectionDialog(context, engine: engine);
+    final settings = ref.read(settingsProvider);
+    final result = await showServerConnectionDialog(
+      context,
+      engine: engine,
+      defaults: ConnectionOptions(
+        sslMode: settings.defaultSslMode,
+        connectTimeoutSeconds: settings.defaultConnectTimeoutSeconds,
+      ),
+    );
     if (!context.mounted) return;
     await _persist(context, ref, result, activate: true);
   }

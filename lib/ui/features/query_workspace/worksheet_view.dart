@@ -8,6 +8,7 @@ import 'package:re_highlight/languages/sql.dart';
 import 'package:re_highlight/styles/atom-one-dark.dart';
 
 import '../../../domain/sql/sql_statement_splitter.dart';
+import '../settings/settings_providers.dart';
 import 'result_grid.dart';
 import 'worksheet_providers.dart';
 import 'worksheet_state.dart';
@@ -183,7 +184,8 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
             controller: _code,
             shortcutsActivatorsBuilder: const _SqlEditorShortcuts(),
             style: CodeEditorStyle(
-              fontSize: 13.5,
+              fontSize: ref.watch(settingsProvider).editorFontSize,
+              fontFamily: ref.watch(settingsProvider).editorFontFamily,
               backgroundColor: _bg,
               codeTheme: CodeHighlightTheme(
                 languages: {'sql': CodeHighlightThemeMode(mode: langSql)},

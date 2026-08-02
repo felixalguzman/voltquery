@@ -93,6 +93,16 @@ class $HistoryRowsTable extends HistoryRows
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('editor'),
+  );
   static const VerificationMeta _rowCountMeta = const VerificationMeta(
     'rowCount',
   );
@@ -136,6 +146,7 @@ class $HistoryRowsTable extends HistoryRows
     startedAt,
     durationMs,
     status,
+    source,
     rowCount,
     errorKind,
     errorMessage,
@@ -215,6 +226,12 @@ class $HistoryRowsTable extends HistoryRows
     } else if (isInserting) {
       context.missing(_statusMeta);
     }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    }
     if (data.containsKey('row_count')) {
       context.handle(
         _rowCountMeta,
@@ -277,6 +294,10 @@ class $HistoryRowsTable extends HistoryRows
         DriftSqlType.string,
         data['${effectivePrefix}status'],
       )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      )!,
       rowCount: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}row_count'],
@@ -307,6 +328,10 @@ class HistoryRow extends DataClass implements Insertable<HistoryRow> {
   final DateTime startedAt;
   final int durationMs;
   final String status;
+
+  /// [HistorySource] name. Defaults to `editor` so rows written before this
+  /// column existed — all of which were worksheet runs — stay correct.
+  final String source;
   final int? rowCount;
   final String? errorKind;
   final String? errorMessage;
@@ -319,6 +344,7 @@ class HistoryRow extends DataClass implements Insertable<HistoryRow> {
     required this.startedAt,
     required this.durationMs,
     required this.status,
+    required this.source,
     this.rowCount,
     this.errorKind,
     this.errorMessage,
@@ -336,6 +362,7 @@ class HistoryRow extends DataClass implements Insertable<HistoryRow> {
     map['started_at'] = Variable<DateTime>(startedAt);
     map['duration_ms'] = Variable<int>(durationMs);
     map['status'] = Variable<String>(status);
+    map['source'] = Variable<String>(source);
     if (!nullToAbsent || rowCount != null) {
       map['row_count'] = Variable<int>(rowCount);
     }
@@ -360,6 +387,7 @@ class HistoryRow extends DataClass implements Insertable<HistoryRow> {
       startedAt: Value(startedAt),
       durationMs: Value(durationMs),
       status: Value(status),
+      source: Value(source),
       rowCount: rowCount == null && nullToAbsent
           ? const Value.absent()
           : Value(rowCount),
@@ -386,6 +414,7 @@ class HistoryRow extends DataClass implements Insertable<HistoryRow> {
       startedAt: serializer.fromJson<DateTime>(json['startedAt']),
       durationMs: serializer.fromJson<int>(json['durationMs']),
       status: serializer.fromJson<String>(json['status']),
+      source: serializer.fromJson<String>(json['source']),
       rowCount: serializer.fromJson<int?>(json['rowCount']),
       errorKind: serializer.fromJson<String?>(json['errorKind']),
       errorMessage: serializer.fromJson<String?>(json['errorMessage']),
@@ -403,6 +432,7 @@ class HistoryRow extends DataClass implements Insertable<HistoryRow> {
       'startedAt': serializer.toJson<DateTime>(startedAt),
       'durationMs': serializer.toJson<int>(durationMs),
       'status': serializer.toJson<String>(status),
+      'source': serializer.toJson<String>(source),
       'rowCount': serializer.toJson<int?>(rowCount),
       'errorKind': serializer.toJson<String?>(errorKind),
       'errorMessage': serializer.toJson<String?>(errorMessage),
@@ -418,6 +448,7 @@ class HistoryRow extends DataClass implements Insertable<HistoryRow> {
     DateTime? startedAt,
     int? durationMs,
     String? status,
+    String? source,
     Value<int?> rowCount = const Value.absent(),
     Value<String?> errorKind = const Value.absent(),
     Value<String?> errorMessage = const Value.absent(),
@@ -430,6 +461,7 @@ class HistoryRow extends DataClass implements Insertable<HistoryRow> {
     startedAt: startedAt ?? this.startedAt,
     durationMs: durationMs ?? this.durationMs,
     status: status ?? this.status,
+    source: source ?? this.source,
     rowCount: rowCount.present ? rowCount.value : this.rowCount,
     errorKind: errorKind.present ? errorKind.value : this.errorKind,
     errorMessage: errorMessage.present ? errorMessage.value : this.errorMessage,
@@ -450,6 +482,7 @@ class HistoryRow extends DataClass implements Insertable<HistoryRow> {
           ? data.durationMs.value
           : this.durationMs,
       status: data.status.present ? data.status.value : this.status,
+      source: data.source.present ? data.source.value : this.source,
       rowCount: data.rowCount.present ? data.rowCount.value : this.rowCount,
       errorKind: data.errorKind.present ? data.errorKind.value : this.errorKind,
       errorMessage: data.errorMessage.present
@@ -469,6 +502,7 @@ class HistoryRow extends DataClass implements Insertable<HistoryRow> {
           ..write('startedAt: $startedAt, ')
           ..write('durationMs: $durationMs, ')
           ..write('status: $status, ')
+          ..write('source: $source, ')
           ..write('rowCount: $rowCount, ')
           ..write('errorKind: $errorKind, ')
           ..write('errorMessage: $errorMessage')
@@ -486,6 +520,7 @@ class HistoryRow extends DataClass implements Insertable<HistoryRow> {
     startedAt,
     durationMs,
     status,
+    source,
     rowCount,
     errorKind,
     errorMessage,
@@ -502,6 +537,7 @@ class HistoryRow extends DataClass implements Insertable<HistoryRow> {
           other.startedAt == this.startedAt &&
           other.durationMs == this.durationMs &&
           other.status == this.status &&
+          other.source == this.source &&
           other.rowCount == this.rowCount &&
           other.errorKind == this.errorKind &&
           other.errorMessage == this.errorMessage);
@@ -516,6 +552,7 @@ class HistoryRowsCompanion extends UpdateCompanion<HistoryRow> {
   final Value<DateTime> startedAt;
   final Value<int> durationMs;
   final Value<String> status;
+  final Value<String> source;
   final Value<int?> rowCount;
   final Value<String?> errorKind;
   final Value<String?> errorMessage;
@@ -528,6 +565,7 @@ class HistoryRowsCompanion extends UpdateCompanion<HistoryRow> {
     this.startedAt = const Value.absent(),
     this.durationMs = const Value.absent(),
     this.status = const Value.absent(),
+    this.source = const Value.absent(),
     this.rowCount = const Value.absent(),
     this.errorKind = const Value.absent(),
     this.errorMessage = const Value.absent(),
@@ -541,6 +579,7 @@ class HistoryRowsCompanion extends UpdateCompanion<HistoryRow> {
     required DateTime startedAt,
     required int durationMs,
     required String status,
+    this.source = const Value.absent(),
     this.rowCount = const Value.absent(),
     this.errorKind = const Value.absent(),
     this.errorMessage = const Value.absent(),
@@ -559,6 +598,7 @@ class HistoryRowsCompanion extends UpdateCompanion<HistoryRow> {
     Expression<DateTime>? startedAt,
     Expression<int>? durationMs,
     Expression<String>? status,
+    Expression<String>? source,
     Expression<int>? rowCount,
     Expression<String>? errorKind,
     Expression<String>? errorMessage,
@@ -572,6 +612,7 @@ class HistoryRowsCompanion extends UpdateCompanion<HistoryRow> {
       if (startedAt != null) 'started_at': startedAt,
       if (durationMs != null) 'duration_ms': durationMs,
       if (status != null) 'status': status,
+      if (source != null) 'source': source,
       if (rowCount != null) 'row_count': rowCount,
       if (errorKind != null) 'error_kind': errorKind,
       if (errorMessage != null) 'error_message': errorMessage,
@@ -587,6 +628,7 @@ class HistoryRowsCompanion extends UpdateCompanion<HistoryRow> {
     Value<DateTime>? startedAt,
     Value<int>? durationMs,
     Value<String>? status,
+    Value<String>? source,
     Value<int?>? rowCount,
     Value<String?>? errorKind,
     Value<String?>? errorMessage,
@@ -600,6 +642,7 @@ class HistoryRowsCompanion extends UpdateCompanion<HistoryRow> {
       startedAt: startedAt ?? this.startedAt,
       durationMs: durationMs ?? this.durationMs,
       status: status ?? this.status,
+      source: source ?? this.source,
       rowCount: rowCount ?? this.rowCount,
       errorKind: errorKind ?? this.errorKind,
       errorMessage: errorMessage ?? this.errorMessage,
@@ -633,6 +676,9 @@ class HistoryRowsCompanion extends UpdateCompanion<HistoryRow> {
     if (status.present) {
       map['status'] = Variable<String>(status.value);
     }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
     if (rowCount.present) {
       map['row_count'] = Variable<int>(rowCount.value);
     }
@@ -656,6 +702,7 @@ class HistoryRowsCompanion extends UpdateCompanion<HistoryRow> {
           ..write('startedAt: $startedAt, ')
           ..write('durationMs: $durationMs, ')
           ..write('status: $status, ')
+          ..write('source: $source, ')
           ..write('rowCount: $rowCount, ')
           ..write('errorKind: $errorKind, ')
           ..write('errorMessage: $errorMessage')
@@ -1438,11 +1485,220 @@ class ConnectionRowsCompanion extends UpdateCompanion<ConnectionRow> {
   }
 }
 
+class $SettingsRowsTable extends SettingsRows
+    with TableInfo<$SettingsRowsTable, SettingsRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SettingsRowsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _keyMeta = const VerificationMeta('key');
+  @override
+  late final GeneratedColumn<String> key = GeneratedColumn<String>(
+    'key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _valueMeta = const VerificationMeta('value');
+  @override
+  late final GeneratedColumn<String> value = GeneratedColumn<String>(
+    'value',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [key, value];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'settings_rows';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SettingsRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('key')) {
+      context.handle(
+        _keyMeta,
+        key.isAcceptableOrUnknown(data['key']!, _keyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_keyMeta);
+    }
+    if (data.containsKey('value')) {
+      context.handle(
+        _valueMeta,
+        value.isAcceptableOrUnknown(data['value']!, _valueMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_valueMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {key};
+  @override
+  SettingsRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SettingsRow(
+      key: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}key'],
+      )!,
+      value: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}value'],
+      )!,
+    );
+  }
+
+  @override
+  $SettingsRowsTable createAlias(String alias) {
+    return $SettingsRowsTable(attachedDatabase, alias);
+  }
+}
+
+class SettingsRow extends DataClass implements Insertable<SettingsRow> {
+  final String key;
+  final String value;
+  const SettingsRow({required this.key, required this.value});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['key'] = Variable<String>(key);
+    map['value'] = Variable<String>(value);
+    return map;
+  }
+
+  SettingsRowsCompanion toCompanion(bool nullToAbsent) {
+    return SettingsRowsCompanion(key: Value(key), value: Value(value));
+  }
+
+  factory SettingsRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SettingsRow(
+      key: serializer.fromJson<String>(json['key']),
+      value: serializer.fromJson<String>(json['value']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'key': serializer.toJson<String>(key),
+      'value': serializer.toJson<String>(value),
+    };
+  }
+
+  SettingsRow copyWith({String? key, String? value}) =>
+      SettingsRow(key: key ?? this.key, value: value ?? this.value);
+  SettingsRow copyWithCompanion(SettingsRowsCompanion data) {
+    return SettingsRow(
+      key: data.key.present ? data.key.value : this.key,
+      value: data.value.present ? data.value.value : this.value,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SettingsRow(')
+          ..write('key: $key, ')
+          ..write('value: $value')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(key, value);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SettingsRow &&
+          other.key == this.key &&
+          other.value == this.value);
+}
+
+class SettingsRowsCompanion extends UpdateCompanion<SettingsRow> {
+  final Value<String> key;
+  final Value<String> value;
+  final Value<int> rowid;
+  const SettingsRowsCompanion({
+    this.key = const Value.absent(),
+    this.value = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SettingsRowsCompanion.insert({
+    required String key,
+    required String value,
+    this.rowid = const Value.absent(),
+  }) : key = Value(key),
+       value = Value(value);
+  static Insertable<SettingsRow> custom({
+    Expression<String>? key,
+    Expression<String>? value,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (key != null) 'key': key,
+      if (value != null) 'value': value,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SettingsRowsCompanion copyWith({
+    Value<String>? key,
+    Value<String>? value,
+    Value<int>? rowid,
+  }) {
+    return SettingsRowsCompanion(
+      key: key ?? this.key,
+      value: value ?? this.value,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (key.present) {
+      map['key'] = Variable<String>(key.value);
+    }
+    if (value.present) {
+      map['value'] = Variable<String>(value.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SettingsRowsCompanion(')
+          ..write('key: $key, ')
+          ..write('value: $value, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$LocalStore extends GeneratedDatabase {
   _$LocalStore(QueryExecutor e) : super(e);
   $LocalStoreManager get managers => $LocalStoreManager(this);
   late final $HistoryRowsTable historyRows = $HistoryRowsTable(this);
   late final $ConnectionRowsTable connectionRows = $ConnectionRowsTable(this);
+  late final $SettingsRowsTable settingsRows = $SettingsRowsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1450,6 +1706,7 @@ abstract class _$LocalStore extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     historyRows,
     connectionRows,
+    settingsRows,
   ];
 }
 
@@ -1463,6 +1720,7 @@ typedef $$HistoryRowsTableCreateCompanionBuilder =
       required DateTime startedAt,
       required int durationMs,
       required String status,
+      Value<String> source,
       Value<int?> rowCount,
       Value<String?> errorKind,
       Value<String?> errorMessage,
@@ -1477,6 +1735,7 @@ typedef $$HistoryRowsTableUpdateCompanionBuilder =
       Value<DateTime> startedAt,
       Value<int> durationMs,
       Value<String> status,
+      Value<String> source,
       Value<int?> rowCount,
       Value<String?> errorKind,
       Value<String?> errorMessage,
@@ -1528,6 +1787,11 @@ class $$HistoryRowsTableFilterComposer
 
   ColumnFilters<String> get status => $composableBuilder(
     column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1596,6 +1860,11 @@ class $$HistoryRowsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get rowCount => $composableBuilder(
     column: $table.rowCount,
     builder: (column) => ColumnOrderings(column),
@@ -1651,6 +1920,9 @@ class $$HistoryRowsTableAnnotationComposer
   GeneratedColumn<String> get status =>
       $composableBuilder(column: $table.status, builder: (column) => column);
 
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
   GeneratedColumn<int> get rowCount =>
       $composableBuilder(column: $table.rowCount, builder: (column) => column);
 
@@ -1702,6 +1974,7 @@ class $$HistoryRowsTableTableManager
                 Value<DateTime> startedAt = const Value.absent(),
                 Value<int> durationMs = const Value.absent(),
                 Value<String> status = const Value.absent(),
+                Value<String> source = const Value.absent(),
                 Value<int?> rowCount = const Value.absent(),
                 Value<String?> errorKind = const Value.absent(),
                 Value<String?> errorMessage = const Value.absent(),
@@ -1714,6 +1987,7 @@ class $$HistoryRowsTableTableManager
                 startedAt: startedAt,
                 durationMs: durationMs,
                 status: status,
+                source: source,
                 rowCount: rowCount,
                 errorKind: errorKind,
                 errorMessage: errorMessage,
@@ -1728,6 +2002,7 @@ class $$HistoryRowsTableTableManager
                 required DateTime startedAt,
                 required int durationMs,
                 required String status,
+                Value<String> source = const Value.absent(),
                 Value<int?> rowCount = const Value.absent(),
                 Value<String?> errorKind = const Value.absent(),
                 Value<String?> errorMessage = const Value.absent(),
@@ -1740,6 +2015,7 @@ class $$HistoryRowsTableTableManager
                 startedAt: startedAt,
                 durationMs: durationMs,
                 status: status,
+                source: source,
                 rowCount: rowCount,
                 errorKind: errorKind,
                 errorMessage: errorMessage,
@@ -2126,6 +2402,145 @@ typedef $$ConnectionRowsTableProcessedTableManager =
       ConnectionRow,
       PrefetchHooks Function()
     >;
+typedef $$SettingsRowsTableCreateCompanionBuilder =
+    SettingsRowsCompanion Function({
+      required String key,
+      required String value,
+      Value<int> rowid,
+    });
+typedef $$SettingsRowsTableUpdateCompanionBuilder =
+    SettingsRowsCompanion Function({
+      Value<String> key,
+      Value<String> value,
+      Value<int> rowid,
+    });
+
+class $$SettingsRowsTableFilterComposer
+    extends Composer<_$LocalStore, $SettingsRowsTable> {
+  $$SettingsRowsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SettingsRowsTableOrderingComposer
+    extends Composer<_$LocalStore, $SettingsRowsTable> {
+  $$SettingsRowsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SettingsRowsTableAnnotationComposer
+    extends Composer<_$LocalStore, $SettingsRowsTable> {
+  $$SettingsRowsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get key =>
+      $composableBuilder(column: $table.key, builder: (column) => column);
+
+  GeneratedColumn<String> get value =>
+      $composableBuilder(column: $table.value, builder: (column) => column);
+}
+
+class $$SettingsRowsTableTableManager
+    extends
+        RootTableManager<
+          _$LocalStore,
+          $SettingsRowsTable,
+          SettingsRow,
+          $$SettingsRowsTableFilterComposer,
+          $$SettingsRowsTableOrderingComposer,
+          $$SettingsRowsTableAnnotationComposer,
+          $$SettingsRowsTableCreateCompanionBuilder,
+          $$SettingsRowsTableUpdateCompanionBuilder,
+          (
+            SettingsRow,
+            BaseReferences<_$LocalStore, $SettingsRowsTable, SettingsRow>,
+          ),
+          SettingsRow,
+          PrefetchHooks Function()
+        > {
+  $$SettingsRowsTableTableManager(_$LocalStore db, $SettingsRowsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SettingsRowsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SettingsRowsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SettingsRowsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> key = const Value.absent(),
+                Value<String> value = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SettingsRowsCompanion(key: key, value: value, rowid: rowid),
+          createCompanionCallback:
+              ({
+                required String key,
+                required String value,
+                Value<int> rowid = const Value.absent(),
+              }) => SettingsRowsCompanion.insert(
+                key: key,
+                value: value,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SettingsRowsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$LocalStore,
+      $SettingsRowsTable,
+      SettingsRow,
+      $$SettingsRowsTableFilterComposer,
+      $$SettingsRowsTableOrderingComposer,
+      $$SettingsRowsTableAnnotationComposer,
+      $$SettingsRowsTableCreateCompanionBuilder,
+      $$SettingsRowsTableUpdateCompanionBuilder,
+      (
+        SettingsRow,
+        BaseReferences<_$LocalStore, $SettingsRowsTable, SettingsRow>,
+      ),
+      SettingsRow,
+      PrefetchHooks Function()
+    >;
 
 class $LocalStoreManager {
   final _$LocalStore _db;
@@ -2134,4 +2549,6 @@ class $LocalStoreManager {
       $$HistoryRowsTableTableManager(_db, _db.historyRows);
   $$ConnectionRowsTableTableManager get connectionRows =>
       $$ConnectionRowsTableTableManager(_db, _db.connectionRows);
+  $$SettingsRowsTableTableManager get settingsRows =>
+      $$SettingsRowsTableTableManager(_db, _db.settingsRows);
 }

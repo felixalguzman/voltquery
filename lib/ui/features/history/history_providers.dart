@@ -22,3 +22,17 @@ HistoryRepository historyRepository(Ref ref) =>
 @riverpod
 Stream<List<HistoryEntry>> recentHistory(Ref ref) =>
     ref.watch(historyRepositoryProvider).watchRecent(50);
+
+/// Whether the panel hides statements the app composed (grid edits, Table
+/// Info's exact `count(*)`) rather than ones the user typed.
+///
+/// Session-scoped, and **off** by default: showing everything that actually ran
+/// against the database is the honest default, and a filter you have to turn on
+/// can't quietly hide a destructive UPDATE from you.
+@riverpod
+class HideGeneratedHistory extends _$HideGeneratedHistory {
+  @override
+  bool build() => false;
+
+  void toggle() => state = !state;
+}

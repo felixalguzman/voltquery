@@ -16,6 +16,7 @@ import '../../../domain/sql/sql_statement_splitter.dart';
 import '../connections/connection_providers.dart';
 import '../history/history_providers.dart';
 import '../schema_browser/schema_providers.dart';
+import '../settings/settings_providers.dart';
 import 'grid_edit_buffer.dart';
 import 'grid_editability.dart';
 import 'worksheet_runner.dart';
@@ -445,8 +446,16 @@ class WorksheetOrigins extends _$WorksheetOrigins {
       state = {...state}..remove(worksheetId);
 }
 
+/// Watches settings, so changing the render cap takes effect on the next run
+/// rather than the next launch.
 @riverpod
-WorksheetRunner worksheetRunner(Ref ref) => const WorksheetRunner();
+WorksheetRunner worksheetRunner(Ref ref) {
+  final s = ref.watch(settingsProvider);
+  return WorksheetRunner(
+    rowCap: s.resultRowCap,
+    batchSize: s.resultFetchBatch,
+  );
+}
 
 /// Pending cell edits for one result grid, keyed `<worksheetId>:<resultIndex>`
 /// so each result sub-tab stages independently.
@@ -710,18 +719,19 @@ class Worksheet extends _$Worksheet {
           sw.elapsedMilliseconds,
           WorksheetMessage('${affected ?? 0} row(s) affected'),
           affectedRows: affected,
+          source: HistorySource.gridEdit,
         );
       } on DriverError catch (e) {
         sw.stop();
         await _record(sql, started, sw.elapsedMilliseconds,
-            WorksheetFailure(e));
+            WorksheetFailure(e), source: HistorySource.gridEdit);
         if (ownTx) await _rollbackQuietly(session);
         return GridEditApplyResult(applied: 0, error: e);
       } catch (e) {
         sw.stop();
         final err = DriverError(DriverErrorKind.unknown, e.toString());
         await _record(sql, started, sw.elapsedMilliseconds,
-            WorksheetFailure(err));
+            WorksheetFailure(err), source: HistorySource.gridEdit);
         if (ownTx) await _rollbackQuietly(session);
         return GridEditApplyResult(applied: 0, error: err);
       }
@@ -789,6 +799,7 @@ class Worksheet extends _$Worksheet {
     /// affected-row count, which the switch below can't recover from a
     /// [WorksheetMessage].
     int? affectedRows,
+    HistorySource source = HistorySource.editor,
   }) async {
     final conn = ref.read(currentConnectionProvider);
     final (
@@ -817,6 +828,7 @@ class Worksheet extends _$Worksheet {
             startedAt: started,
             durationMs: ms,
             status: status,
+            source: source,
             rowCount: rowCount,
             errorKind: errKind,
             errorMessage: errMsg,

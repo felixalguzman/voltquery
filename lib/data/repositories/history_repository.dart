@@ -19,6 +19,7 @@ class HistoryRepository {
           startedAt: e.startedAt,
           durationMs: e.durationMs,
           status: e.status.name,
+          source: Value(e.source.name),
           rowCount: Value(e.rowCount),
           errorKind: Value(e.errorKind),
           errorMessage: Value(e.errorMessage),
@@ -31,6 +32,29 @@ class HistoryRepository {
 
   /// Remove every entry. Confirmed in the UI — there is no undo.
   Future<void> clear() => _db.delete(_db.historyRows).go();
+
+  /// Drops entries that are both older than [keepDays] **and** outside the
+  /// newest [keepRows] (`docs/design/persistence.md`).
+  ///
+  /// Both conditions, not either: a date rule alone erases the history of
+  /// someone who took a month off, and a count rule alone erases a busy
+  /// afternoon's. Returns how many rows went.
+  Future<int> prune({required int keepDays, required int keepRows}) async {
+    final cutoff = DateTime.now().subtract(Duration(days: keepDays));
+    // The id of the newest row that survives on count alone; anything at or
+    // above it is kept regardless of age.
+    final newest = await (_db.select(_db.historyRows)
+          ..orderBy([(t) => OrderingTerm.desc(t.startedAt)])
+          ..limit(1, offset: keepRows - 1))
+        .getSingleOrNull();
+    if (newest == null) return 0; // fewer rows than the floor — nothing to do
+
+    return (_db.delete(_db.historyRows)
+          ..where((t) =>
+              t.startedAt.isSmallerThanValue(cutoff) &
+              t.startedAt.isSmallerThanValue(newest.startedAt)))
+        .go();
+  }
 
   Stream<List<HistoryEntry>> watchRecent(int limit) {
     final q = _db.select(_db.historyRows)
@@ -48,6 +72,7 @@ class HistoryRepository {
         startedAt: r.startedAt,
         durationMs: r.durationMs,
         status: HistoryStatus.values.byName(r.status),
+        source: HistorySource.byName(r.source),
         rowCount: r.rowCount,
         errorKind: r.errorKind,
         errorMessage: r.errorMessage,

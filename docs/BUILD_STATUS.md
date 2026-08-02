@@ -73,17 +73,53 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   secrets live in the vault like any other. The bastion's **host key is
   verified** trust-on-first-use against the app's own `known_hosts.json`, with a
   prompt showing the `SHA256:` fingerprint; a *changed* key is surfaced
-  distinctly from an unknown one, and an unverified host fails closed. Connection failures are explained
+  distinctly from an unknown one, and an unverified host fails closed. Trusted
+  hosts are **listable and revocable** in Settings → Security — TOFU without
+  that is only half a trust model. Connection failures are explained
   in plain language with a one-click fix where one exists (`DriverErrorHelper`),
   raw driver text behind a Details toggle.
 - **Credentials vault** (`data/services/secret_store.dart`, ADR-0006): Argon2id →
   AES-256-GCM envelope crypto, master password, locked each launch, header padlock.
+  **Re-keyable** (`changeMasterPassword`) — envelope crypto means only the
+  wrapped DEK is rewritten, so stored secrets are never re-encrypted and an
+  unlocked session stays valid; the vault file is now saved write-then-rename so
+  a crash mid-rekey can't lose every secret. **Auto-locks** after an idle
+  timeout (`VaultAutoLock` wraps the app; 0 = never).
   *Deviation:* vault used on all platforms; mac/win keychain deferred.
-- **Persistence** (drift `voltquery.db`, ADR-0005): query **history** panel +
-  saved connections (schema v2 + migration). Secret-free.
+- **Persistence** (drift `voltquery.db`, ADR-0005, schema **v6**): query
+  **history** panel + saved connections + settings. Secret-free. History rows
+  carry a **`HistorySource`** — `editor` (typed and run), `gridEdit` (DML the
+  result grid generated), `tool` (app-composed but user-triggered, e.g. Table
+  Info's exact `count(*)`). The line is *what the user asked for*, not who typed
+  it: introspection the app needs to draw its own tree is deliberately **not**
+  recorded, or browsing would bury everything else within a minute. The panel
+  shows the **timestamp** (relative under an hour, clock time today, date
+  beyond), dims generated rows, tags them, and has a **hide-generated** filter —
+  off by default, because a filter you must turn on can't quietly hide a
+  destructive UPDATE from you.
 - **App shell** (`ui/core/shell/app_shell.dart`): a **menu bar** (File / Query /
   View) built on **base_menu** (headless menus, WAI-ARIA keyboard nav; needs
-  Flutter ≥3.44.4, repo on 3.44.8) over the sidebar | workspace split, plus
+  Flutter ≥3.44.4, repo on 3.44.8) over the sidebar | workspace split. The
+  sidebar's three sections (Connections / Schema / History) are their own
+  **vertical `MultiPane`**, so they resize against each other and each
+  **collapses to its header** in place — collapse swaps that section's
+  `PaneEntry` from a fraction to a header-height pixel pane, which is what makes
+  the new size stick (`updatePane` only drops a dragged size override when the
+  pixel/fraction *type* changes). The header strip is a shared
+  `ui/core/widgets/section_header.dart` and the whole strip is the hit target.
+  The sidebar itself is an `autoHide` pane: **View → Toggle Sidebar / Ctrl+B**,
+  drag the splitter shut, or the **layout buttons at the right of the menu bar**
+  (VS Code's placement, and what the `panes` example does with its title-bar
+  actions) — tinted when their panel is showing. The menu keeps every entry too:
+  it's for discovery and accelerators, the buttons are for the third time in a
+  minute. Resizers are themed 1px-drawn / 11px-hit, the same
+  split the package's own zero-space example uses. The whole layout
+  **persists** (`UiStateRepository`, `ui.*` keys in the settings table): splitter
+  sizes via `PaneController.save()/load()` plus which sections are collapsed,
+  written on a 600ms trailing debounce because a drag notifies every frame.
+  Restore order matters — collapse state first, then sizes, since collapsing
+  swaps a pane between fraction and pixel and `load` writes into whichever map
+  the entry currently uses. Plus
   **app-wide shortcuts** (⌃⏎ Run,
   F5 Run-script, Ctrl+N new tab, Ctrl+O open) routed to the active Worksheet via a
   `WorksheetCommands` bus — so Run works regardless of focus (⌃⏎ chains after a
@@ -91,12 +127,31 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   tree context menus share one chrome in **`ui/core/menu/`** (`MenuSurface` /
   `MenuActionRow` / `MenuDivider` + a `ContextMenuRegion` right-click wrapper) so
   base_menu stays behind our own widgets and every menu matches.
+- **Settings** (`ui/features/settings/`, File → Settings… / `Ctrl+,`): a
+  category-rail dialog over an `AppSettings` model persisted as a drift
+  key-value `settings_rows` table (schema v5, `docs/design/persistence.md`).
+  One row per key, not one blob, so a key a newer build wrote survives an older
+  build saving over it; every value decodes tolerantly (wrong type or
+  out-of-range → the default) because a settings row must never brick startup.
+  Changes **apply and persist as you make them** — no OK/Cancel. Sections:
+  *General* (history retention — `HistoryRepository.prune` runs at startup,
+  keeping entries newer than N days **or** the newest M, both rules, never
+  either), *Editor* (font family/size, live-previewed), *Results* (row render
+  cap, fetch batch, **table preview LIMIT** — the `SELECT * … LIMIT n` a schema
+  tree click writes, kept separate from the render cap because one is editable
+  query text and the other a client-side budget — and NULL display text),
+  *Window* (**title-bar show/hide** — the
+  Linux runner's `GtkHeaderBar` hidden at runtime via window_manager, for tiling
+  WMs where the compositor already draws the frame; the menu bar is a
+  `DragToMoveArea` and File → Quit exists so hiding it isn't a one-way door),
+  *Connections* (default TLS mode + connect timeout for **new** connections
+  only), *Security* (change master password, auto-lock, trusted SSH hosts).
 - **State**: Riverpod **codegen** (`@riverpod`, ADR-0004). Run
   `dart run build_runner build` after editing providers/drift tables.
 - **Theming**: inline "Clean Dev-Tool" tokens (dark, cyan accent) — not yet in
   `ui/core/theme` (still TODO per #7).
 
-**182 tests** green (`flutter test`); `flutter analyze` clean.
+**288 tests** green (`flutter test`); `flutter analyze` clean.
 
 ## Deferred / known gaps
 
@@ -123,7 +178,22 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   The metadata that blocked them is in place.
 - **SSH multi-hop / jump-host chains** are unsupported — one bastion only.
 - mac/win **keychain** adapter for the SecretStore (ADR-0006).
-- `ui/core/theme` (mix tokens) not built; tokens are inlined per widget.
+- `ui/core/theme` (mix tokens) not built; tokens are inlined per widget. This is
+  why Settings has **no Appearance section** — a theme picker needs the token
+  layer first (#7).
+- **Title-bar toggle is Linux-verified only.** window_manager's
+  `setTitleBarStyle` hides the runner's `GtkHeaderBar` there; the macOS/Windows
+  paths are the plugin's own and untested by us.
+- **No drift migration test for v4→v5.** The step is a bare `createTable`, and
+  the repo has no `drift_dev schema dump` snapshots to test against.
+- **Font enumeration is Linux-only.** `FontCatalog` shells out to `fc-list
+  :spacing=100` (fontconfig's MONO filter); macOS and Windows fall back to a
+  curated list of common families. The field stays free text either way, so a
+  family the catalog missed can still be typed.
+- **A hidden/collapsed pane still builds its subtree** — `panes` clips it to
+  zero rather than unmounting it. Harmless today (the panels are cheap), but it
+  means a finder can locate a widget the user cannot see, so the shell tests
+  assert geometry rather than presence.
 
 ## Next candidates (pick one)
 
@@ -150,6 +220,9 @@ See `docs/research/feature-gaps.md` (parity) and `docs/research/differentiators.
 (offense) for the surveyed backlog these were picked from.
 
 ### Agreed but not built
+
+**Settings pane** — *built 2026-08-01*, see the Settings bullet above. Left out
+deliberately: Appearance/theme (blocked on #7) and keybinding customization.
 
 **Type-to-filter across the app** (asked for 2026-08-01): start typing to narrow
 the schema tree, query history, and the table-info Columns/DDL tabs. Each of

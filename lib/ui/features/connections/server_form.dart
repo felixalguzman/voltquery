@@ -30,25 +30,37 @@ typedef ServerFormResult = ({
 /// Pass [existing] to edit a saved connection instead of creating one: the same
 /// form, prefilled, keeping the id and credential ref so the vault entry and any
 /// history stay attached.
+///
+/// [defaults] seeds a **new** connection's options (Settings → Connections). It
+/// is ignored when editing — a saved connection's own options always win, or
+/// changing a default would silently rewrite connections that already work.
 Future<ServerFormResult?> showServerConnectionDialog(
   BuildContext context, {
   required Engine engine,
   Connection? existing,
+  ConnectionOptions? defaults,
 }) {
   return showDialog<ServerFormResult>(
     context: context,
-    builder: (_) => _ServerDialog(engine: engine, existing: existing),
+    builder: (_) => _ServerDialog(
+      engine: engine,
+      existing: existing,
+      defaults: defaults,
+    ),
   );
 }
 
 enum _Test { idle, testing, ok, error }
 
 class _ServerDialog extends StatefulWidget {
-  const _ServerDialog({required this.engine, this.existing});
+  const _ServerDialog({required this.engine, this.existing, this.defaults});
   final Engine engine;
 
   /// Non-null when editing a saved connection.
   final Connection? existing;
+
+  /// Starting options for a new connection, from app settings.
+  final ConnectionOptions? defaults;
 
   @override
   State<_ServerDialog> createState() => _ServerDialogState();
@@ -74,7 +86,7 @@ class _ServerDialogState extends State<_ServerDialog> {
   /// encryption is opted out of, and MySQL 8's default auth plugin refuses to
   /// authenticate over a plaintext socket.
   late ConnectionOptions _options =
-      _existing?.options ?? const ConnectionOptions();
+      _existing?.options ?? widget.defaults ?? const ConnectionOptions();
   late final _caCert =
       TextEditingController(text: _existing?.options.caCertPath ?? '');
 
