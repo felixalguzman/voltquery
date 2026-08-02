@@ -206,7 +206,7 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
     editable and read-only grids. Fixed for both, which is also what makes
     row-delete safe to add.
 
-**342 tests** green (`flutter test`); `flutter analyze` clean.
+**350 tests** green (`flutter test`, +16 more with live PG/MySQL); `flutter analyze` clean.
 
 ## Deferred / known gaps
 
@@ -334,6 +334,27 @@ Riverpod 3 migration notes (for anyone touching providers):
   as the read returns — for a stream provider that lands mid-loading and throws.
   Hold a `container.listen(...)` subscription across the await (tests only; the
   app watches these providers).
+
+### Cross-engine live tests
+
+`test/ui/features/query_workspace/grid_row_write_live_test.dart` **executes** the
+DML the grid generates against a real server, per engine — every other grid test
+stops at the string. SQLite runs in-memory always; Postgres and MySQL read a URL
+from the environment and **skip** when it's absent, so a missing server can't
+look like a pass:
+
+```bash
+VOLTQUERY_PG=postgres://postgres:postgres@localhost:5432/voltquery_test \
+VOLTQUERY_MYSQL=mysql://root:password@localhost:3306/voltquery_test \
+  flutter test test/ui/features/query_workspace/grid_row_write_live_test.dart
+```
+
+Two engine quirks the suite pins down: a stock Postgres container speaks **no
+TLS** (so the test opts out of the app's secure default rather than the default
+being weakened), while MySQL 8's `caching_sha2_password` **refuses** to
+authenticate over a plaintext socket — opposite requirements, both real. And
+`mysql_client` returns a `TINYINT(1)` as the **string** `'1'`/`'0'`, which is why
+the grid's `_truthy` / `_asOriginalShape` accept string spellings.
 
 ### Live test connections (local Docker)
 
