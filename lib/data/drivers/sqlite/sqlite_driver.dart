@@ -300,6 +300,77 @@ class _SqliteSchemaIntrospector implements SchemaIntrospector {
   }
 
   @override
+  Future<List<SchemaSearchHit>> search(
+    String pattern, {
+    int limit = 200,
+    SearchScope scope = SearchScope.all,
+  }) async {
+    if (pattern.trim().isEmpty) return const [];
+    // `%` and `_` are LIKE wildcards; a user typing `ven_factura` means a
+    // literal underscore, so escape them rather than silently matching
+    // `venXfactura` too.
+    final like = '%${_escapeLike(pattern)}%';
+
+    final objects = !scope.includesObjects
+        ? const <sq.Row>[]
+        : _db.select(
+      "SELECT name, type FROM sqlite_master "
+      "WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%' "
+      "AND name LIKE ? ESCAPE '\\' ORDER BY name LIMIT ?",
+      [like, limit],
+    );
+    final hits = [
+      for (final row in objects)
+        SchemaSearchHit(
+          kind: row['type'] == 'view' ? SchemaHitKind.view : SchemaHitKind.table,
+          name: row['name'] as String,
+          table: TableInfo(
+            name: row['name'] as String,
+            kind: row['type'] == 'view' ? ObjectKind.view : ObjectKind.table,
+          ),
+        ),
+    ];
+
+    // SQLite keeps no column catalog, but `pragma_table_info` is a
+    // table-valued function (3.16+), so one join reaches every column without
+    // a query per table.
+    final remaining = limit - hits.length;
+    if (remaining <= 0 || !scope.includesColumns) return hits;
+    try {
+      final columns = _db.select(
+        "SELECT m.name AS tbl, m.type AS kind, p.name AS col, p.type AS ty "
+        "FROM sqlite_master m JOIN pragma_table_info(m.name) p "
+        "WHERE m.type IN ('table','view') AND m.name NOT LIKE 'sqlite_%' "
+        "AND p.name LIKE ? ESCAPE '\\' "
+        "ORDER BY m.name, p.cid LIMIT ?",
+        [like, remaining],
+      );
+      hits.addAll([
+        for (final row in columns)
+          SchemaSearchHit(
+            kind: SchemaHitKind.column,
+            name: row['col'] as String,
+            dataType: row['ty'] as String?,
+            table: TableInfo(
+              name: row['tbl'] as String,
+              kind: row['kind'] == 'view' ? ObjectKind.view : ObjectKind.table,
+            ),
+          ),
+      ]);
+    } catch (_) {
+      // Older SQLite without table-valued pragmas: object hits still stand,
+      // and a partial answer beats failing the whole search.
+    }
+    return hits;
+  }
+
+  /// `\` escapes LIKE's wildcards; the escape char itself has to go first.
+  static String _escapeLike(String raw) => raw
+      .replaceAll('\\', '\\\\')
+      .replaceAll('%', '\\%')
+      .replaceAll('_', '\\_');
+
+  @override
   Future<String> indexDdl(TableInfo table, IndexInfo index) async {
     final rs = _db.select(
       "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?",

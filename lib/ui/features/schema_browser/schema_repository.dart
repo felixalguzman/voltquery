@@ -64,6 +64,16 @@ class SchemaRepository {
   /// and a cached one would defeat the point of asking.
   Future<int> rowCount(TableInfo table) => introspector.rowCount(table);
 
+  /// Catalog search for the global dialog. **Not memoized** — the cache here is
+  /// keyed by parent node, and a search is keyed by a string the user is still
+  /// typing; caching it would only grow an unbounded map of dead queries.
+  Future<List<SchemaSearchHit>> search(
+    String pattern, {
+    int limit = 200,
+    SearchScope scope = SearchScope.all,
+  }) =>
+      introspector.search(pattern, limit: limit, scope: scope);
+
   /// Whole-connection evict — the "Refresh connection" action. Coarse by design
   /// (see `docs/design/schema-tree.md`); lazy re-fetch pays the cost per expand.
   void invalidate() {

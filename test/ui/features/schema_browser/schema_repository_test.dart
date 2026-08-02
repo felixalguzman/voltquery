@@ -16,10 +16,27 @@ class _FakeIntrospector implements SchemaIntrospector {
   int statsCalls = 0;
   int rowCountCalls = 0;
   int indexDdlCalls = 0;
+  int searchCalls = 0;
   bool failColumns = false;
 
   @override
   Future<List<DatabaseInfo>> databases() async => const [DatabaseInfo('db')];
+
+  @override
+  Future<List<SchemaSearchHit>> search(
+    String pattern, {
+    int limit = 200,
+    SearchScope scope = SearchScope.all,
+  }) async {
+    searchCalls++;
+    return [
+      const SchemaSearchHit(
+        kind: SchemaHitKind.table,
+        name: 'orders',
+        table: TableInfo(name: 'orders', kind: ObjectKind.table),
+      ),
+    ];
+  }
 
   @override
   Future<List<SchemaInfo>> schemas(DatabaseInfo database) async {

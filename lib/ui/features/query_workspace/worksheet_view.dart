@@ -8,6 +8,7 @@ import 'package:re_highlight/languages/sql.dart';
 import 'package:re_highlight/styles/atom-one-dark.dart';
 
 import '../../../domain/sql/sql_statement_splitter.dart';
+import '../search/search_providers.dart';
 import '../settings/settings_providers.dart';
 import 'editor_find_panel.dart';
 import 'result_grid.dart';
@@ -51,6 +52,11 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
     final seed = ref.read(worksheetSeedsProvider)[widget.worksheetId];
     _code = CodeLineEditingController.fromText(
         seed?.sql ?? 'SELECT * FROM customers;');
+    // Publish the selection so Search Everything can open pre-filled with the
+    // identifier you just highlighted. Filtered to short single-line text by
+    // the provider — selecting a whole query means you want to search, not to
+    // look that statement up as a name.
+    _code.addListener(_publishSelection);
     if (seed != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -65,8 +71,14 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
 
   @override
   void dispose() {
+    _code.removeListener(_publishSelection);
     _code.dispose();
     super.dispose();
+  }
+
+  void _publishSelection() {
+    if (!mounted) return;
+    ref.read(editorSelectionProvider.notifier).set(_code.selectedText);
   }
 
   // ⌃⏎ chaining works without editor focus now that Run is an app-wide shortcut

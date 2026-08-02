@@ -123,3 +123,54 @@ class IndexInfo {
   final List<String> columns;
   final bool unique;
 }
+
+/// What kind of thing a [SchemaSearchHit] is.
+enum SchemaHitKind { table, view, column }
+
+/// One catalog-search result — a table, view, or column whose name matched.
+///
+/// Deliberately flat and self-describing: the search dialog lists hits from
+/// tables the tree has never expanded, so a hit has to carry enough to be
+/// opened without any surrounding context.
+class SchemaSearchHit {
+  const SchemaSearchHit({
+    required this.kind,
+    required this.name,
+    required this.table,
+    this.dataType,
+  });
+
+  final SchemaHitKind kind;
+
+  /// The matched name — the column's for a column hit, the table's otherwise.
+  final String name;
+
+  /// The object the hit lives in (itself, for a table or view hit). What makes
+  /// a column hit actionable: `id` on its own says nothing.
+  final TableInfo table;
+
+  /// Column type, for a column hit.
+  final String? dataType;
+
+  bool get isColumn => kind == SchemaHitKind.column;
+
+  /// `schema.table` where the engine has schemas, else `table`.
+  String get qualifiedTable =>
+      table.schema.isEmpty ? table.name : '${table.schema}.${table.name}';
+}
+
+/// Which kinds of object a [SchemaIntrospector.search] should look at.
+enum SearchScope {
+  all,
+
+  /// Tables and views only — the cheap path, since it never joins the column
+  /// catalog.
+  objects,
+
+  /// Columns only. Worth asking for explicitly: a pattern that matches many
+  /// table names would otherwise spend the whole row limit on them.
+  columns;
+
+  bool get includesObjects => this != SearchScope.columns;
+  bool get includesColumns => this != SearchScope.objects;
+}

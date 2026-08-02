@@ -97,6 +97,26 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   beyond), dims generated rows, tags them, and has a **hide-generated** filter —
   off by default, because a filter you must turn on can't quietly hide a
   destructive UPDATE from you.
+- **Search everything** (`ui/features/search/`, **Ctrl+Shift+F** / Edit menu):
+  the counterpart to the inline filter — it asks the **catalog**, so it finds a
+  column in a table you have never expanded, which on a big schema is nearly
+  all of them. `SchemaIntrospector.search()` is implemented across the trio
+  (`information_schema` on PG/MySQL — MySQL spans every user database, since
+  its schema level *is* the database; `sqlite_master` joined to
+  `pragma_table_info` on SQLite, which keeps no column catalog). LIKE wildcards
+  are escaped, so `ven_factura` means a literal underscore. Schema and history
+  are queried concurrently and a failure in one is reported without taking the
+  other down — "no tables matched" and "the server refused" look identical in
+  an empty list. Seeds from the editor selection; ↑↓/Enter to open. **Measured**
+  (`sqlite_search_perf_test.dart`, printed timings): 15k columns → 6-10ms, 80k
+  columns → ~20ms, and a table-name search stays at 1ms at any size because
+  object hits fill the limit before the column join runs. Cost tracks the row
+  **limit**, not the schema. A `kMinSearchLength` of 2 keeps a stray keystroke
+  from becoming a catalog scan; PG/MySQL are a network round-trip and remain
+  unmeasured by us. **Scope chips** (All / Tables & views / Columns / History)
+  are a query parameter, not a display filter: the row limit is shared and
+  objects are collected first, so a pattern matching many table names can spend
+  the whole budget before a column is considered.
 - **Filter & find** — one `matchesFilter` (substring, case-insensitive, *not*
   prefix: real names are prefix-heavy, `ven_factura` / `secuencia_ncf`) behind a
   shared `ui/core/widgets/filter_field.dart`. Schema and History each get a
@@ -164,7 +184,7 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 - **Theming**: inline "Clean Dev-Tool" tokens (dark, cyan accent) — not yet in
   `ui/core/theme` (still TODO per #7).
 
-**296 tests** green (`flutter test`); `flutter analyze` clean.
+**321 tests** green (`flutter test`); `flutter analyze` clean.
 
 ## Deferred / known gaps
 
@@ -233,16 +253,6 @@ See `docs/research/feature-gaps.md` (parity) and `docs/research/differentiators.
 (offense) for the surveyed backlog these were picked from.
 
 ### Agreed but not built
-
-**Global search dialog** (agreed 2026-08-01, the second half of the type-to-filter
-work): one dialog that sees everything at once, **catalog-backed** so it finds
-tables and columns you have never expanded — needs a new
-`SchemaIntrospector.search()` across the driver trio (`information_schema` on
-PG/MySQL, `sqlite_master` joined to `pragma_table_info` on SQLite). Results
-grouped by kind, **ordered by where focus currently is** (editor focused → text
-matches first), with the other sources still searched in the background and
-offered below. Enter acts per kind: table → open worksheet, column → reveal,
-history → load into editor, worksheet hit → focus tab and jump to the line.
 
 **Settings pane** — *built 2026-08-01*, see the Settings bullet above. Left out
 deliberately: Appearance/theme (blocked on #7) and keybinding customization.

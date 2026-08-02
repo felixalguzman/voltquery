@@ -15,6 +15,7 @@ import '../../features/query_workspace/worksheet_providers.dart';
 import '../../features/query_workspace/worksheet_tabs.dart';
 import '../../features/schema_browser/schema_providers.dart';
 import '../../features/schema_browser/schema_sidebar.dart';
+import '../../features/search/search_dialog.dart';
 import '../../features/settings/settings_dialog.dart';
 import '../../features/settings/settings_providers.dart';
 import '../menu/app_menu.dart';
@@ -222,6 +223,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   final _fileMenu = MenuController();
+  final _editMenu = MenuController();
   final _queryMenu = MenuController();
   final _viewMenu = MenuController();
 
@@ -237,7 +239,10 @@ class _AppShellState extends ConsumerState<AppShell> {
     // On a hover-switch one closes as another opens; settle before checking.
     Future.microtask(() {
       if (!mounted) return;
-      final any = _fileMenu.isOpen || _queryMenu.isOpen || _viewMenu.isOpen;
+      final any = _fileMenu.isOpen ||
+          _editMenu.isOpen ||
+          _queryMenu.isOpen ||
+          _viewMenu.isOpen;
       if (any != _barOpen) setState(() => _barOpen = any);
     });
   }
@@ -282,6 +287,8 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   Future<void> _openSettings() => showSettingsDialog(context);
 
+  Future<void> _openSearch() => showSearchDialog(context);
+
   /// File → Quit. Present because hiding the title bar (Settings → Window)
   /// takes the OS close button with it — the app must stay closable from
   /// inside itself.
@@ -319,6 +326,10 @@ class _AppShellState extends ConsumerState<AppShell> {
             _openSettings,
         const SingleActivator(LogicalKeyboardKey.keyQ, control: true): _quit,
         const SingleActivator(LogicalKeyboardKey.keyQ, meta: true): _quit,
+        const SingleActivator(LogicalKeyboardKey.keyF,
+            control: true, shift: true): _openSearch,
+        const SingleActivator(LogicalKeyboardKey.keyF,
+            meta: true, shift: true): _openSearch,
         const SingleActivator(LogicalKeyboardKey.keyB, control: true):
             _toggleSidebar,
         const SingleActivator(LogicalKeyboardKey.keyB, meta: true):
@@ -457,6 +468,10 @@ class _AppShellState extends ConsumerState<AppShell> {
               _MenuAction('Settings…', _openSettings, accel: 'Ctrl+,'),
               _MenuAction.separator,
               _MenuAction('Quit', _quit, accel: 'Ctrl+Q'),
+            ]),
+            _topMenu(_editMenu, 'Edit', [
+              _MenuAction('Search Everything…', _openSearch,
+                  accel: 'Ctrl+Shift+F'),
             ]),
             _topMenu(_queryMenu, 'Query', [
               _MenuAction('Run', () => _dispatch(WorksheetCommand.runSmart),
