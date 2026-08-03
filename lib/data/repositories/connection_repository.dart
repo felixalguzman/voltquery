@@ -19,7 +19,9 @@ class ConnectionRepository {
   }
 
   Future<void> save(Connection c) {
-    return _db.into(_db.connectionRows).insertOnConflictUpdate(
+    return _db
+        .into(_db.connectionRows)
+        .insertOnConflictUpdate(
           ConnectionRowsCompanion.insert(
             id: c.id,
             name: c.name,
@@ -39,15 +41,15 @@ class ConnectionRepository {
       (_db.delete(_db.connectionRows)..where((t) => t.id.equals(id))).go();
 
   Connection _toDomain(ConnectionRow r) => Connection(
-        id: r.id,
-        name: r.name,
-        engine: Engine.values.byName(r.engine),
-        host: r.host,
-        port: r.port,
-        username: r.username,
-        credentialRef: r.credentialRef,
-        sqlitePath: r.sqlitePath,
-        defaultDatabase: r.defaultDatabase,
-        options: ConnectionOptions.decode(r.options),
-      );
+    id: r.id,
+    name: r.name,
+    engine: Engine.values.byName(r.engine),
+    host: r.host,
+    port: r.port,
+    username: r.username,
+    credentialRef: r.credentialRef,
+    sqlitePath: r.sqlitePath,
+    defaultDatabase: r.defaultDatabase,
+    options: ConnectionOptions.decode(r.options),
+  );
 }

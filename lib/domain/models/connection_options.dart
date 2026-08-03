@@ -70,29 +70,27 @@ class ConnectionOptions {
     int? connectTimeoutSeconds,
     SshConfig? ssh,
     Map<String, String>? driverProperties,
-  }) =>
-      ConnectionOptions(
-        sslMode: sslMode ?? this.sslMode,
-        caCertPath: caCertPath ?? this.caCertPath,
-        enforceForeignKeys: enforceForeignKeys ?? this.enforceForeignKeys,
-        colorTag: colorTag ?? this.colorTag,
-        readOnly: readOnly ?? this.readOnly,
-        connectTimeoutSeconds:
-            connectTimeoutSeconds ?? this.connectTimeoutSeconds,
-        ssh: ssh ?? this.ssh,
-        driverProperties: driverProperties ?? this.driverProperties,
-      );
+  }) => ConnectionOptions(
+    sslMode: sslMode ?? this.sslMode,
+    caCertPath: caCertPath ?? this.caCertPath,
+    enforceForeignKeys: enforceForeignKeys ?? this.enforceForeignKeys,
+    colorTag: colorTag ?? this.colorTag,
+    readOnly: readOnly ?? this.readOnly,
+    connectTimeoutSeconds: connectTimeoutSeconds ?? this.connectTimeoutSeconds,
+    ssh: ssh ?? this.ssh,
+    driverProperties: driverProperties ?? this.driverProperties,
+  );
 
   Map<String, Object?> toJson() => {
-        'sslMode': sslMode.name,
-        if (caCertPath != null) 'caCertPath': caCertPath,
-        'enforceForeignKeys': enforceForeignKeys,
-        if (colorTag != null) 'colorTag': colorTag,
-        'readOnly': readOnly,
-        'connectTimeoutSeconds': connectTimeoutSeconds,
-        if (ssh.enabled) 'ssh': ssh.toJson(),
-        if (driverProperties.isNotEmpty) 'driverProperties': driverProperties,
-      };
+    'sslMode': sslMode.name,
+    if (caCertPath != null) 'caCertPath': caCertPath,
+    'enforceForeignKeys': enforceForeignKeys,
+    if (colorTag != null) 'colorTag': colorTag,
+    'readOnly': readOnly,
+    'connectTimeoutSeconds': connectTimeoutSeconds,
+    if (ssh.enabled) 'ssh': ssh.toJson(),
+    if (driverProperties.isNotEmpty) 'driverProperties': driverProperties,
+  };
 
   /// Tolerant by design: a row written by an older (or newer) build must still
   /// open. Anything missing or malformed falls back to the default rather than
@@ -112,8 +110,8 @@ class ConnectionOptions {
       },
       driverProperties: switch (json['driverProperties']) {
         final Map<String, Object?> m => {
-            for (final e in m.entries) e.key: '${e.value}',
-          },
+          for (final e in m.entries) e.key: '${e.value}',
+        },
         _ => const {},
       },
     );

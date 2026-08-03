@@ -6,8 +6,8 @@ enum Engine {
 
   /// How the engine is written in the UI.
   String get label => switch (this) {
-        Engine.postgres => 'PostgreSQL',
-        Engine.mysql => 'MySQL',
-        Engine.sqlite => 'SQLite',
-      };
+    Engine.postgres => 'PostgreSQL',
+    Engine.mysql => 'MySQL',
+    Engine.sqlite => 'SQLite',
+  };
 }

@@ -238,7 +238,8 @@ class _AppShellState extends ConsumerState<AppShell> {
     // On a hover-switch one closes as another opens; settle before checking.
     Future.microtask(() {
       if (!mounted) return;
-      final any = _fileMenu.isOpen ||
+      final any =
+          _fileMenu.isOpen ||
           _editMenu.isOpen ||
           _queryMenu.isOpen ||
           _viewMenu.isOpen;
@@ -263,19 +264,20 @@ class _AppShellState extends ConsumerState<AppShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _restoreLayout();
-      ref.read(hostKeyPromptProvider.notifier).register(
-        (verdict, fingerprint) async {
-          if (!mounted) return false;
-          final conn = ref.read(currentConnectionProvider);
-          return showHostKeyDialog(
-            context,
-            verdict: verdict,
-            host: conn.options.ssh.host,
-            port: conn.options.ssh.port,
-            fingerprint: fingerprint,
-          );
-        },
-      );
+      ref.read(hostKeyPromptProvider.notifier).register((
+        verdict,
+        fingerprint,
+      ) async {
+        if (!mounted) return false;
+        final conn = ref.read(currentConnectionProvider);
+        return showHostKeyDialog(
+          context,
+          verdict: verdict,
+          host: conn.options.ssh.host,
+          port: conn.options.ssh.port,
+          fingerprint: fingerprint,
+        );
+      });
     });
   }
 
@@ -326,10 +328,13 @@ class _AppShellState extends ConsumerState<AppShell> {
             _openSettings,
         const SingleActivator(LogicalKeyboardKey.keyQ, control: true): _quit,
         const SingleActivator(LogicalKeyboardKey.keyQ, meta: true): _quit,
-        const SingleActivator(LogicalKeyboardKey.keyF,
-            control: true, shift: true): _openSearch,
-        const SingleActivator(LogicalKeyboardKey.keyF,
-            meta: true, shift: true): _openSearch,
+        const SingleActivator(
+          LogicalKeyboardKey.keyF,
+          control: true,
+          shift: true,
+        ): _openSearch,
+        const SingleActivator(LogicalKeyboardKey.keyF, meta: true, shift: true):
+            _openSearch,
         const SingleActivator(LogicalKeyboardKey.keyB, control: true):
             _toggleSidebar,
         const SingleActivator(LogicalKeyboardKey.keyB, meta: true):
@@ -382,17 +387,17 @@ class _AppShellState extends ConsumerState<AppShell> {
       controller: _sections,
       paneBuilder: (context, id, _) => switch (id) {
         'connections' => ConnectionsPanel(
-            collapsed: _collapsed.contains(_Section.connections),
-            onToggle: () => _toggleSection(_Section.connections),
-          ),
+          collapsed: _collapsed.contains(_Section.connections),
+          onToggle: () => _toggleSection(_Section.connections),
+        ),
         'schema' => SchemaSidebar(
-            collapsed: _collapsed.contains(_Section.schema),
-            onToggle: () => _toggleSection(_Section.schema),
-          ),
+          collapsed: _collapsed.contains(_Section.schema),
+          onToggle: () => _toggleSection(_Section.schema),
+        ),
         'history' => HistoryPanel(
-            collapsed: _collapsed.contains(_Section.history),
-            onToggle: () => _toggleSection(_Section.history),
-          ),
+          collapsed: _collapsed.contains(_Section.history),
+          onToggle: () => _toggleSection(_Section.history),
+        ),
         _ => const SizedBox.shrink(),
       },
     );
@@ -406,17 +411,17 @@ class _AppShellState extends ConsumerState<AppShell> {
         border: Border(bottom: BorderSide(color: t.hairline)),
       ),
       alignment: Alignment.centerLeft,
-      child: Row(children: [
-        _menus(),
-        // The empty strip beside the menus drags the window. With the title bar
-        // hidden (Settings → Window) this is the only grab handle left, and on
-        // a tiling WM it costs nothing.
-        const Expanded(
-          child: DragToMoveArea(child: SizedBox.expand()),
-        ),
-        ..._layoutToggles(),
-        const SizedBox(width: 6),
-      ]),
+      child: Row(
+        children: [
+          _menus(),
+          // The empty strip beside the menus drags the window. With the title bar
+          // hidden (Settings → Window) this is the only grab handle left, and on
+          // a tiling WM it costs nothing.
+          const Expanded(child: DragToMoveArea(child: SizedBox.expand())),
+          ..._layoutToggles(),
+          const SizedBox(width: 6),
+        ],
+      ),
     );
   }
 
@@ -449,7 +454,8 @@ class _AppShellState extends ConsumerState<AppShell> {
       for (final s in _Section.values)
         _LayoutToggle(
           icon: s.icon,
-          tooltip: '${_collapsed.contains(s) ? 'Expand' : 'Collapse'} ${s.title}',
+          tooltip:
+              '${_collapsed.contains(s) ? 'Expand' : 'Collapse'} ${s.title}',
           active: !_collapsed.contains(s),
           onPressed: () => _toggleSection(s),
         ),
@@ -458,53 +464,69 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   Widget _menus() {
     return BaseMenuBar(
-        child: BaseMenuPanel(
-          constraints: const BoxConstraints.tightFor(height: 30),
-          children: [
-            _topMenu(_fileMenu, 'File', [
-              _MenuAction('New Worksheet', _newTab, accel: 'Ctrl+N'),
-              _MenuAction('Open SQLite…', _openSqlite, accel: 'Ctrl+O'),
-              _MenuAction.separator,
-              _MenuAction('Settings…', _openSettings, accel: 'Ctrl+,'),
-              _MenuAction.separator,
-              _MenuAction('Quit', _quit, accel: 'Ctrl+Q'),
-            ]),
-            _topMenu(_editMenu, 'Edit', [
-              _MenuAction('Search Everything…', _openSearch,
-                  accel: 'Ctrl+Shift+F'),
-            ]),
-            _topMenu(_queryMenu, 'Query', [
-              _MenuAction('Run', () => _dispatch(WorksheetCommand.runSmart),
-                  accel: 'Ctrl+Enter'),
-              _MenuAction('Run Script', () => _dispatch(WorksheetCommand.runWhole),
-                  accel: 'F5'),
+      child: BaseMenuPanel(
+        constraints: const BoxConstraints.tightFor(height: 30),
+        children: [
+          _topMenu(_fileMenu, 'File', [
+            _MenuAction('New Worksheet', _newTab, accel: 'Ctrl+N'),
+            _MenuAction('Open SQLite…', _openSqlite, accel: 'Ctrl+O'),
+            _MenuAction.separator,
+            _MenuAction('Settings…', _openSettings, accel: 'Ctrl+,'),
+            _MenuAction.separator,
+            _MenuAction('Quit', _quit, accel: 'Ctrl+Q'),
+          ]),
+          _topMenu(_editMenu, 'Edit', [
+            _MenuAction(
+              'Search Everything…',
+              _openSearch,
+              accel: 'Ctrl+Shift+F',
+            ),
+          ]),
+          _topMenu(_queryMenu, 'Query', [
+            _MenuAction(
+              'Run',
+              () => _dispatch(WorksheetCommand.runSmart),
+              accel: 'Ctrl+Enter',
+            ),
+            _MenuAction(
+              'Run Script',
+              () => _dispatch(WorksheetCommand.runWhole),
+              accel: 'F5',
+            ),
+            _MenuAction(
+              'Run at Cursor',
+              () => _dispatch(WorksheetCommand.runAtCursor),
+            ),
+            _MenuAction(
+              'Run Selection',
+              () => _dispatch(WorksheetCommand.runSelection),
+            ),
+            _MenuAction.separator,
+            _MenuAction('Cancel', () => _dispatch(WorksheetCommand.cancel)),
+          ]),
+          _topMenu(_viewMenu, 'View', [
+            _MenuAction('Toggle Sidebar', _toggleSidebar, accel: 'Ctrl+B'),
+            _MenuAction.separator,
+            for (final s in _Section.values)
               _MenuAction(
-                  'Run at Cursor', () => _dispatch(WorksheetCommand.runAtCursor)),
-              _MenuAction(
-                  'Run Selection', () => _dispatch(WorksheetCommand.runSelection)),
-              _MenuAction.separator,
-              _MenuAction('Cancel', () => _dispatch(WorksheetCommand.cancel)),
-            ]),
-            _topMenu(_viewMenu, 'View', [
-              _MenuAction('Toggle Sidebar', _toggleSidebar, accel: 'Ctrl+B'),
-              _MenuAction.separator,
-              for (final s in _Section.values)
-                _MenuAction(
-                  '${_collapsed.contains(s) ? 'Expand' : 'Collapse'} ${s.title}',
-                  () => _toggleSection(s),
-                ),
-              _MenuAction.separator,
-              _MenuAction('Refresh Schema', _refreshSchema),
-            ]),
-          ],
-        ),
+                '${_collapsed.contains(s) ? 'Expand' : 'Collapse'} ${s.title}',
+                () => _toggleSection(s),
+              ),
+            _MenuAction.separator,
+            _MenuAction('Refresh Schema', _refreshSchema),
+          ]),
+        ],
+      ),
     );
   }
 
   /// A top-level menu (File/Query/View) as a BaseSubmenu with a styled anchor +
   /// a dark dropdown panel.
   Widget _topMenu(
-      MenuController controller, String title, List<_MenuAction> actions) {
+    MenuController controller,
+    String title,
+    List<_MenuAction> actions,
+  ) {
     return BaseSubmenu(
       controller: controller,
       // Click opens; once the bar is active, hovering a sibling switches to it.
@@ -538,12 +560,12 @@ class _AppShellState extends ConsumerState<AppShell> {
 /// One dropdown action (or a separator sentinel).
 class _MenuAction {
   const _MenuAction(this.label, this.onPressed, {this.accel})
-      : isSeparator = false;
+    : isSeparator = false;
   const _MenuAction._sep()
-      : label = '',
-        onPressed = _noop,
-        accel = null,
-        isSeparator = true;
+    : label = '',
+      onPressed = _noop,
+      accel = null,
+      isSeparator = true;
 
   static const separator = _MenuAction._sep();
   static void _noop() {}
@@ -575,10 +597,11 @@ class _TopLabelState extends State<_TopLabel> {
         color: _hover ? t.hover : null,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         alignment: Alignment.center,
-        child: Text(widget.title,
-            style: TextStyle(color: t.textHigh, fontSize: 12.5)),
+        child: Text(
+          widget.title,
+          style: TextStyle(color: t.textHigh, fontSize: 12.5),
+        ),
       ),
     );
   }
 }
-

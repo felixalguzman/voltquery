@@ -44,11 +44,8 @@ Future<ServerFormResult?> showServerConnectionDialog(
 }) {
   return showDialog<ServerFormResult>(
     context: context,
-    builder: (_) => _ServerDialog(
-      engine: engine,
-      existing: existing,
-      defaults: defaults,
-    ),
+    builder: (_) =>
+        _ServerDialog(engine: engine, existing: existing, defaults: defaults),
   );
 }
 
@@ -73,34 +70,44 @@ class _ServerDialogState extends State<_ServerDialog> {
   bool get _isEdit => _existing != null;
 
   late final _name = TextEditingController(
-      text: _existing?.name ?? (_isPg ? 'Postgres' : 'MySQL'));
-  late final _host =
-      TextEditingController(text: _existing?.host ?? 'localhost');
+    text: _existing?.name ?? (_isPg ? 'Postgres' : 'MySQL'),
+  );
+  late final _host = TextEditingController(
+    text: _existing?.host ?? 'localhost',
+  );
   late final _port = TextEditingController(
-      text: '${_existing?.port ?? (_isPg ? 5432 : 3306)}');
+    text: '${_existing?.port ?? (_isPg ? 5432 : 3306)}',
+  );
   late final _user = TextEditingController(
-      text: _existing?.username ?? (_isPg ? 'postgres' : 'root'));
+    text: _existing?.username ?? (_isPg ? 'postgres' : 'root'),
+  );
   final _password = TextEditingController();
   late final _database = TextEditingController(
-      text: _existing?.defaultDatabase ?? (_isPg ? 'postgres' : ''));
+    text: _existing?.defaultDatabase ?? (_isPg ? 'postgres' : ''),
+  );
 
   /// Everything on the Security/Advanced tabs. Defaults to `require` TLS:
   /// encryption is opted out of, and MySQL 8's default auth plugin refuses to
   /// authenticate over a plaintext socket.
   late ConnectionOptions _options =
       _existing?.options ?? widget.defaults ?? const ConnectionOptions();
-  late final _caCert =
-      TextEditingController(text: _existing?.options.caCertPath ?? '');
+  late final _caCert = TextEditingController(
+    text: _existing?.options.caCertPath ?? '',
+  );
 
-  late final _sshHost =
-      TextEditingController(text: _existing?.options.ssh.host ?? '');
-  late final _sshPort =
-      TextEditingController(text: '${_existing?.options.ssh.port ?? 22}');
-  late final _sshUser =
-      TextEditingController(text: _existing?.options.ssh.username ?? '');
+  late final _sshHost = TextEditingController(
+    text: _existing?.options.ssh.host ?? '',
+  );
+  late final _sshPort = TextEditingController(
+    text: '${_existing?.options.ssh.port ?? 22}',
+  );
+  late final _sshUser = TextEditingController(
+    text: _existing?.options.ssh.username ?? '',
+  );
   final _sshPassword = TextEditingController();
   late final _sshKeyPath = TextEditingController(
-      text: _existing?.options.ssh.privateKeyPath ?? '');
+    text: _existing?.options.ssh.privateKeyPath ?? '',
+  );
   final _sshPassphrase = TextEditingController();
   int _tab = 0;
 
@@ -245,7 +252,9 @@ class _ServerDialogState extends State<_ServerDialog> {
   Widget build(BuildContext context) {
     return ContentDialog(
       constraints: const BoxConstraints(maxWidth: 480),
-      title: Text(_isEdit ? 'Edit $_dbLabel connection' : 'New $_dbLabel connection'),
+      title: Text(
+        _isEdit ? 'Edit $_dbLabel connection' : 'New $_dbLabel connection',
+      ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -345,9 +354,9 @@ class _ServerDialogState extends State<_ServerDialog> {
         // driver, not to the person looking at this dialog — the postgres
         // package answers "no SSL" by naming a Dart constructor. Lead with what
         // to do; keep the raw message one click away for searching.
-        final help = DriverErrorHelper(widget.engine).help(
-          _error ?? DriverError(DriverErrorKind.unknown, _testMsg),
-        );
+        final help = DriverErrorHelper(
+          widget.engine,
+        ).help(_error ?? DriverError(DriverErrorKind.unknown, _testMsg));
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -357,14 +366,19 @@ class _ServerDialogState extends State<_ServerDialog> {
               children: [
                 const Padding(
                   padding: EdgeInsets.only(top: 1, right: 6),
-                  child: Icon(FluentIcons.error_badge,
-                      size: 12, color: VoltPalette.danger),
+                  child: Icon(
+                    FluentIcons.error_badge,
+                    size: 12,
+                    color: VoltPalette.danger,
+                  ),
                 ),
                 Expanded(
                   child: Text(
                     help.headline,
                     style: const TextStyle(
-                        color: VoltPalette.danger, fontSize: 12),
+                      color: VoltPalette.danger,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               ],
@@ -375,7 +389,9 @@ class _ServerDialogState extends State<_ServerDialog> {
                 child: Text(
                   hint,
                   style: const TextStyle(
-                      color: VoltPalette.textMid, fontSize: 11),
+                    color: VoltPalette.textMid,
+                    fontSize: 11,
+                  ),
                 ),
               ),
             Padding(
@@ -386,8 +402,10 @@ class _ServerDialogState extends State<_ServerDialog> {
                   if (help.remedy case final remedy?) ...[
                     Button(
                       onPressed: () => _applyRemedy(remedy),
-                      child: Text(help.remedyLabel ?? 'Fix',
-                          style: const TextStyle(fontSize: 11)),
+                      child: Text(
+                        help.remedyLabel ?? 'Fix',
+                        style: const TextStyle(fontSize: 11),
+                      ),
                     ),
                     const SizedBox(width: 8),
                   ],
@@ -396,15 +414,20 @@ class _ServerDialogState extends State<_ServerDialog> {
                     builder: (context, states) => Text(
                       _showRaw ? 'Hide details' : 'Details',
                       style: const TextStyle(
-                          color: VoltPalette.accent, fontSize: 11),
+                        color: VoltPalette.accent,
+                        fontSize: 11,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Tooltip(
                     message: 'Copy error',
                     child: IconButton(
-                      icon: const Icon(FluentIcons.copy,
-                          size: 12, color: VoltPalette.textMid),
+                      icon: const Icon(
+                        FluentIcons.copy,
+                        size: 12,
+                        color: VoltPalette.textMid,
+                      ),
                       onPressed: () =>
                           Clipboard.setData(ClipboardData(text: _testMsg)),
                     ),
@@ -421,9 +444,10 @@ class _ServerDialogState extends State<_ServerDialog> {
                     child: SelectableText(
                       _testMsg,
                       style: const TextStyle(
-                          color: VoltPalette.textLow,
-                          fontSize: 10.5,
-                          fontFamily: 'monospace'),
+                        color: VoltPalette.textLow,
+                        fontSize: 10.5,
+                        fontFamily: 'monospace',
+                      ),
                     ),
                   ),
                 ),
@@ -436,95 +460,96 @@ class _ServerDialogState extends State<_ServerDialog> {
   static const _tabs = ['General', 'Security', 'SSH', 'Advanced'];
 
   Widget _tabStrip() => Row(
-        children: [
-          for (var i = 0; i < _tabs.length; i++)
-            Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: HoverButton(
-                onPressed: () => setState(() => _tab = i),
-                builder: (context, states) => Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: _tab == i
-                        ? VoltPalette.accentWash
-                        : (states.isHovered ? VoltPalette.hover : null),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: _tab == i
-                          ? VoltPalette.accent
-                          : Colors.transparent,
-                    ),
-                  ),
-                  child: Text(
-                    _tabs[i],
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: _tab == i
-                          ? VoltPalette.accent
-                          : VoltPalette.textMid,
-                    ),
-                  ),
+    children: [
+      for (var i = 0; i < _tabs.length; i++)
+        Padding(
+          padding: const EdgeInsets.only(right: 4),
+          child: HoverButton(
+            onPressed: () => setState(() => _tab = i),
+            builder: (context, states) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: _tab == i
+                    ? VoltPalette.accentWash
+                    : (states.isHovered ? VoltPalette.hover : null),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                  color: _tab == i ? VoltPalette.accent : Colors.transparent,
+                ),
+              ),
+              child: Text(
+                _tabs[i],
+                style: TextStyle(
+                  fontSize: 12,
+                  color: _tab == i ? VoltPalette.accent : VoltPalette.textMid,
                 ),
               ),
             ),
-        ],
-      );
+          ),
+        ),
+    ],
+  );
 
   Widget _tabBody() => switch (_tab) {
-        0 => _generalTab(),
-        1 => _securityTab(),
-        2 => _sshTab(),
-        _ => _advancedTab(),
-      };
+    0 => _generalTab(),
+    1 => _securityTab(),
+    2 => _sshTab(),
+    _ => _advancedTab(),
+  };
 
   Widget _generalTab() => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      _field('Name', _name),
+      Row(
         children: [
-          _field('Name', _name),
-          Row(children: [
-            Expanded(flex: 3, child: _field('Host', _host)),
-            const SizedBox(width: 10),
-            Expanded(child: _field('Port', _port)),
-          ]),
-          Row(children: [
-            Expanded(child: _field('User', _user)),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _field(
-                _isEdit ? 'Password (unchanged)' : 'Password',
-                _password,
-                obscure: true,
-              ),
-            ),
-          ]),
-          _field('Database', _database),
-          _colorTagField(),
+          Expanded(flex: 3, child: _field('Host', _host)),
+          const SizedBox(width: 10),
+          Expanded(child: _field('Port', _port)),
         ],
-      );
+      ),
+      Row(
+        children: [
+          Expanded(child: _field('User', _user)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _field(
+              _isEdit ? 'Password (unchanged)' : 'Password',
+              _password,
+              obscure: true,
+            ),
+          ),
+        ],
+      ),
+      _field('Database', _database),
+      _colorTagField(),
+    ],
+  );
 
   Widget _securityTab() => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _sslField(),
-          const SizedBox(height: 4),
-          Checkbox(
-            checked: _options.readOnly,
-            onChanged: (v) =>
-                setState(() => _options = _options.copyWith(readOnly: v)),
-            content: const Text('Read-only (block grid edits)',
-                style: TextStyle(fontSize: 12)),
-          ),
-          const Padding(
-            padding: EdgeInsets.only(left: 26, top: 2),
-            child: Text(
-              'Stops VoltQuery generating DML for this connection. A UI guard, '
-              'not a server-side permission.',
-              style: TextStyle(color: VoltPalette.textLow, fontSize: 10.5),
-            ),
-          ),
-        ],
-      );
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      _sslField(),
+      const SizedBox(height: 4),
+      Checkbox(
+        checked: _options.readOnly,
+        onChanged: (v) =>
+            setState(() => _options = _options.copyWith(readOnly: v)),
+        content: const Text(
+          'Read-only (block grid edits)',
+          style: TextStyle(fontSize: 12),
+        ),
+      ),
+      const Padding(
+        padding: EdgeInsets.only(left: 26, top: 2),
+        child: Text(
+          'Stops VoltQuery generating DML for this connection. A UI guard, '
+          'not a server-side permission.',
+          style: TextStyle(color: VoltPalette.textLow, fontSize: 10.5),
+        ),
+      ),
+    ],
+  );
 
   Widget _sshTab() {
     final ssh = _options.ssh;
@@ -537,8 +562,10 @@ class _ServerDialogState extends State<_ServerDialog> {
         Checkbox(
           checked: ssh.enabled,
           onChanged: (v) => update(ssh.copyWith(enabled: v ?? false)),
-          content: const Text('Connect through an SSH tunnel',
-              style: TextStyle(fontSize: 12)),
+          content: const Text(
+            'Connect through an SSH tunnel',
+            style: TextStyle(fontSize: 12),
+          ),
         ),
         const Padding(
           padding: EdgeInsets.only(left: 26, top: 2, bottom: 8),
@@ -549,25 +576,38 @@ class _ServerDialogState extends State<_ServerDialog> {
           ),
         ),
         if (ssh.enabled) ...[
-          Row(children: [
-            Expanded(
-              flex: 3,
-              child: _plainField('SSH host', _sshHost,
-                  onChanged: (v) => update(ssh.copyWith(host: v.trim()))),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _plainField('Port', _sshPort,
-                  onChanged: (v) => update(
-                      ssh.copyWith(port: int.tryParse(v.trim()) ?? 22))),
-            ),
-          ]),
-          _plainField('SSH user', _sshUser,
-              onChanged: (v) => update(ssh.copyWith(username: v.trim()))),
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: _plainField(
+                  'SSH host',
+                  _sshHost,
+                  onChanged: (v) => update(ssh.copyWith(host: v.trim())),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _plainField(
+                  'Port',
+                  _sshPort,
+                  onChanged: (v) =>
+                      update(ssh.copyWith(port: int.tryParse(v.trim()) ?? 22)),
+                ),
+              ),
+            ],
+          ),
+          _plainField(
+            'SSH user',
+            _sshUser,
+            onChanged: (v) => update(ssh.copyWith(username: v.trim())),
+          ),
           InfoLabel(
             label: 'Authentication',
-            labelStyle:
-                const TextStyle(fontSize: 12, color: VoltPalette.textMid),
+            labelStyle: const TextStyle(
+              fontSize: 12,
+              color: VoltPalette.textMid,
+            ),
             child: ComboBox<SshAuthMode>(
               value: ssh.authMode,
               isExpanded: true,
@@ -586,11 +626,16 @@ class _ServerDialogState extends State<_ServerDialog> {
           if (ssh.authMode == SshAuthMode.password)
             _plainField('SSH password', _sshPassword, obscure: true)
           else ...[
-            _plainField('Private key file', _sshKeyPath,
-                onChanged: (v) =>
-                    update(ssh.copyWith(privateKeyPath: v.trim()))),
-            _plainField('Key passphrase (if any)', _sshPassphrase,
-                obscure: true),
+            _plainField(
+              'Private key file',
+              _sshKeyPath,
+              onChanged: (v) => update(ssh.copyWith(privateKeyPath: v.trim())),
+            ),
+            _plainField(
+              'Key passphrase (if any)',
+              _sshPassphrase,
+              obscure: true,
+            ),
           ],
         ],
       ],
@@ -600,8 +645,12 @@ class _ServerDialogState extends State<_ServerDialog> {
   /// A labelled text field that reports changes — the SSH fields write straight
   /// into the options object rather than being read back at save time, so the
   /// enabled/auth-mode branches above always reflect what's typed.
-  Widget _plainField(String label, TextEditingController c,
-      {bool obscure = false, ValueChanged<String>? onChanged}) {
+  Widget _plainField(
+    String label,
+    TextEditingController c, {
+    bool obscure = false,
+    ValueChanged<String>? onChanged,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: InfoLabel(
@@ -617,37 +666,40 @@ class _ServerDialogState extends State<_ServerDialog> {
   }
 
   Widget _advancedTab() => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (widget.engine == Engine.sqlite)
-            Checkbox(
-              checked: _options.enforceForeignKeys,
-              onChanged: (v) => setState(
-                  () => _options = _options.copyWith(enforceForeignKeys: v)),
-              content: const Text('Enforce foreign keys',
-                  style: TextStyle(fontSize: 12)),
-            ),
-          InfoLabel(
-            label: 'Connect timeout (seconds)',
-            labelStyle:
-                const TextStyle(fontSize: 12, color: VoltPalette.textMid),
-            child: NumberBox<int>(
-              value: _options.connectTimeoutSeconds,
-              min: 1,
-              max: 300,
-              mode: SpinButtonPlacementMode.inline,
-              onChanged: (v) => setState(() =>
-                  _options = _options.copyWith(connectTimeoutSeconds: v ?? 15)),
-            ),
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      if (widget.engine == Engine.sqlite)
+        Checkbox(
+          checked: _options.enforceForeignKeys,
+          onChanged: (v) => setState(
+            () => _options = _options.copyWith(enforceForeignKeys: v),
           ),
-          const SizedBox(height: 10),
-          const Text(
-            'Driver properties (engine-specific pass-through) are stored with '
-            'the connection; an editor for them comes with the SSH slice.',
-            style: TextStyle(color: VoltPalette.textLow, fontSize: 10.5),
+          content: const Text(
+            'Enforce foreign keys',
+            style: TextStyle(fontSize: 12),
           ),
-        ],
-      );
+        ),
+      InfoLabel(
+        label: 'Connect timeout (seconds)',
+        labelStyle: const TextStyle(fontSize: 12, color: VoltPalette.textMid),
+        child: NumberBox<int>(
+          value: _options.connectTimeoutSeconds,
+          min: 1,
+          max: 300,
+          mode: SpinButtonPlacementMode.inline,
+          onChanged: (v) => setState(
+            () => _options = _options.copyWith(connectTimeoutSeconds: v ?? 15),
+          ),
+        ),
+      ),
+      const SizedBox(height: 10),
+      const Text(
+        'Driver properties (engine-specific pass-through) are stored with '
+        'the connection; an editor for them comes with the SSH slice.',
+        style: TextStyle(color: VoltPalette.textLow, fontSize: 10.5),
+      ),
+    ],
+  );
 
   /// Red-means-production. Surfaced in the connections list so the environment
   /// is unmistakable before you run anything.
@@ -671,17 +723,17 @@ class _ServerDialogState extends State<_ServerDialog> {
               Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: HoverButton(
-                  onPressed: () =>
-                      setState(() => _options = ConnectionOptions(
-                            sslMode: _options.sslMode,
-                            caCertPath: _options.caCertPath,
-                            enforceForeignKeys: _options.enforceForeignKeys,
-                            colorTag: c,
-                            readOnly: _options.readOnly,
-                            connectTimeoutSeconds:
-                                _options.connectTimeoutSeconds,
-                            driverProperties: _options.driverProperties,
-                          )),
+                  onPressed: () => setState(
+                    () => _options = ConnectionOptions(
+                      sslMode: _options.sslMode,
+                      caCertPath: _options.caCertPath,
+                      enforceForeignKeys: _options.enforceForeignKeys,
+                      colorTag: c,
+                      readOnly: _options.readOnly,
+                      connectTimeoutSeconds: _options.connectTimeoutSeconds,
+                      driverProperties: _options.driverProperties,
+                    ),
+                  ),
                   builder: (context, states) => Container(
                     width: 22,
                     height: 22,
@@ -696,8 +748,11 @@ class _ServerDialogState extends State<_ServerDialog> {
                       ),
                     ),
                     child: c == null
-                        ? const Icon(FluentIcons.clear,
-                            size: 9, color: VoltPalette.textLow)
+                        ? const Icon(
+                            FluentIcons.clear,
+                            size: 9,
+                            color: VoltPalette.textLow,
+                          )
                         : null,
                   ),
                 ),
@@ -728,14 +783,18 @@ class _ServerDialogState extends State<_ServerDialog> {
                   ),
               ],
               onChanged: (m) => setState(
-                  () => _options = _options.copyWith(sslMode: m ?? _ssl)),
+                () => _options = _options.copyWith(sslMode: m ?? _ssl),
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               _canVerify
                   ? _ssl.description
                   : '${_ssl.description}  MySQL cannot verify certificates.',
-              style: const TextStyle(color: VoltPalette.textLow, fontSize: 10.5),
+              style: const TextStyle(
+                color: VoltPalette.textLow,
+                fontSize: 10.5,
+              ),
             ),
             // Only meaningful when the certificate is actually checked.
             if (_ssl == SslMode.verifyFull) ...[

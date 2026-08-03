@@ -32,7 +32,11 @@ class TableInfo {
 
 /// What a foreign-key column points at.
 class ColumnRef {
-  const ColumnRef({required this.table, required this.column, this.schema = ''});
+  const ColumnRef({
+    required this.table,
+    required this.column,
+    this.schema = '',
+  });
 
   final String table;
   final String column;
@@ -41,8 +45,7 @@ class ColumnRef {
   final String schema;
 
   @override
-  String toString() =>
-      '${schema.isEmpty ? '' : '$schema.'}$table.$column';
+  String toString() => '${schema.isEmpty ? '' : '$schema.'}$table.$column';
 }
 
 /// Durable schema metadata for a Table/View column — distinct from a

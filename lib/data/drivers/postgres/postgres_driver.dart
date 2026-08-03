@@ -19,18 +19,18 @@ class PostgresDriver implements Driver {
 
   @override
   Capabilities get capabilities => const Capabilities(
-        hasServer: true,
-        hasSchemas: true,
-        supportsTls: true,
-        verifiesTlsCertificates: true,
-        // Postgres CAN cancel, but `postgres` v3.5.12 doesn't expose it on the
-        // public Connection API (cancelPendingStatement is internal). Gated off
-        // honestly until the package surfaces it.
-        supportsQueryCancel: false,
-        supportsSavepoints: true,
-        supportsNestedTransactions: false,
-        paramStyle: ParamStyle.dollar,
-      );
+    hasServer: true,
+    hasSchemas: true,
+    supportsTls: true,
+    verifiesTlsCertificates: true,
+    // Postgres CAN cancel, but `postgres` v3.5.12 doesn't expose it on the
+    // public Connection API (cancelPendingStatement is internal). Gated off
+    // honestly until the package surfaces it.
+    supportsQueryCancel: false,
+    supportsSavepoints: true,
+    supportsNestedTransactions: false,
+    paramStyle: ParamStyle.dollar,
+  );
 
   @override
   Future<Session> connect(Connection config, {String? secret}) async {
@@ -59,8 +59,11 @@ class PostgresDriver implements Driver {
     } on pg.PgException catch (e) {
       throw _mapPgError(e);
     } catch (e) {
-      throw DriverError(DriverErrorKind.connectionFailed, e.toString(),
-          cause: e);
+      throw DriverError(
+        DriverErrorKind.connectionFailed,
+        e.toString(),
+        cause: e,
+      );
     }
   }
 }
@@ -88,8 +91,10 @@ class PostgresSession implements Session {
   bool get inTransaction => false; // TODO(exec-model): track tx state
 
   @override
-  Future<ExecutionResult> execute(String sql,
-      {List<Object?> params = const []}) async {
+  Future<ExecutionResult> execute(
+    String sql, {
+    List<Object?> params = const [],
+  }) async {
     try {
       // TODO(params): app currently passes literal SQL (no bound params).
       final result = await _conn.execute(sql);
@@ -121,13 +126,15 @@ class PostgresSession implements Session {
 
   @override
   Future<void> useDatabase(String name) async => throw DriverError(
-      DriverErrorKind.unsupported,
-      'Postgres binds a connection to one database; reconnect to switch');
+    DriverErrorKind.unsupported,
+    'Postgres binds a connection to one database; reconnect to switch',
+  );
 
   @override
   Future<void> cancelActive() async => throw DriverError(
-      DriverErrorKind.unsupported,
-      'Query cancel is not exposed by postgres v3.5.12');
+    DriverErrorKind.unsupported,
+    'Query cancel is not exposed by postgres v3.5.12',
+  );
 
   @override
   SchemaIntrospector get schema => _PostgresIntrospector(_conn);
@@ -171,17 +178,19 @@ class _PostgresIntrospector implements SchemaIntrospector {
   @override
   Future<List<DatabaseInfo>> databases() async {
     final r = await _conn.execute(
-        "SELECT datname FROM pg_database WHERE datistemplate = false "
-        'ORDER BY datname');
+      "SELECT datname FROM pg_database WHERE datistemplate = false "
+      'ORDER BY datname',
+    );
     return [for (final row in r) DatabaseInfo(row[0] as String)];
   }
 
   @override
   Future<List<SchemaInfo>> schemas(DatabaseInfo database) async {
     final r = await _conn.execute(
-        "SELECT schema_name FROM information_schema.schemata "
-        "WHERE schema_name NOT LIKE 'pg\\_%' "
-        "AND schema_name <> 'information_schema' ORDER BY schema_name");
+      "SELECT schema_name FROM information_schema.schemata "
+      "WHERE schema_name NOT LIKE 'pg\\_%' "
+      "AND schema_name <> 'information_schema' ORDER BY schema_name",
+    );
     return [for (final row in r) SchemaInfo(row[0] as String)];
   }
 
@@ -189,15 +198,19 @@ class _PostgresIntrospector implements SchemaIntrospector {
   Future<List<TableInfo>> tables(SchemaInfo schema) async {
     final schemaName = schema.name.isEmpty ? 'public' : schema.name;
     final r = await _conn.execute(
-      pg.Sql.named('SELECT table_name, table_type FROM information_schema.tables '
-          'WHERE table_schema = @s ORDER BY table_name'),
+      pg.Sql.named(
+        'SELECT table_name, table_type FROM information_schema.tables '
+        'WHERE table_schema = @s ORDER BY table_name',
+      ),
       parameters: {'s': schemaName},
     );
     return [
       for (final row in r)
         TableInfo(
           name: row[0] as String,
-          kind: (row[1] as String) == 'VIEW' ? ObjectKind.view : ObjectKind.table,
+          kind: (row[1] as String) == 'VIEW'
+              ? ObjectKind.view
+              : ObjectKind.table,
           schema: schemaName,
         ),
     ];
@@ -210,10 +223,11 @@ class _PostgresIntrospector implements SchemaIntrospector {
     final keys = await _keyColumns(schemaName, table.name);
     final r = await _conn.execute(
       pg.Sql.named(
-          'SELECT column_name, data_type, is_nullable, ordinal_position, '
-          '       column_default, udt_name '
-          'FROM information_schema.columns WHERE table_schema = @s AND table_name = @t '
-          'ORDER BY ordinal_position'),
+        'SELECT column_name, data_type, is_nullable, ordinal_position, '
+        '       column_default, udt_name '
+        'FROM information_schema.columns WHERE table_schema = @s AND table_name = @t '
+        'ORDER BY ordinal_position',
+      ),
       parameters: {'s': schemaName, 't': table.name},
     );
     // `data_type` is 'USER-DEFINED' for enums; the real type name is udt_name.
@@ -253,15 +267,16 @@ class _PostgresIntrospector implements SchemaIntrospector {
       parameters: {'names': typeNames.toList()},
     );
     return {
-      for (final row in r)
-        row[0] as String: (row[1] as String).split(','),
+      for (final row in r) row[0] as String: (row[1] as String).split(','),
     };
   }
 
   /// PK + FK column-name sets for a table (one round-trip via the constraint
   /// catalog). Powers the key glyphs in the schema tree.
   Future<({Set<String> pk, Map<String, ColumnRef> fk})> _keyColumns(
-      String schema, String table) async {
+    String schema,
+    String table,
+  ) async {
     final r = await _conn.execute(
       pg.Sql.named(
         'SELECT kcu.column_name, tc.constraint_type, '
@@ -470,12 +485,14 @@ class _PostgresIntrospector implements SchemaIntrospector {
     final objects = !scope.includesObjects
         ? const []
         : await _conn.execute(
-      pg.Sql.named('SELECT table_schema, table_name, table_type '
-          'FROM information_schema.tables '
-          "WHERE $notSystem AND table_name ILIKE @p ESCAPE '\\' "
-          'ORDER BY table_schema, table_name LIMIT @l'),
-      parameters: {'p': like, 'l': limit},
-    );
+            pg.Sql.named(
+              'SELECT table_schema, table_name, table_type '
+              'FROM information_schema.tables '
+              "WHERE $notSystem AND table_name ILIKE @p ESCAPE '\\' "
+              'ORDER BY table_schema, table_name LIMIT @l',
+            ),
+            parameters: {'p': like, 'l': limit},
+          );
     final hits = [
       for (final row in objects)
         SchemaSearchHit(
@@ -496,15 +513,17 @@ class _PostgresIntrospector implements SchemaIntrospector {
     final remaining = limit - hits.length;
     if (remaining <= 0 || !scope.includesColumns) return hits;
     final columns = await _conn.execute(
-      pg.Sql.named('SELECT c.table_schema, c.table_name, c.column_name, '
-          '       c.data_type, t.table_type '
-          'FROM information_schema.columns c '
-          'JOIN information_schema.tables t '
-          '  ON t.table_schema = c.table_schema '
-          ' AND t.table_name = c.table_name '
-          "WHERE c.$notSystem AND c.column_name ILIKE @p ESCAPE '\\' "
-          'ORDER BY c.table_schema, c.table_name, c.ordinal_position '
-          'LIMIT @l'),
+      pg.Sql.named(
+        'SELECT c.table_schema, c.table_name, c.column_name, '
+        '       c.data_type, t.table_type '
+        'FROM information_schema.columns c '
+        'JOIN information_schema.tables t '
+        '  ON t.table_schema = c.table_schema '
+        ' AND t.table_name = c.table_name '
+        "WHERE c.$notSystem AND c.column_name ILIKE @p ESCAPE '\\' "
+        'ORDER BY c.table_schema, c.table_name, c.ordinal_position '
+        'LIMIT @l',
+      ),
       parameters: {'p': like, 'l': remaining},
     );
     hits.addAll([
@@ -555,8 +574,10 @@ DriverError _mapPgError(pg.PgException e) {
     '42601' => DriverErrorKind.syntaxError,
     '28P01' || '28000' => DriverErrorKind.authFailed,
     '42P01' || '42703' || '3D000' => DriverErrorKind.objectNotFound,
-    '23505' || '23503' || '23502' || '23514' =>
-      DriverErrorKind.constraintViolation,
+    '23505' ||
+    '23503' ||
+    '23502' ||
+    '23514' => DriverErrorKind.constraintViolation,
     '42501' => DriverErrorKind.permissionDenied,
     '57014' => DriverErrorKind.canceled,
     _ => DriverErrorKind.serverError,

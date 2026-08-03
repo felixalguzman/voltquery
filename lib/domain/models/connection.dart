@@ -58,17 +58,16 @@ class Connection {
     String? credentialRef,
     String? defaultDatabase,
     ConnectionOptions? options,
-  }) =>
-      Connection(
-        id: id,
-        name: name ?? this.name,
-        engine: engine,
-        host: host ?? this.host,
-        port: port ?? this.port,
-        username: username ?? this.username,
-        credentialRef: credentialRef ?? this.credentialRef,
-        sqlitePath: sqlitePath,
-        defaultDatabase: defaultDatabase ?? this.defaultDatabase,
-        options: options ?? this.options,
-      );
+  }) => Connection(
+    id: id,
+    name: name ?? this.name,
+    engine: engine,
+    host: host ?? this.host,
+    port: port ?? this.port,
+    username: username ?? this.username,
+    credentialRef: credentialRef ?? this.credentialRef,
+    sqlitePath: sqlitePath,
+    defaultDatabase: defaultDatabase ?? this.defaultDatabase,
+    options: options ?? this.options,
+  );
 }

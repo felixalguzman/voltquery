@@ -141,8 +141,9 @@ class ColumnEditor {
       other.kind == kind &&
       other.nullable == nullable &&
       other.options.length == options.length &&
-      Iterable<int>.generate(options.length)
-          .every((i) => other.options[i] == options[i]);
+      Iterable<int>.generate(
+        options.length,
+      ).every((i) => other.options[i] == options[i]);
 
   @override
   int get hashCode => Object.hash(kind, nullable, Object.hashAll(options));
@@ -212,9 +213,9 @@ class ColumnEditorResolver {
   }
 
   bool _isBinary(String base) => const {
-        'bytea', 'blob', 'binary', 'varbinary', 'tinyblob', 'mediumblob',
-        'longblob', 'image', //
-      }.contains(base);
+    'bytea', 'blob', 'binary', 'varbinary', 'tinyblob', 'mediumblob',
+    'longblob', 'image', //
+  }.contains(base);
 
   bool _isJson(String base) => base == 'json' || base == 'jsonb';
 
@@ -229,7 +230,8 @@ class ColumnEditorResolver {
     return engine == Engine.sqlite && base == 'boolean';
   }
 
-  bool _isInteger(String base) => const {
+  bool _isInteger(String base) =>
+      const {
         'smallint', 'integer', 'int', 'bigint', 'int2', 'int4', 'int8',
         'tinyint', 'mediumint', 'serial', 'bigserial', 'smallserial',
         'int unsigned', 'bigint unsigned', //
@@ -240,7 +242,8 @@ class ColumnEditorResolver {
       base.startsWith('tinyint ') ||
       base.startsWith('mediumint ');
 
-  bool _isDecimal(String base) => const {
+  bool _isDecimal(String base) =>
+      const {
         'numeric', 'decimal', 'real', 'double precision', 'double', 'float',
         'float4', 'float8', 'money', 'dec', //
       }.contains(base) ||

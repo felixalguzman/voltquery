@@ -21,15 +21,10 @@ import 'schema_providers.dart';
 import 'schema_repository.dart';
 import 'table_info_dialog.dart';
 
-// TODO(theming #7): unify these tokens into ui/core/theme.
-const _panel = VoltPalette.panel;
-const _hair = VoltPalette.hairline;
-const _accent = VoltPalette.accent;
-const _text = VoltPalette.textHigh;
-const _textMid = VoltPalette.textMid;
-const _textLo = VoltPalette.textLow;
-const _err = VoltPalette.danger;
-const _mono = TextStyle(color: _text, fontSize: 12.5, fontFamily: 'monospace');
+/// The tree's monospace row style. A function rather than a `const`, because
+/// its colour now comes from the theme.
+TextStyle _mono(VoltTokens t) =>
+    TextStyle(color: t.textHigh, fontSize: 12.5, fontFamily: 'monospace');
 
 /// Left panel: the active connection's schema as a **lazy tree** (ADR-0008 /
 /// issue #13). Every level loads on expand via the per-Connection
@@ -45,15 +40,16 @@ class SchemaSidebar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = VoltTheme.of(context);
     final repo = ref.watch(schemaRepositoryProvider);
     // The sidebar/workspace divider is the pane resizer, not a border here —
     // drawing both doubles the line and overflows a collapsed section.
     return Container(
-      decoration: const BoxDecoration(color: _panel),
+      decoration: BoxDecoration(color: t.panel),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _header(ref),
+          _header(t, ref),
           if (!collapsed)
             FilterRow(
               state: ref.watch(schemaFilterProvider),
@@ -63,7 +59,7 @@ class SchemaSidebar extends ConsumerWidget {
           Expanded(
             child: repo.when(
               loading: () => const _Spinner(),
-              error: (e, _) => _Message('$e', color: _err),
+              error: (e, _) => _Message('$e', color: t.danger),
               // Key by repo identity: invalidate → new repo → fresh tree state.
               data: (r) => _SchemaTree(r, key: ObjectKey(r)),
             ),
@@ -73,7 +69,7 @@ class SchemaSidebar extends ConsumerWidget {
     );
   }
 
-  Widget _header(WidgetRef ref) {
+  Widget _header(VoltTokens t, WidgetRef ref) {
     final filter = ref.watch(schemaFilterProvider);
     return SectionHeader(
       title: 'SCHEMA',
@@ -81,12 +77,15 @@ class SchemaSidebar extends ConsumerWidget {
       onToggle: onToggle,
       actions: [
         IconButton(
-          icon: Icon(FluentIcons.filter,
-              size: 12, color: filter.open ? _accent : _textMid),
+          icon: Icon(
+            FluentIcons.filter,
+            size: 12,
+            color: filter.open ? t.accent : t.textMid,
+          ),
           onPressed: ref.read(schemaFilterProvider.notifier).toggle,
         ),
         IconButton(
-          icon: const Icon(FluentIcons.refresh, size: 12, color: _textMid),
+          icon: Icon(FluentIcons.refresh, size: 12, color: t.textMid),
           onPressed: () => ref.invalidate(schemaRepositoryProvider),
         ),
       ],
@@ -111,6 +110,7 @@ class _SchemaTree extends ConsumerStatefulWidget {
 }
 
 class _SchemaTreeState extends ConsumerState<_SchemaTree> {
+  VoltTokens get t => VoltTheme.of(context);
   final _controller = TreeViewController();
   List<TreeViewItem>? _roots;
   Object? _error;
@@ -131,7 +131,7 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
   /// dead end when almost nothing is loaded — the honest answer to "is there a
   /// `venta` table?" needs the catalog. So the box now escalates by itself
   /// instead of asking you to go open a different dialog.
-  List<SchemaSearchHit> _remoteHits = const [];
+  List<SchemaSearchHit> _remoteHits = [];
   Object? _remoteError;
   bool _remoteBusy = false;
   String _remoteQuery = '';
@@ -149,7 +149,7 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
     if (query.length < kMinSearchLength) {
       if (_remoteHits.isNotEmpty || _remoteBusy || _remoteError != null) {
         setState(() {
-          _remoteHits = const [];
+          _remoteHits = [];
           _remoteBusy = false;
           _remoteError = null;
         });
@@ -176,7 +176,7 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
       if (!mounted || query != _remoteQuery) return;
       setState(() {
         _remoteError = e;
-        _remoteHits = const [];
+        _remoteHits = [];
         _remoteBusy = false;
       });
     }
@@ -213,98 +213,110 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
   // --- Node builders ---------------------------------------------------------
 
   TreeViewItem _schemaItem(SchemaInfo s) => TreeViewItem(
-        leading: const Icon(FluentIcons.database, size: 13, color: _textMid),
-        content: ContextMenuRegion(
-          actions: [
-            MenuAction('Copy Name', () => _copy(s.name), icon: FluentIcons.copy)
-          ],
-          child: _row(
-            Text(s.name, overflow: TextOverflow.ellipsis, style: _mono),
-          ),
-        ),
-        lazy: true,
-        value: _Loader(() async => _objectItems(await widget.repo.tables(s))),
-        onExpandToggle: _onExpand,
-      );
+    leading: Icon(FluentIcons.database, size: 13, color: t.textMid),
+    content: ContextMenuRegion(
+      actions: [
+        MenuAction('Copy Name', () => _copy(s.name), icon: FluentIcons.copy),
+      ],
+      child: _row(
+        Text(s.name, overflow: TextOverflow.ellipsis, style: _mono(t)),
+      ),
+    ),
+    lazy: true,
+    value: _Loader(() async => _objectItems(await widget.repo.tables(s))),
+    onExpandToggle: _onExpand,
+  );
 
   List<TreeViewItem> _objectItems(List<TableInfo> all) {
-    for (final t in all) {
-      _objects[_keyOf(t)] = t;
+    for (final o in all) {
+      _objects[_keyOf(o)] = o;
     }
     return [
-      for (final t in all.where((t) => t.kind == ObjectKind.table))
-        _objectItem(t, FluentIcons.table),
-      for (final t in all.where((t) => t.kind == ObjectKind.view))
-        _objectItem(t, FluentIcons.page),
+      for (final o in all.where((o) => o.kind == ObjectKind.table))
+        _objectItem(o, FluentIcons.table),
+      for (final o in all.where((o) => o.kind == ObjectKind.view))
+        _objectItem(o, FluentIcons.page),
     ];
   }
 
-  TreeViewItem _objectItem(TableInfo t, IconData icon) => TreeViewItem(
-        // fluent hardcodes its expander chevron at 8px, which is a very small
-        // target — miss it and the row press opens a worksheet instead. The
-        // object icon doubles as a second, larger expand/collapse target.
-        leading: _ExpandTap(
-          onTap: () => _toggle(t),
-          child: Icon(icon, size: 13, color: _textMid),
+  TreeViewItem _objectItem(TableInfo obj, IconData icon) => TreeViewItem(
+    // fluent hardcodes its expander chevron at 8px, which is a very small
+    // target — miss it and the row press opens a worksheet instead. The
+    // object icon doubles as a second, larger expand/collapse target.
+    leading: _ExpandTap(
+      onTap: () => _toggle(obj),
+      child: Icon(icon, size: 13, color: t.textMid),
+    ),
+    content: ContextMenuRegion(
+      actions: [
+        MenuAction('Copy Name', () => _copy(obj.name), icon: FluentIcons.copy),
+        MenuAction(
+          'Copy CREATE',
+          () => _copyDdl(() => widget.repo.tableDdl(obj)),
+          icon: FluentIcons.code,
         ),
-        content: ContextMenuRegion(
-          actions: [
-            MenuAction('Copy Name', () => _copy(t.name), icon: FluentIcons.copy),
-            MenuAction('Copy CREATE',
-                () => _copyDdl(() => widget.repo.tableDdl(t)),
-                icon: FluentIcons.code),
-            MenuAction.divider,
-            MenuAction('Open in Editor', () => _openTable(t, run: false),
-                icon: FluentIcons.open_file),
-            MenuAction('Preview Data', () => _openTable(t, run: true),
-                icon: FluentIcons.preview),
-            MenuAction.divider,
-            MenuAction('Table Info…', () => _showInfo(t),
-                icon: FluentIcons.info),
-          ],
-          child: _row(Builder(builder: (context) {
+        MenuAction.divider,
+        MenuAction(
+          'Open in Editor',
+          () => _openTable(obj, run: false),
+          icon: FluentIcons.open_file,
+        ),
+        MenuAction(
+          'Preview Data',
+          () => _openTable(obj, run: true),
+          icon: FluentIcons.preview,
+        ),
+        MenuAction.divider,
+        MenuAction('Table Info…', () => _showInfo(obj), icon: FluentIcons.info),
+      ],
+      child: _row(
+        Builder(
+          builder: (context) {
             // The table you last opened stays marked, so after scrolling a few
             // hundred rows you can still see where you were.
-            final isCurrent = _lastOpened == _keyOf(t);
+            final isCurrent = _lastOpened == _keyOf(obj);
             return Text(
-              t.name,
+              obj.name,
               overflow: TextOverflow.ellipsis,
               style: isCurrent
-                  ? _mono.copyWith(
-                      color: _accent, fontWeight: FontWeight.w600)
-                  : _mono,
+                  ? _mono(
+                      t,
+                    ).copyWith(color: t.accent, fontWeight: FontWeight.w600)
+                  : _mono(t),
             );
-          })),
+          },
         ),
-        lazy: true,
-        // Columns show immediately on expand; indexes hang under a lazy folder.
-        value: _Loader(() async {
-          final cols = await widget.repo.columns(t);
-          _columns[_keyOf(t)] = cols;
-          return [..._columnItems(cols), _indexesFolder(t)];
-        }),
-        onInvoked: (item, reason) async {
-          // The chevron also fires onInvoked(expandToggle) — ignore that; only a
-          // row press opens the table (preview = seed + run).
-          if (reason == TreeViewItemInvokeReason.expandToggle) return;
-          _openTable(t, run: true);
-        },
-        onExpandToggle: _onExpand,
-      );
+      ),
+    ),
+    lazy: true,
+    // Columns show immediately on expand; indexes hang under a lazy folder.
+    value: _Loader(() async {
+      final cols = await widget.repo.columns(obj);
+      _columns[_keyOf(obj)] = cols;
+      return [..._columnItems(cols), _indexesFolder(obj)];
+    }),
+    onInvoked: (item, reason) async {
+      // The chevron also fires onInvoked(expandToggle) — ignore that; only a
+      // row press opens the table (preview = seed + run).
+      if (reason == TreeViewItemInvokeReason.expandToggle) return;
+      _openTable(obj, run: true);
+    },
+    onExpandToggle: _onExpand,
+  );
 
   /// Expand/collapse the node for [t] — the leading icon's job (see
   /// [_ExpandTap]). Mirrors what the chevron does, including the lazy load.
-  void _toggle(TableInfo t) {
-    final item = _findObjectItem(t);
+  void _toggle(TableInfo obj) {
+    final item = _findObjectItem(obj);
     if (item == null) return;
     final next = !item.expanded;
     setState(() => item.expanded = next);
     if (next) _onExpand(item, true);
   }
 
-  TreeViewItem? _findObjectItem(TableInfo t) {
+  TreeViewItem? _findObjectItem(TableInfo obj) {
     for (final root in _roots ?? const <TreeViewItem>[]) {
-      final hit = _search(root, t.name);
+      final hit = _search(root, obj.name);
       if (hit != null) return hit;
     }
     return null;
@@ -330,22 +342,20 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
   /// to track a line through, and the sticky header maps scroll offset to a row
   /// index — which only works while every row is the same height. That's also
   /// why every label ellipsizes rather than wrapping.
-  static Widget _row(Widget child) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 5),
-        child: child,
-      );
+  static Widget _row(Widget child) =>
+      Padding(padding: const EdgeInsets.symmetric(vertical: 5), child: child);
 
   // --- Context-menu actions --------------------------------------------------
 
   void _copy(String text) => Clipboard.setData(ClipboardData(text: text));
 
   /// Size, shape, keys and indexes without writing a query for any of it.
-  void _showInfo(TableInfo t) => showTableInfoDialog(
-        context,
-        table: t,
-        repo: widget.repo,
-        engine: ref.read(currentConnectionProvider).engine,
-      );
+  void _showInfo(TableInfo obj) => showTableInfoDialog(
+    context,
+    table: obj,
+    repo: widget.repo,
+    engine: ref.read(currentConnectionProvider).engine,
+  );
 
   /// Fetch DDL (cached in the repo) then copy it. Never leaves the clipboard
   /// empty — a fetch failure copies a `--`-commented note instead.
@@ -362,10 +372,10 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
   /// Identity of the last table opened from the tree.
   String? _lastOpened;
 
-  static String _keyOf(TableInfo t) => '${t.schema}.${t.name}';
+  static String _keyOf(TableInfo obj) => '${obj.schema}.${obj.name}';
 
-  void _openTable(TableInfo t, {required bool run}) {
-    setState(() => _lastOpened = _keyOf(t));
+  void _openTable(TableInfo obj, {required bool run}) {
+    setState(() => _lastOpened = _keyOf(obj));
     // Hand focus back after a press. fluent's TreeViewItem requests focus on
     // press and only clears its `_focusedByPress` flag when the node *loses*
     // focus — so a row that keeps focus across the rebuild keeps drawing a
@@ -377,7 +387,7 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
     // already looking at is how you end up with thirteen worksheets.
     final tabs = ref.read(worksheetTabsProvider);
     final origins = ref.read(worksheetOriginsProvider.notifier);
-    final existing = origins.find(_keyOf(t), tabs.ids);
+    final existing = origins.find(_keyOf(obj), tabs.ids);
     if (existing != null) {
       ref.read(worksheetTabsProvider.notifier).select(existing);
       return;
@@ -388,146 +398,187 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
     // browse outside the session's default, where a bare name would silently
     // resolve against the wrong one.
     final dialect = SqlDialect.of(ref.read(currentConnectionProvider).engine);
-    final target = dialect.qualify(t.name, schema: t.schema);
+    final target = dialect.qualify(obj.name, schema: obj.schema);
     final id = ref.read(worksheetTabsProvider.notifier).add();
     final limit = ref.read(settingsProvider).tablePreviewLimit;
     ref
         .read(worksheetSeedsProvider.notifier)
         .put(id, 'SELECT * FROM $target LIMIT $limit;', autoRun: run);
-    origins.put(id, _keyOf(t));
+    origins.put(id, _keyOf(obj));
   }
 
   List<TreeViewItem> _columnItems(List<ColumnInfo> cols) => [
-        for (final c in cols)
-          TreeViewItem(
-            collapsable: false,
-            leading: Icon(
-                c.isPrimaryKey
-                    ? FluentIcons.permissions
-                    : c.isForeignKey
-                        ? FluentIcons.link
-                        : FluentIcons.circle_ring,
-                size: 11,
-                color: c.isPrimaryKey
-                    ? _accent
-                    : c.isForeignKey
-                        ? VoltPalette.violet
-                        : _textLo),
-            // Name sizes to content but capped at ~55% of the *actual* row
-            // width (via LayoutBuilder — flex weights would reserve a fixed
-            // share and truncate the type even with space free); the type takes
-            // all remaining width and ellipsizes only when it genuinely can't
-            // fit.
-            content: ContextMenuRegion(
-              actions: [
-                MenuAction('Copy Name', () => _copy(c.name),
-                    icon: FluentIcons.copy),
-                if (c.references case final ref?)
-                  MenuAction(
-                    'Copy Referenced Table',
-                    () => _copy(ref.table),
-                    icon: FluentIcons.link,
-                  ),
-              ],
-              child: _row(LayoutBuilder(builder: (context, cons) {
-                return Row(children: [
-                  ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: cons.maxWidth * 0.55),
-                    child: Text(c.name,
+    for (final c in cols)
+      TreeViewItem(
+        collapsable: false,
+        leading: Icon(
+          c.isPrimaryKey
+              ? FluentIcons.permissions
+              : c.isForeignKey
+              ? FluentIcons.link
+              : FluentIcons.circle_ring,
+          size: 11,
+          color: c.isPrimaryKey
+              ? t.accent
+              : c.isForeignKey
+              ? t.violet
+              : t.textLow,
+        ),
+        // Name sizes to content but capped at ~55% of the *actual* row
+        // width (via LayoutBuilder — flex weights would reserve a fixed
+        // share and truncate the type even with space free); the type takes
+        // all remaining width and ellipsizes only when it genuinely can't
+        // fit.
+        content: ContextMenuRegion(
+          actions: [
+            MenuAction(
+              'Copy Name',
+              () => _copy(c.name),
+              icon: FluentIcons.copy,
+            ),
+            if (c.references case final ref?)
+              MenuAction(
+                'Copy Referenced Table',
+                () => _copy(ref.table),
+                icon: FluentIcons.link,
+              ),
+          ],
+          child: _row(
+            LayoutBuilder(
+              builder: (context, cons) {
+                return Row(
+                  children: [
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: cons.maxWidth * 0.55,
+                      ),
+                      child: Text(
+                        c.name,
                         overflow: TextOverflow.ellipsis,
                         softWrap: false,
                         maxLines: 1,
-                        style: _mono.copyWith(fontSize: 12)),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    // A FK shows what it points at — the glyph alone said a
-                    // reference existed but never where it went.
-                    child: Text(
-                        c.references == null
-                            ? c.dataType
-                            : '→ ${c.references}',
+                        style: _mono(t).copyWith(fontSize: 12),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      // A FK shows what it points at — the glyph alone said a
+                      // reference existed but never where it went.
+                      child: Text(
+                        c.references == null ? c.dataType : '→ ${c.references}',
                         overflow: TextOverflow.ellipsis,
                         softWrap: false,
                         maxLines: 1,
                         textAlign: TextAlign.right,
                         style: TextStyle(
-                            color: c.references != null
-                                ? VoltPalette.violet
-                                : SqlTypeColors.dark.of(
-                                    ColumnEditorResolver(
-                                            ref.read(currentConnectionProvider)
-                                                .engine)
-                                        .resolve(c.dataType,
-                                            nullable: c.nullable)
-                                        .kind),
-                            fontSize: 10.5,
-                            fontFamily: 'monospace')),
-                  ),
-                ]);
-              })),
+                          color: c.references != null
+                              ? t.violet
+                              : SqlTypeColors.dark.of(
+                                  ColumnEditorResolver(
+                                        ref
+                                            .read(currentConnectionProvider)
+                                            .engine,
+                                      )
+                                      .resolve(c.dataType, nullable: c.nullable)
+                                      .kind,
+                                ),
+                          fontSize: 10.5,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
-      ];
+        ),
+      ),
+  ];
 
   /// The lazy "Indexes" group under a table/view.
-  TreeViewItem _indexesFolder(TableInfo t) => TreeViewItem(
-        leading: const Icon(FluentIcons.folder, size: 12, color: _textLo),
-        content: _row(const Text('Indexes',
-            style: TextStyle(
-                color: _textMid, fontSize: 11.5, letterSpacing: 0.3))),
-        lazy: true,
-        value:
-            _Loader(() async => _indexItems(t, await widget.repo.indexes(t))),
-        onExpandToggle: _onExpand,
-      );
+  TreeViewItem _indexesFolder(TableInfo obj) => TreeViewItem(
+    leading: Icon(FluentIcons.folder, size: 12, color: t.textLow),
+    content: _row(
+      Text(
+        'Indexes',
+        style: TextStyle(color: t.textMid, fontSize: 11.5, letterSpacing: 0.3),
+      ),
+    ),
+    lazy: true,
+    value: _Loader(
+      () async => _indexItems(obj, await widget.repo.indexes(obj)),
+    ),
+    onExpandToggle: _onExpand,
+  );
 
-  List<TreeViewItem> _indexItems(TableInfo t, List<IndexInfo> indexes) => [
-        for (final ix in indexes)
-          TreeViewItem(
-            collapsable: false,
-            leading: Icon(FluentIcons.number_symbol,
-                size: 11, color: ix.unique ? _accent : _textLo),
-            content: ContextMenuRegion(
-              actions: [
-                MenuAction('Copy Name', () => _copy(ix.name),
-                    icon: FluentIcons.copy),
-                MenuAction('Copy CREATE',
-                    () => _copyDdl(() => widget.repo.indexDdl(t, ix)),
-                    icon: FluentIcons.code),
-              ],
-              child: _row(Row(children: [
+  List<TreeViewItem> _indexItems(TableInfo obj, List<IndexInfo> indexes) => [
+    for (final ix in indexes)
+      TreeViewItem(
+        collapsable: false,
+        leading: Icon(
+          FluentIcons.number_symbol,
+          size: 11,
+          color: ix.unique ? t.accent : t.textLow,
+        ),
+        content: ContextMenuRegion(
+          actions: [
+            MenuAction(
+              'Copy Name',
+              () => _copy(ix.name),
+              icon: FluentIcons.copy,
+            ),
+            MenuAction(
+              'Copy CREATE',
+              () => _copyDdl(() => widget.repo.indexDdl(obj, ix)),
+              icon: FluentIcons.code,
+            ),
+          ],
+          child: _row(
+            Row(
+              children: [
                 Flexible(
-                  child: Text(ix.name,
-                      overflow: TextOverflow.ellipsis,
-                      softWrap: false,
-                      maxLines: 1,
-                      style: _mono.copyWith(fontSize: 12)),
+                  child: Text(
+                    ix.name,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
+                    maxLines: 1,
+                    style: _mono(t).copyWith(fontSize: 12),
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Flexible(
                   child: Text(
-                      '${ix.unique ? 'UNIQUE ' : ''}(${ix.columns.join(', ')})',
-                      overflow: TextOverflow.ellipsis,
-                      softWrap: false,
-                      maxLines: 1,
-                      textAlign: TextAlign.right,
-                      style: TextStyle(
-                          color: ix.unique ? _accent : _textLo,
-                          fontSize: 10.5,
-                          fontFamily: 'monospace')),
+                    '${ix.unique ? 'UNIQUE ' : ''}(${ix.columns.join(', ')})',
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
+                    maxLines: 1,
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      color: ix.unique ? t.accent : t.textLow,
+                      fontSize: 10.5,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
                 ),
-              ])),
+              ],
             ),
           ),
-      ];
+        ),
+      ),
+  ];
 
   TreeViewItem _emptyItem() => TreeViewItem(
-        collapsable: false,
-        content: const Text('(empty)',
-            style: TextStyle(
-                color: _textLo, fontSize: 11.5, fontStyle: FontStyle.italic)),
-      );
+    collapsable: false,
+    content: Text(
+      '(empty)',
+      style: TextStyle(
+        color: t.textLow,
+        fontSize: 11.5,
+        fontStyle: FontStyle.italic,
+      ),
+    ),
+  );
 
   /// Inline, resilient retry node — the node stays expandable; tapping re-runs
   /// the parent's loader (its latch was released on failure).
@@ -535,9 +586,11 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
     final msg = error is DriverError ? error.message : '$error';
     return TreeViewItem(
       collapsable: false,
-      content: Text('⚠ $msg — Retry',
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: _err, fontSize: 11.5)),
+      content: Text(
+        '⚠ $msg — Retry',
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: t.danger, fontSize: 11.5),
+      ),
       onInvoked: (self, reason) async {
         _controller.removeItem(self);
         await _onExpand(parent, true);
@@ -574,10 +627,10 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
     final objects = <TableInfo>[];
     final columns = <(TableInfo, ColumnInfo)>[];
     for (final entry in _objects.entries) {
-      final t = entry.value;
-      if (matchesFilter(t.name, filter)) objects.add(t);
+      final o = entry.value;
+      if (matchesFilter(o.name, filter)) objects.add(o);
       for (final c in _columns[entry.key] ?? const <ColumnInfo>[]) {
-        if (matchesFilter(c.name, filter)) columns.add((t, c));
+        if (matchesFilter(c.name, filter)) columns.add((o, c));
       }
     }
     objects.sort((a, b) => a.name.compareTo(b.name));
@@ -593,14 +646,16 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
     // What the catalog found that isn't already above — keyed so a table the
     // tree has loaded isn't listed twice.
     final seen = {
-      for (final t in objects) 'o:${_keyOf(t)}',
-      for (final (t, c) in columns) 'c:${_keyOf(t)}.${c.name}',
+      for (final o in objects) 'o:${_keyOf(o)}',
+      for (final (o, c) in columns) 'c:${_keyOf(o)}.${c.name}',
     };
     final remote = [
       for (final h in _remoteHits)
-        if (!seen.contains(h.isColumn
-            ? 'c:${h.table.schema}.${h.table.name}.${h.name}'
-            : 'o:${h.table.schema}.${h.table.name}'))
+        if (!seen.contains(
+          h.isColumn
+              ? 'c:${h.table.schema}.${h.table.name}.${h.name}'
+              : 'o:${h.table.schema}.${h.table.name}',
+        ))
           h,
     ];
 
@@ -610,54 +665,66 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
         // Same grouping the search dialog uses, so the two read alike rather
         // than as two different features that happen to match names.
         if (objects.isNotEmpty) _group('TABLES & VIEWS', objects.length),
-        for (final t in objects)
+        for (final obj in objects)
           _FilterHit(
-            icon: t.kind == ObjectKind.view ? FluentIcons.page : FluentIcons.table,
-            label: t.name,
+            icon: obj.kind == ObjectKind.view
+                ? FluentIcons.page
+                : FluentIcons.table,
+            label: obj.name,
             // Search has no sticky root header to say which schema you're
             // inside, so every hit carries its own.
-            trailing: t.schema,
-            actions: _objectActions(t),
-            onTap: () => _openTable(t, run: true),
+            trailing: obj.schema,
+            actions: _objectActions(obj),
+            onTap: () => _openTable(obj, run: true),
           ),
         if (columns.isNotEmpty) _group('COLUMNS', columns.length),
-        for (final (t, c) in columns)
+        for (final (obj, c) in columns)
           _FilterHit(
             icon: c.isPrimaryKey
                 ? FluentIcons.permissions
                 : c.isForeignKey
-                    ? FluentIcons.link
-                    : FluentIcons.circle_ring,
+                ? FluentIcons.link
+                : FluentIcons.circle_ring,
             label: c.name,
             // The table is what makes a column name meaningful — `id` on its
             // own tells you nothing.
-            trailing: t.schema.isEmpty ? t.name : '${t.schema}.${t.name}',
+            trailing: obj.schema.isEmpty
+                ? obj.name
+                : '${obj.schema}.${obj.name}',
             actions: [
-              MenuAction('Copy Column Name', () => _copy(c.name),
-                  icon: FluentIcons.copy),
+              MenuAction(
+                'Copy Column Name',
+                () => _copy(c.name),
+                icon: FluentIcons.copy,
+              ),
               MenuAction.divider,
-              ..._objectActions(t),
+              ..._objectActions(obj),
             ],
-            onTap: () => _openTable(t, run: true),
+            onTap: () => _openTable(obj, run: true),
           ),
         // The catalog leg. Kept in its own group rather than merged in: these
         // are things the tree has never loaded, and saying where an answer came
         // from is the difference between a filter and a search.
         if (_remoteBusy)
-          const Padding(
-            padding: EdgeInsets.fromLTRB(12, 10, 12, 6),
-            child: Row(children: [
-              SizedBox(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+            child: Row(
+              children: [
+                const SizedBox(
                   width: 10,
                   height: 10,
-                  child: ProgressRing(strokeWidth: 1.5)),
-              SizedBox(width: 8),
-              Flexible(
-                child: Text('Searching database…',
+                  child: ProgressRing(strokeWidth: 1.5),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    'Searching database…',
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: _textLo, fontSize: 10)),
-              ),
-            ]),
+                    style: TextStyle(color: t.textLow, fontSize: 10),
+                  ),
+                ),
+              ],
+            ),
           )
         else if (remote.isNotEmpty)
           _group('ELSEWHERE IN DB', remote.length),
@@ -672,8 +739,11 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
             trailing: h.isColumn ? h.qualifiedTable : h.table.schema,
             actions: [
               if (h.isColumn) ...[
-                MenuAction('Copy Column Name', () => _copy(h.name),
-                    icon: FluentIcons.copy),
+                MenuAction(
+                  'Copy Column Name',
+                  () => _copy(h.name),
+                  icon: FluentIcons.copy,
+                ),
                 MenuAction.divider,
               ],
               ..._objectActions(h.table),
@@ -683,71 +753,95 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
         if (_remoteError != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-            child: Text('Could not search the database: $_remoteError',
-                style: const TextStyle(color: _err, fontSize: 10, height: 1.3)),
+            child: Text(
+              'Could not search the database: $_remoteError',
+              style: TextStyle(color: t.danger, fontSize: 10, height: 1.3),
+            ),
           ),
         if (!_remoteBusy &&
             objects.isEmpty &&
             columns.isEmpty &&
             remote.isEmpty &&
             _remoteError == null)
-          const _Message('No match.', color: _textLo),
+          _Message('No match.', color: t.textLow),
       ],
     );
   }
 
   /// The same menu a tree node offers. A result you can't right-click is a
   /// worse version of the row you'd have found by scrolling.
-  List<MenuAction> _objectActions(TableInfo t) => [
-        MenuAction('Copy Name', () => _copy(t.name), icon: FluentIcons.copy),
-        MenuAction('Copy CREATE', () => _copyDdl(() => widget.repo.tableDdl(t)),
-            icon: FluentIcons.code),
-        MenuAction.divider,
-        MenuAction('Open in Editor', () => _openTable(t, run: false),
-            icon: FluentIcons.open_file),
-        MenuAction('Preview Data', () => _openTable(t, run: true),
-            icon: FluentIcons.preview),
-        MenuAction.divider,
-        MenuAction('Table Info…', () => _showInfo(t), icon: FluentIcons.info),
-      ];
+  List<MenuAction> _objectActions(TableInfo obj) => [
+    MenuAction('Copy Name', () => _copy(obj.name), icon: FluentIcons.copy),
+    MenuAction(
+      'Copy CREATE',
+      () => _copyDdl(() => widget.repo.tableDdl(obj)),
+      icon: FluentIcons.code,
+    ),
+    MenuAction.divider,
+    MenuAction(
+      'Open in Editor',
+      () => _openTable(obj, run: false),
+      icon: FluentIcons.open_file,
+    ),
+    MenuAction(
+      'Preview Data',
+      () => _openTable(obj, run: true),
+      icon: FluentIcons.preview,
+    ),
+    MenuAction.divider,
+    MenuAction('Table Info…', () => _showInfo(obj), icon: FluentIcons.info),
+  ];
 
   Widget _group(String label, int count) => Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
-        child: Row(children: [
-          Flexible(
-            child: Text(label,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    color: _textLo,
-                    fontSize: 9,
-                    letterSpacing: 1.2,
-                    fontWeight: FontWeight.w600)),
+    padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+    child: Row(
+      children: [
+        Flexible(
+          child: Text(
+            label,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: t.textLow,
+              fontSize: 9,
+              letterSpacing: 1.2,
+              fontWeight: FontWeight.w600,
+            ),
           ),
-          const SizedBox(width: 6),
-          Text('$count',
-              style: const TextStyle(
-                  color: _textLo, fontSize: 9, fontFamily: 'monospace')),
-        ]),
-      );
+        ),
+        const SizedBox(width: 6),
+        Text(
+          '$count',
+          style: TextStyle(
+            color: t.textLow,
+            fontSize: 9,
+            fontFamily: 'monospace',
+          ),
+        ),
+      ],
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
-    if (_error != null) return _Message('$_error', color: _err);
+    final t = VoltTheme.of(context);
+    if (_error != null) return _Message('$_error', color: t.danger);
     final roots = _roots;
     if (roots == null) return const _Spinner();
-    if (roots.isEmpty) return const _Message('(empty schema)', color: _textLo);
+    if (roots.isEmpty) return _Message('(empty schema)', color: t.textLow);
 
     final filter = ref.watch(schemaFilterProvider);
     if (filter.active) {
       // Scheduled from build so it follows the provider without a second
       // listener; _scheduleRemote no-ops when the query hasn't changed.
       WidgetsBinding.instance.addPostFrameCallback(
-          (_) => mounted ? _scheduleRemote(filter.text) : null);
+        (_) => mounted ? _scheduleRemote(filter.text) : null,
+      );
       return _filtered(filter.text);
     }
     if (_remoteQuery.isNotEmpty) {
-      WidgetsBinding.instance
-          .addPostFrameCallback((_) => mounted ? _scheduleRemote('') : null);
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => mounted ? _scheduleRemote('') : null,
+      );
     }
 
     return Column(
@@ -830,24 +924,33 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
         child: Container(
           height: 24,
           padding: const EdgeInsets.only(left: 8, right: 6),
-          decoration: const BoxDecoration(
-            color: VoltPalette.panelAlt,
-            border: Border(bottom: BorderSide(color: _hair)),
+          decoration: BoxDecoration(
+            color: t.panelAlt,
+            border: Border(bottom: BorderSide(color: t.hairline)),
           ),
-          child: Row(children: [
-            const Icon(FluentIcons.chevron_down, size: 8, color: _textLo),
-            const SizedBox(width: 8),
-            const Icon(FluentIcons.database, size: 11, color: _textMid),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(label,
+          child: Row(
+            children: [
+              Icon(FluentIcons.chevron_down, size: 8, color: t.textLow),
+              const SizedBox(width: 8),
+              Icon(FluentIcons.database, size: 11, color: t.textMid),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  label,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      color: _textMid, fontSize: 11.5, fontFamily: 'monospace')),
-            ),
-            const Text('collapse',
-                style: TextStyle(color: _textLo, fontSize: 9.5)),
-          ]),
+                  style: TextStyle(
+                    color: t.textMid,
+                    fontSize: 11.5,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ),
+              Text(
+                'collapse',
+                style: TextStyle(color: t.textLow, fontSize: 9.5),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -869,9 +972,8 @@ class _Spinner extends StatelessWidget {
   const _Spinner();
   @override
   Widget build(BuildContext context) => const Center(
-        child: SizedBox(
-            width: 16, height: 16, child: ProgressRing(strokeWidth: 2)),
-      );
+    child: SizedBox(width: 16, height: 16, child: ProgressRing(strokeWidth: 2)),
+  );
 }
 
 class _Message extends StatelessWidget {
@@ -880,9 +982,9 @@ class _Message extends StatelessWidget {
   final Color color;
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.all(12),
-        child: Text(text, style: TextStyle(color: color, fontSize: 11.5)),
-      );
+    padding: const EdgeInsets.all(12),
+    child: Text(text, style: TextStyle(color: color, fontSize: 11.5)),
+  );
 }
 
 /// A larger tap target that sits on a tree node's leading icon and toggles
@@ -937,37 +1039,46 @@ class _FilterHit extends StatelessWidget {
   }
 
   Widget _row(BuildContext context) {
+    final t = VoltTheme.of(context);
     return HoverButton(
       onPressed: onTap,
       builder: (context, states) => Container(
-        color: states.isHovered ? VoltPalette.accentTint : null,
+        color: states.isHovered ? t.accentTint : null,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        child: Row(children: [
-          Icon(icon, size: 11, color: _textMid),
-          const SizedBox(width: 8),
-          // Expanded, not Flexible: two Flexible children split the row evenly,
-          // so the name was ellipsising at half width while the schema label
-          // sat in space it didn't need. A Row lays inflexible children out
-          // first, so the schema takes what it needs (capped) and the name gets
-          // everything that's left.
-          Expanded(
-            child:
-                Text(label, overflow: TextOverflow.ellipsis, style: _mono),
-          ),
-          if (trailing != null && trailing!.isNotEmpty) ...[
+        child: Row(
+          children: [
+            Icon(icon, size: 11, color: t.textMid),
             const SizedBox(width: 8),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 120),
+            // Expanded, not Flexible: two Flexible children split the row evenly,
+            // so the name was ellipsising at half width while the schema label
+            // sat in space it didn't need. A Row lays inflexible children out
+            // first, so the schema takes what it needs (capped) and the name gets
+            // everything that's left.
+            Expanded(
               child: Text(
-                trailing!,
+                label,
                 overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.right,
-                style: const TextStyle(
-                    color: _textLo, fontSize: 10.5, fontFamily: 'monospace'),
+                style: _mono(t),
               ),
             ),
+            if (trailing != null && trailing!.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 120),
+                child: Text(
+                  trailing!,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    color: t.textLow,
+                    fontSize: 10.5,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ),
+            ],
           ],
-        ]),
+        ),
       ),
     );
   }

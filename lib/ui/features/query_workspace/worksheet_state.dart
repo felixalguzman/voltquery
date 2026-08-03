@@ -44,12 +44,12 @@ class WorksheetRows extends WorksheetResult {
   final GridEditability? editability;
 
   WorksheetRows withEditability(GridEditability? value) => WorksheetRows(
-        fields: fields,
-        rows: rows,
-        durationMs: durationMs,
-        capped: capped,
-        editability: value,
-      );
+    fields: fields,
+    rows: rows,
+    durationMs: durationMs,
+    capped: capped,
+    editability: value,
+  );
 }
 
 /// A non-row statement (DML/DDL) — shown in the messages area.

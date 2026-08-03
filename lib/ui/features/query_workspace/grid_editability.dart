@@ -32,8 +32,7 @@ class GridEditability {
 
   /// The editor for a result field, or null when that field isn't a plain
   /// column of [target] and so can't be written back.
-  ColumnEditor? editorFor(String fieldName) =>
-      editors[fieldName.toLowerCase()];
+  ColumnEditor? editorFor(String fieldName) => editors[fieldName.toLowerCase()];
 
   /// True when [fieldName] is part of the primary key. The UI marks these
   /// read-only: editing a PK in place would change the row's identity, and the
@@ -89,17 +88,22 @@ class GridEditabilityResolver {
 
     final List<ColumnInfo> columns;
     try {
-      columns = await repo.columns(TableInfo(
-        name: target.table,
-        kind: ObjectKind.table,
-        schema: target.schema,
-      ));
+      columns = await repo.columns(
+        TableInfo(
+          name: target.table,
+          kind: ObjectKind.table,
+          schema: target.schema,
+        ),
+      );
     } catch (_) {
       return null; // not introspectable → stay read-only
     }
     if (columns.isEmpty) return null;
 
-    final pk = [for (final c in columns) if (c.isPrimaryKey) c.name];
+    final pk = [
+      for (final c in columns)
+        if (c.isPrimaryKey) c.name,
+    ];
     // No PK → no way to address a single row safely.
     if (pk.isEmpty) return null;
 

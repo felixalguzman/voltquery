@@ -4,7 +4,6 @@ import '../../core/theme/volt_tokens.dart';
 
 import '../../../domain/export/result_export.dart';
 
-
 /// Which rows leave the app.
 enum ExportScope {
   /// What the grid holds — the render-capped slice, already in memory.
@@ -73,8 +72,9 @@ class _ExportDialogState extends State<ExportDialog> {
       ? ExportScope.all
       : ExportScope.visible;
   ExportSink _sink = ExportSink.clipboard;
-  late final _nullController =
-      TextEditingController(text: widget.defaultOptions.nullText);
+  late final _nullController = TextEditingController(
+    text: widget.defaultOptions.nullText,
+  );
 
   @override
   void dispose() {
@@ -151,8 +151,10 @@ class _ExportDialogState extends State<ExportDialog> {
             onChanged: (v) => setState(
               () => _options = _options.copyWith(includeHeader: v ?? true),
             ),
-            content: Text('Include column names',
-                style: TextStyle(color: t.textHigh, fontSize: 12.5)),
+            content: Text(
+              'Include column names',
+              style: TextStyle(color: t.textHigh, fontSize: 12.5),
+            ),
           ),
           // JSON and INSERT both have a real null, so the substitution would be
           // a lie there; only the text formats need it.
@@ -164,8 +166,7 @@ class _ExportDialogState extends State<ExportDialog> {
               controller: _nullController,
               placeholder: 'empty',
               style: TextStyle(color: t.textHigh, fontSize: 12.5),
-              onChanged: (v) =>
-                  _options = _options.copyWith(nullText: v),
+              onChanged: (v) => _options = _options.copyWith(nullText: v),
             ),
             Padding(
               padding: const EdgeInsets.only(top: 4),
@@ -184,32 +185,32 @@ class _ExportDialogState extends State<ExportDialog> {
           child: const Text('Cancel'),
         ),
         FilledButton(
-          onPressed: () => Navigator.of(context).pop(ExportRequest(
-            format: _format,
-            options: _options,
-            scope: _scope,
-            sink: _sink,
-          )),
-          child: Text(
-            _sink == ExportSink.clipboard ? 'Copy' : 'Save…',
+          onPressed: () => Navigator.of(context).pop(
+            ExportRequest(
+              format: _format,
+              options: _options,
+              scope: _scope,
+              sink: _sink,
+            ),
           ),
+          child: Text(_sink == ExportSink.clipboard ? 'Copy' : 'Save…'),
         ),
       ],
     );
   }
 
   Widget _label(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 5),
-        child: Text(
-          text.toUpperCase(),
-          style: TextStyle(
-            color: t.textLow,
-            fontSize: 10,
-            letterSpacing: 0.6,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      );
+    padding: const EdgeInsets.only(bottom: 5),
+    child: Text(
+      text.toUpperCase(),
+      style: TextStyle(
+        color: t.textLow,
+        fontSize: 10,
+        letterSpacing: 0.6,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+  );
 
   /// Hand-rolled rather than fluent's `RadioButton`: that one moved to
   /// Flutter's group-registry API and wants a `RadioGroup` ancestor per set,
@@ -218,55 +219,53 @@ class _ExportDialogState extends State<ExportDialog> {
     String label, {
     required bool selected,
     required VoidCallback onTap,
-  }) =>
-      HoverButton(
-        onPressed: onTap,
-        builder: (context, states) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-          decoration: BoxDecoration(
-            color: states.isHovered ? t.hoverSoft : null,
-            borderRadius: BorderRadius.circular(3),
+  }) => HoverButton(
+    onPressed: onTap,
+    builder: (context, states) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      decoration: BoxDecoration(
+        color: states.isHovered ? t.hoverSoft : null,
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            selected ? FluentIcons.radio_btn_on : FluentIcons.radio_btn_off,
+            size: 14,
+            color: selected ? t.accent : t.textLow,
           ),
-          child: Row(children: [
-            Icon(
-              selected ? FluentIcons.radio_btn_on : FluentIcons.radio_btn_off,
-              size: 14,
-              color: selected ? t.accent : t.textLow,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  color: selected ? t.textHigh : t.textMid,
-                  fontSize: 12.5,
-                ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: selected ? t.textHigh : t.textMid,
+                fontSize: 12.5,
               ),
             ),
-          ]),
-        ),
-      );
+          ),
+        ],
+      ),
+    ),
+  );
 
   Widget _warning(String text) => Container(
-        margin: const EdgeInsets.only(top: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: BoxDecoration(
-          color: t.canvas,
-          border: Border.all(color: t.hairline),
-          borderRadius: BorderRadius.circular(3),
+    margin: const EdgeInsets.only(top: 8),
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+    decoration: BoxDecoration(
+      color: t.canvas,
+      border: Border.all(color: t.hairline),
+      borderRadius: BorderRadius.circular(3),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(FluentIcons.warning, size: 11, color: t.warning),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(text, style: TextStyle(color: t.textMid, fontSize: 11.5)),
         ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(FluentIcons.warning, size: 11, color: t.warning),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                text,
-                style: TextStyle(color: t.textMid, fontSize: 11.5),
-              ),
-            ),
-          ],
-        ),
-      );
+      ],
+    ),
+  );
 }

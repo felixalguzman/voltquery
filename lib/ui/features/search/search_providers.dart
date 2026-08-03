@@ -43,9 +43,8 @@ class EditorSelection extends _$EditorSelection {
 
   void set(String raw) {
     final text = raw.trim();
-    final usable = text.isNotEmpty &&
-        text.length <= _maxLength &&
-        !text.contains('\n');
+    final usable =
+        text.isNotEmpty && text.length <= _maxLength && !text.contains('\n');
     final next = usable ? text : '';
     if (next != state) state = next;
   }
@@ -72,10 +71,10 @@ enum SearchFilter {
       this == SearchFilter.all || this == SearchFilter.history;
 
   SearchScope get scope => switch (this) {
-        SearchFilter.tables => SearchScope.objects,
-        SearchFilter.columns => SearchScope.columns,
-        _ => SearchScope.all,
-      };
+    SearchFilter.tables => SearchScope.objects,
+    SearchFilter.columns => SearchScope.columns,
+    _ => SearchScope.all,
+  };
 }
 
 /// Shortest query that will actually run.
@@ -94,7 +93,10 @@ const kMinSearchLength = 2;
 /// still let you find the statement in your history.
 @riverpod
 Future<SearchResults> searchResults(
-    Ref ref, String query, SearchFilter filter) async {
+  Ref ref,
+  String query,
+  SearchFilter filter,
+) async {
   if (query.trim().length < kMinSearchLength) return const SearchResults();
 
   final repo = await ref.watch(schemaRepositoryProvider.future);

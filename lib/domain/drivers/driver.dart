@@ -26,7 +26,10 @@ abstract interface class Session {
 
   /// The single entry point — returns a [RowsResult] (row-returning) or a
   /// [CommandResult] (DML/DDL). The caller can't pre-classify arbitrary SQL.
-  Future<ExecutionResult> execute(String sql, {List<Object?> params = const []});
+  Future<ExecutionResult> execute(
+    String sql, {
+    List<Object?> params = const [],
+  });
 
   // Minimal transaction primitives (ADR-0007). Higher orchestration lives in
   // the query_workspace view-models, not here.

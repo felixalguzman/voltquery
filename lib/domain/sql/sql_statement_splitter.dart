@@ -7,10 +7,10 @@ enum SqlDialect {
   mysql;
 
   static SqlDialect of(Engine engine) => switch (engine) {
-        Engine.sqlite => SqlDialect.sqlite,
-        Engine.postgres => SqlDialect.postgres,
-        Engine.mysql => SqlDialect.mysql,
-      };
+    Engine.sqlite => SqlDialect.sqlite,
+    Engine.postgres => SqlDialect.postgres,
+    Engine.mysql => SqlDialect.mysql,
+  };
 
   /// Postgres block comments nest (`/* /* */ */`); MySQL/SQLite do not.
   bool get nestsBlockComments => this == SqlDialect.postgres;
@@ -30,9 +30,9 @@ enum SqlDialect {
   /// a *string literal* there and `SELECT * FROM "t"` is a syntax error. Any
   /// generated SQL must go through here rather than hardcoding a quote style.
   String quoteIdentifier(String name) => switch (this) {
-        SqlDialect.mysql => '`${name.replaceAll('`', '``')}`',
-        _ => '"${name.replaceAll('"', '""')}"',
-      };
+    SqlDialect.mysql => '`${name.replaceAll('`', '``')}`',
+    _ => '"${name.replaceAll('"', '""')}"',
+  };
 
   /// `schema.table`, or the bare table when unqualified.
   String qualify(String name, {String schema = ''}) => schema.isEmpty
@@ -115,8 +115,9 @@ class SqlStatementSplitter {
       final raw = s.substring(start, to);
       final sql = raw.substring(_leadingTriviaEnd(raw)).trim(); // drop comments
       if (sql.isNotEmpty) {
-        out.add(SqlStatement(
-            sql: sql, kind: _classify(sql), start: start, end: to));
+        out.add(
+          SqlStatement(sql: sql, kind: _classify(sql), start: start, end: to),
+        );
       }
     }
 
@@ -269,8 +270,10 @@ class SqlStatementSplitter {
     var j = i + 1;
     while (j < n) {
       final c = s[j];
-      final isTagChar = c == '_' ||
-          (c.codeUnitAt(0) | 0x20) >= 0x61 && (c.codeUnitAt(0) | 0x20) <= 0x7a ||
+      final isTagChar =
+          c == '_' ||
+          (c.codeUnitAt(0) | 0x20) >= 0x61 &&
+              (c.codeUnitAt(0) | 0x20) <= 0x7a ||
           (j > i + 1 && c.codeUnitAt(0) >= 0x30 && c.codeUnitAt(0) <= 0x39);
       if (c == r'$') return s.substring(i, j + 1);
       if (!isTagChar) return null; // not a valid dollar-quote opener
@@ -304,7 +307,8 @@ class SqlStatementSplitter {
     final after = i + kw.length;
     if (after >= s.length) return true;
     final u = s.codeUnitAt(after);
-    final isWord = u == 0x5f ||
+    final isWord =
+        u == 0x5f ||
         (u | 0x20) >= 0x61 && (u | 0x20) <= 0x7a ||
         u >= 0x30 && u <= 0x39;
     return !isWord;
@@ -313,14 +317,31 @@ class SqlStatementSplitter {
   // --- Classification --------------------------------------------------------
 
   static const _ddl = {
-    'CREATE', 'ALTER', 'DROP', 'TRUNCATE', 'COMMENT', 'RENAME',
+    'CREATE',
+    'ALTER',
+    'DROP',
+    'TRUNCATE',
+    'COMMENT',
+    'RENAME',
   };
   static const _dml = {
-    'INSERT', 'UPDATE', 'DELETE', 'MERGE', 'REPLACE', 'CALL',
+    'INSERT',
+    'UPDATE',
+    'DELETE',
+    'MERGE',
+    'REPLACE',
+    'CALL',
   };
   static const _query = {
-    'SELECT', 'WITH', 'SHOW', 'EXPLAIN', 'PRAGMA', 'DESCRIBE', 'DESC',
-    'VALUES', 'TABLE',
+    'SELECT',
+    'WITH',
+    'SHOW',
+    'EXPLAIN',
+    'PRAGMA',
+    'DESCRIBE',
+    'DESC',
+    'VALUES',
+    'TABLE',
   };
 
   static StatementKind _classify(String sql) {

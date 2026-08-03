@@ -6,7 +6,9 @@ import 'data/repositories/settings_repository.dart';
 import 'data/services/local_store.dart';
 import 'ui/core/shell/app_shell.dart';
 import 'ui/core/shell/window_chrome.dart';
+import 'domain/models/app_settings.dart';
 import 'ui/core/theme/volt_tokens.dart';
+import 'ui/features/settings/settings_providers.dart';
 import 'ui/features/history/history_providers.dart';
 import 'ui/features/query_workspace/worksheet_providers.dart';
 import 'ui/features/settings/vault_auto_lock.dart';
@@ -54,31 +56,45 @@ Future<void> main({
   );
   onContainerReady?.call(container);
 
-  runApp(UncontrolledProviderScope(
-    container: container,
-    child: const VoltQueryApp(),
-  ));
+  runApp(
+    UncontrolledProviderScope(
+      container: container,
+      child: const VoltQueryApp(),
+    ),
+  );
 }
 
-class VoltQueryApp extends StatelessWidget {
+class VoltQueryApp extends ConsumerWidget {
   const VoltQueryApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // `select` so nothing else in settings rebuilds the entire app.
+    final theme = ref.watch(settingsProvider.select((s) => s.theme));
+    final tokens =
+        theme == AppTheme.light ? VoltTokens.light : VoltTokens.dark;
+    final dark = theme == AppTheme.dark;
+
     return FluentApp(
       title: 'VoltQuery',
       debugShowCheckedModeBanner: false,
-      themeMode: ThemeMode.dark,
-      // TODO(theming #7): Clean Dev-Tool tokens via mix in `ui/core/theme`.
+      themeMode: dark ? ThemeMode.dark : ThemeMode.light,
+      // fluent's own theme still paints the controls we haven't hand-rolled,
+      // so it follows the same choice rather than sitting a shade behind.
       darkTheme: FluentThemeData(
         brightness: Brightness.dark,
         accentColor: Colors.teal,
-        scaffoldBackgroundColor: VoltPalette.canvas,
+        scaffoldBackgroundColor: VoltTokens.dark.canvas,
+      ),
+      theme: FluentThemeData(
+        brightness: Brightness.light,
+        accentColor: Colors.teal,
+        scaffoldBackgroundColor: VoltTokens.light.canvas,
       ),
       // One palette for the whole tree (#7). Everything that paints reads it
       // from here rather than declaring its own copy of the hex.
       builder: (context, child) => VoltTheme(
-        tokens: VoltTokens.dark,
+        tokens: tokens,
         child: child ?? const SizedBox.shrink(),
       ),
       home: const _Home(),
@@ -94,6 +110,6 @@ class _Home extends StatelessWidget {
   // Session errors surface inline (schema sidebar / worksheet result), and the
   // Connections panel stays reachable to unlock the vault or switch connections.
   Widget build(BuildContext context) => const VaultAutoLock(
-        child: ScaffoldPage(padding: EdgeInsets.zero, content: AppShell()),
-      );
+    child: ScaffoldPage(padding: EdgeInsets.zero, content: AppShell()),
+  );
 }

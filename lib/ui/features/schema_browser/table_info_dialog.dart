@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:re_editor/re_editor.dart';
 import 'package:re_highlight/languages/sql.dart';
-import 'package:re_highlight/styles/atom-one-dark.dart';
 
 import '../../core/theme/volt_tokens.dart';
 
@@ -16,16 +15,6 @@ import '../../core/theme/sql_type_colors.dart';
 import '../history/history_providers.dart';
 import '../query_workspace/worksheet_providers.dart';
 import 'schema_repository.dart';
-
-// Palette lives in ui/core/theme (#7); these are local names for it.
-const _bg = VoltPalette.canvas;
-const _hair = VoltPalette.hairline;
-const _accent = VoltPalette.accent;
-const _text = VoltPalette.textHigh;
-const _textMid = VoltPalette.textMid;
-const _textLo = VoltPalette.textLow;
-const _fk = VoltPalette.violet;
-const _default = VoltPalette.warning;
 
 /// Quick facts about a table: size, shape, keys and indexes, without writing a
 /// query for any of it.
@@ -58,6 +47,8 @@ class _TableInfoDialog extends ConsumerStatefulWidget {
 }
 
 class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
+  VoltTokens get t => VoltTheme.of(context);
+
   /// The table currently shown. Following a relation swaps this rather than
   /// opening another dialog — jumping through five tables should not leave five
   /// dialogs stacked on screen.
@@ -125,9 +116,12 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
   }) async {
     if (!mounted) return;
     final conn = ref.read(currentConnectionProvider);
-    final target = SqlDialect.of(widget.engine)
-        .qualify(_table.name, schema: _table.schema);
-    await ref.read(historyRepositoryProvider).record(
+    final target = SqlDialect.of(
+      widget.engine,
+    ).qualify(_table.name, schema: _table.schema);
+    await ref
+        .read(historyRepositoryProvider)
+        .record(
           HistoryEntry(
             connectionName: conn.name,
             engine: conn.engine.name,
@@ -145,8 +139,11 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final t = _table;
-    final qualified = t.schema.isEmpty ? t.name : '${t.schema}.${t.name}';
+    final t = VoltTheme.of(context);
+    final info = _table;
+    final qualified = info.schema.isEmpty
+        ? info.name
+        : '${info.schema}.${info.name}';
     // Sized to the window rather than fixed: a table with twenty indexes (or a
     // wide column list) was scrolling inside a small box while most of the
     // screen sat empty.
@@ -166,38 +163,49 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
             Tooltip(
               message: 'Back to ${_back.last.name}',
               child: IconButton(
-                icon: const Icon(FluentIcons.back, size: 13, color: _textMid),
+                icon: Icon(FluentIcons.back, size: 13, color: t.textMid),
                 onPressed: _goBack,
               ),
             ),
             const SizedBox(width: 4),
           ],
-          Icon(t.kind == ObjectKind.view ? FluentIcons.page : FluentIcons.table,
-              size: 15, color: _textMid),
+          Icon(
+            info.kind == ObjectKind.view ? FluentIcons.page : FluentIcons.table,
+            size: 15,
+            color: t.textMid,
+          ),
           const SizedBox(width: 8),
           Expanded(
-            child: SelectableText(qualified,
-                style: const TextStyle(fontSize: 15, fontFamily: 'monospace')),
+            child: SelectableText(
+              qualified,
+              style: const TextStyle(fontSize: 15, fontFamily: 'monospace'),
+            ),
           ),
-          Text(t.kind == ObjectKind.view ? 'VIEW' : 'TABLE',
-              style: const TextStyle(color: _textLo, fontSize: 10.5)),
+          Text(
+            info.kind == ObjectKind.view ? 'VIEW' : 'TABLE',
+            style: TextStyle(color: t.textLow, fontSize: 10.5),
+          ),
         ],
       ),
       content: FutureBuilder<_Info>(
         future: _info,
         builder: (context, snap) {
           if (snap.hasError) {
-            return Text('Could not read table info: ${snap.error}',
-                style: const TextStyle(color: VoltPalette.danger, fontSize: 12));
+            return Text(
+              'Could not read table info: ${snap.error}',
+              style: TextStyle(color: t.danger, fontSize: 12),
+            );
           }
           if (!snap.hasData) {
             return SizedBox(
               height: bodyHeight,
               child: const Center(
-                  child: SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: ProgressRing(strokeWidth: 2))),
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: ProgressRing(strokeWidth: 2),
+                ),
+              ),
             );
           }
           final info = snap.data!;
@@ -236,34 +244,40 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
   }
 
   Widget _tabStrip() => Row(
-        children: [
-          for (final (i, label)
-              in ['Overview', 'Columns', 'Relations', 'DDL'].indexed)
-            Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: HoverButton(
-                onPressed: () => setState(() => _tab = i),
-                builder: (context, states) => Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: _tab == i
-                        ? VoltPalette.accentWash
-                        : (states.isHovered ? VoltPalette.hover : null),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: _tab == i ? _accent : Colors.transparent,
-                    ),
-                  ),
-                  child: Text(label,
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: _tab == i ? _accent : _textMid)),
+    children: [
+      for (final (i, label) in [
+        'Overview',
+        'Columns',
+        'Relations',
+        'DDL',
+      ].indexed)
+        Padding(
+          padding: const EdgeInsets.only(right: 4),
+          child: HoverButton(
+            onPressed: () => setState(() => _tab = i),
+            builder: (context, states) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: _tab == i
+                    ? t.accentWash
+                    : (states.isHovered ? t.hover : null),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                  color: _tab == i ? t.accent : Colors.transparent,
+                ),
+              ),
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: _tab == i ? t.accent : t.textMid,
                 ),
               ),
             ),
-        ],
-      );
+          ),
+        ),
+    ],
+  );
 
   /// The columns themselves — a count alone answers almost nothing you'd open
   /// this dialog to find out.
@@ -284,10 +298,12 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
         _columnFilters(info, shown.length),
         const SizedBox(height: 8),
         if (shown.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Text('No columns match this filter.',
-                style: TextStyle(color: _textLo, fontSize: 11.5)),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Text(
+              'No columns match this filter.',
+              style: TextStyle(color: t.textLow, fontSize: 11.5),
+            ),
           ),
         ..._columnRows(shown),
       ],
@@ -309,15 +325,18 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
         ),
         if (_typeFilter case final type?) ...[
           const SizedBox(width: 6),
-          _filterChip(type, active: true,
-              onTap: () => setState(() => _typeFilter = null)),
+          _filterChip(
+            type,
+            active: true,
+            onTap: () => setState(() => _typeFilter = null),
+          ),
         ],
         const Spacer(),
         Text(
           filtered
               ? '$shownCount of ${info.columns.length}'
               : '${info.columns.length} columns',
-          style: const TextStyle(color: _textLo, fontSize: 10.5),
+          style: TextStyle(color: t.textLow, fontSize: 10.5),
         ),
         if (filtered) ...[
           const SizedBox(width: 8),
@@ -326,113 +345,122 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
               _typeFilter = null;
               _fkOnly = false;
             }),
-            builder: (context, states) => const Text('Clear',
-                style: TextStyle(color: _accent, fontSize: 10.5)),
+            builder: (context, states) => Text(
+              'Clear',
+              style: TextStyle(color: t.accent, fontSize: 10.5),
+            ),
           ),
         ],
       ],
     );
   }
 
-  Widget _filterChip(String label,
-          {required bool active,
-          required VoidCallback onTap,
-          bool enabled = true}) =>
-      HoverButton(
-        onPressed: enabled ? onTap : null,
-        builder: (context, states) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: active
-                ? VoltPalette.accentWash
-                : (states.isHovered ? VoltPalette.hover : _bg),
-            border: Border.all(color: active ? _accent : _hair),
-            borderRadius: BorderRadius.circular(3),
+  Widget _filterChip(
+    String label, {
+    required bool active,
+    required VoidCallback onTap,
+    bool enabled = true,
+  }) => HoverButton(
+    onPressed: enabled ? onTap : null,
+    builder: (context, states) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: active ? t.accentWash : (states.isHovered ? t.hover : t.canvas),
+        border: Border.all(color: active ? t.accent : t.hairline),
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: enabled ? (active ? t.accent : t.textMid) : t.textLow,
+              fontSize: 10.5,
+              fontFamily: 'monospace',
+            ),
           ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Text(label,
-                style: TextStyle(
-                    color: enabled
-                        ? (active ? _accent : _textMid)
-                        : _textLo,
-                    fontSize: 10.5,
-                    fontFamily: 'monospace')),
-            if (active) ...[
-              const SizedBox(width: 5),
-              const Icon(FluentIcons.clear, size: 7, color: _accent),
-            ],
-          ]),
-        ),
-      );
+          if (active) ...[
+            const SizedBox(width: 5),
+            Icon(FluentIcons.clear, size: 7, color: t.accent),
+          ],
+        ],
+      ),
+    ),
+  );
 
   List<Widget> _columnRows(List<ColumnInfo> columns) => [
-          for (final c in columns)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: 16,
-                    child: Icon(
-                      c.isPrimaryKey
-                          ? FluentIcons.permissions
-                          : c.isForeignKey
-                              ? FluentIcons.link
-                              : FluentIcons.circle_ring,
-                      size: 10,
-                      color: c.isPrimaryKey
-                          ? _accent
-                          : c.isForeignKey
-                              ? _fk
-                              : _textLo,
-                    ),
-                  ),
-                  Expanded(
-                    flex: 4,
-                    child: SelectableText(c.name,
-                        style: const TextStyle(
-                            color: _text,
-                            fontSize: 12,
-                            fontFamily: 'monospace')),
-                  ),
-                  Expanded(
-                    flex: 4,
-                    child: HoverButton(
-                      // The type filters to its own kind; a foreign key
-                      // navigates to what it points at, which is the thing you
-                      // actually wanted when you read it.
-                      onPressed: () => c.references == null
-                          ? setState(() => _typeFilter = c.dataType
-                              .split('(')
-                              .first
-                              .trim()
-                              .toUpperCase())
-                          : _goTo(c.references!),
-                      builder: (context, states) => Text(
-                        c.references != null
-                            ? '→ ${c.references}'
-                            : c.dataType,
-                        style: TextStyle(
-                          color: c.references != null
-                              ? _fk
-                              : _colors.of(_kindOf(c)),
-                          fontSize: 11,
-                          fontFamily: 'monospace',
-                          decoration: states.isHovered
-                              ? TextDecoration.underline
-                              : null,
-                          decorationColor:
-                              c.references != null ? _fk : _colors.of(_kindOf(c)),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Expanded(flex: 3, child: _constraints(c)),
-                ],
+    for (final c in columns)
+      Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 16,
+              child: Icon(
+                c.isPrimaryKey
+                    ? FluentIcons.permissions
+                    : c.isForeignKey
+                    ? FluentIcons.link
+                    : FluentIcons.circle_ring,
+                size: 10,
+                color: c.isPrimaryKey
+                    ? t.accent
+                    : c.isForeignKey
+                    ? t.violet
+                    : t.textLow,
               ),
             ),
-        ];
+            Expanded(
+              flex: 4,
+              child: SelectableText(
+                c.name,
+                style: TextStyle(
+                  color: t.textHigh,
+                  fontSize: 12,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ),
+            Expanded(
+              flex: 4,
+              child: HoverButton(
+                // The type filters to its own kind; a foreign key
+                // navigates to what it points at, which is the thing you
+                // actually wanted when you read it.
+                onPressed: () => c.references == null
+                    ? setState(
+                        () => _typeFilter = c.dataType
+                            .split('(')
+                            .first
+                            .trim()
+                            .toUpperCase(),
+                      )
+                    : _goTo(c.references!),
+                builder: (context, states) => Text(
+                  c.references != null ? '→ ${c.references}' : c.dataType,
+                  style: TextStyle(
+                    color: c.references != null
+                        ? t.violet
+                        : _colors.of(_kindOf(c)),
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                    decoration: states.isHovered
+                        ? TextDecoration.underline
+                        : null,
+                    decorationColor: c.references != null
+                        ? t.violet
+                        : _colors.of(_kindOf(c)),
+                  ),
+                ),
+              ),
+            ),
+            Expanded(flex: 3, child: _constraints(c)),
+          ],
+        ),
+      ),
+  ];
 
   /// Nullability and the column default.
   ///
@@ -443,8 +471,10 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
   Widget _constraints(ColumnInfo c) {
     final hasDefault = c.defaultValue != null;
     if (c.nullable && !hasDefault) {
-      return const Text('NULL allowed',
-          style: TextStyle(color: _textLo, fontSize: 10.5));
+      return Text(
+        'NULL allowed',
+        style: TextStyle(color: t.textLow, fontSize: 10.5),
+      );
     }
     return Wrap(
       spacing: 6,
@@ -455,25 +485,38 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
             decoration: BoxDecoration(
-              border: Border.all(color: _hair),
+              border: Border.all(color: t.hairline),
               borderRadius: BorderRadius.circular(3),
             ),
-            child: const Text('NOT NULL',
-                style: TextStyle(
-                    color: _textMid, fontSize: 9.5, letterSpacing: 0.4)),
-          ),
-        if (hasDefault)
-          Row(mainAxisSize: MainAxisSize.min, children: [
-            const Text('default ',
-                style: TextStyle(color: _textLo, fontSize: 10.5)),
-            Flexible(
-              child: SelectableText(
-                '${c.defaultValue}',
-                style: const TextStyle(
-                    color: _default, fontSize: 11, fontFamily: 'monospace'),
+            child: Text(
+              'NOT NULL',
+              style: TextStyle(
+                color: t.textMid,
+                fontSize: 9.5,
+                letterSpacing: 0.4,
               ),
             ),
-          ]),
+          ),
+        if (hasDefault)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'default ',
+                style: TextStyle(color: t.textLow, fontSize: 10.5),
+              ),
+              Flexible(
+                child: SelectableText(
+                  '${c.defaultValue}',
+                  style: TextStyle(
+                    color: t.warning,
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ),
+            ],
+          ),
       ],
     );
   }
@@ -487,11 +530,11 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
     final outbound = info.columns.where((c) => c.references != null).toList();
 
     if (outbound.isEmpty && info.referencedBy.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 16),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
         child: Text(
           'This table has no foreign keys, and nothing references it.',
-          style: TextStyle(color: _textLo, fontSize: 11.5),
+          style: TextStyle(color: t.textLow, fontSize: 11.5),
         ),
       );
     }
@@ -548,10 +591,12 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
                   highlightSource: true,
                 ),
               if (_filteredInbound(info.referencedBy).isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8),
-                  child: Text('Nothing matches that filter.',
-                      style: TextStyle(color: _textLo, fontSize: 11)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(
+                    'Nothing matches that filter.',
+                    style: TextStyle(color: t.textLow, fontSize: 11),
+                  ),
                 ),
             ],
           ),
@@ -565,56 +610,63 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
     required String target,
     required ColumnRef ref,
     bool highlightSource = false,
-  }) =>
-      HoverButton(
-        onPressed: () => _goTo(ref),
-        builder: (context, states) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-          margin: const EdgeInsets.only(bottom: 3),
-          decoration: BoxDecoration(
-            color: states.isHovered ? VoltPalette.hover : _bg,
-            border: Border.all(color: _hair),
-            borderRadius: BorderRadius.circular(3),
+  }) => HoverButton(
+    onPressed: () => _goTo(ref),
+    builder: (context, states) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      margin: const EdgeInsets.only(bottom: 3),
+      decoration: BoxDecoration(
+        color: states.isHovered ? t.hover : t.canvas,
+        border: Border.all(color: t.hairline),
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              from,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: highlightSource ? t.violet : t.textHigh,
+                fontSize: 11.5,
+                fontFamily: 'monospace',
+              ),
+            ),
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  from,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      color: highlightSource ? _fk : _text,
-                      fontSize: 11.5,
-                      fontFamily: 'monospace'),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Text(arrow,
-                    style: const TextStyle(color: _textLo, fontSize: 11.5)),
-              ),
-              Expanded(
-                child: Text(
-                  target,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      color: highlightSource ? _text : _fk,
-                      fontSize: 11.5,
-                      fontFamily: 'monospace'),
-                ),
-              ),
-              Icon(FluentIcons.chevron_right,
-                  size: 8,
-                  color: states.isHovered ? _accent : _textLo),
-            ],
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Text(
+              arrow,
+              style: TextStyle(color: t.textLow, fontSize: 11.5),
+            ),
           ),
-        ),
-      );
+          Expanded(
+            child: Text(
+              target,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: highlightSource ? t.textHigh : t.violet,
+                fontSize: 11.5,
+                fontFamily: 'monospace',
+              ),
+            ),
+          ),
+          Icon(
+            FluentIcons.chevron_right,
+            size: 8,
+            color: states.isHovered ? t.accent : t.textLow,
+          ),
+        ],
+      ),
+    ),
+  );
 
   Widget _ddlTab(_Info info) {
     if (info.ddl.isEmpty) {
-      return const Text('No DDL available for this object.',
-          style: TextStyle(color: _textLo, fontSize: 11.5));
+      return Text(
+        'No DDL available for this object.',
+        style: TextStyle(color: t.textLow, fontSize: 11.5),
+      );
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -623,8 +675,7 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
         Align(
           alignment: Alignment.centerRight,
           child: Button(
-            onPressed: () =>
-                Clipboard.setData(ClipboardData(text: info.ddl)),
+            onPressed: () => Clipboard.setData(ClipboardData(text: info.ddl)),
             child: const Text('Copy', style: TextStyle(fontSize: 11)),
           ),
         ),
@@ -634,8 +685,8 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
           constraints: const BoxConstraints(minHeight: 120, maxHeight: 320),
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            color: _bg,
-            border: Border.all(color: _hair),
+            color: t.canvas,
+            border: Border.all(color: t.hairline),
             borderRadius: BorderRadius.circular(4),
           ),
           // Same highlighting as the editor. SQLite stores DDL exactly as it
@@ -643,13 +694,15 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
           // column per line before display.
           child: CodeEditor(
             readOnly: true,
-            controller: CodeLineEditingController.fromText(_prettyDdl(info.ddl)),
+            controller: CodeLineEditingController.fromText(
+              _prettyDdl(info.ddl),
+            ),
             style: CodeEditorStyle(
               fontSize: 11.5,
-              backgroundColor: _bg,
+              backgroundColor: t.canvas,
               codeTheme: CodeHighlightTheme(
                 languages: {'sql': CodeHighlightThemeMode(mode: langSql)},
-                theme: atomOneDarkTheme,
+                theme: t.codeTheme,
               ),
             ),
           ),
@@ -715,8 +768,7 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (info.stats.comment case final comment?) ...[
-            Text(comment,
-                style: const TextStyle(color: _textMid, fontSize: 12)),
+            Text(comment, style: TextStyle(color: t.textMid, fontSize: 12)),
             const SizedBox(height: 12),
           ],
           _rowsTile(info.stats),
@@ -724,44 +776,59 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
           Row(
             children: [
               Expanded(
-                child: _stat('Columns', '${info.columns.length}',
-                    sub: '$nullable nullable'),
+                child: _stat(
+                  'Columns',
+                  '${info.columns.length}',
+                  sub: '$nullable nullable',
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: _stat('Foreign keys', '${fks.length}',
-                    // Distinct parents matter more than the raw column count:
-                    // three columns pointing at one table is one dependency.
-                    sub: fks.isEmpty
-                        ? null
-                        : '${_distinctTargets(fks)} table'
-                            '${_distinctTargets(fks) == 1 ? "" : "s"}'),
+                child: _stat(
+                  'Foreign keys',
+                  '${fks.length}',
+                  // Distinct parents matter more than the raw column count:
+                  // three columns pointing at one table is one dependency.
+                  sub: fks.isEmpty
+                      ? null
+                      : '${_distinctTargets(fks)} table'
+                            '${_distinctTargets(fks) == 1 ? "" : "s"}',
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: _stat('Indexes', '${info.indexes.length}',
-                    sub: info.indexes.isEmpty
-                        ? null
-                        : '${info.indexes.where((i) => i.unique).length} '
-                            'unique'),
+                child: _stat(
+                  'Indexes',
+                  '${info.indexes.length}',
+                  sub: info.indexes.isEmpty
+                      ? null
+                      : '${info.indexes.where((i) => i.unique).length} '
+                            'unique',
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: _stat('Size', _bytes(info.stats.totalBytes),
-                    sub: info.stats.indexBytes == null
-                        ? null
-                        : '${_bytes(info.stats.indexBytes)} idx'),
+                child: _stat(
+                  'Size',
+                  _bytes(info.stats.totalBytes),
+                  sub: info.stats.indexBytes == null
+                      ? null
+                      : '${_bytes(info.stats.indexBytes)} idx',
+                ),
               ),
             ],
           ),
           const SizedBox(height: 10),
           _typeBreakdown(info.columns),
           const SizedBox(height: 14),
-          _section('Primary key',
-              pk.isEmpty ? null : pk.map((c) => c.name).join(', '),
-              // Worth stating plainly: it's why the grid won't let you edit.
-              emptyNote: 'None — rows in this table cannot be edited in the '
-                  'grid, since there is no way to address one.'),
+          _section(
+            'Primary key',
+            pk.isEmpty ? null : pk.map((c) => c.name).join(', '),
+            // Worth stating plainly: it's why the grid won't let you edit.
+            emptyNote:
+                'None — rows in this table cannot be edited in the '
+                'grid, since there is no way to address one.',
+          ),
           if (fks.isNotEmpty) ...[
             const SizedBox(height: 12),
             _collapsible(
@@ -772,11 +839,14 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
                 for (final c in _preview(fks))
                   Padding(
                     padding: const EdgeInsets.only(bottom: 2),
-                    child: Text('${c.name} → ${c.references}',
-                        style: const TextStyle(
-                            color: _fk,
-                            fontSize: 11.5,
-                            fontFamily: 'monospace')),
+                    child: Text(
+                      '${c.name} → ${c.references}',
+                      style: TextStyle(
+                        color: t.violet,
+                        fontSize: 11.5,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
                   ),
                 if (fks.length > _inlineLimit) _seeAll(fks.length),
               ],
@@ -793,11 +863,14 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
                 for (final r in _preview(info.referencedBy))
                   Padding(
                     padding: const EdgeInsets.only(bottom: 2),
-                    child: Text('$r',
-                        style: const TextStyle(
-                            color: _fk,
-                            fontSize: 11.5,
-                            fontFamily: 'monospace')),
+                    child: Text(
+                      '$r',
+                      style: TextStyle(
+                        color: t.violet,
+                        fontSize: 11.5,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
                   ),
                 if (info.referencedBy.length > _inlineLimit)
                   _seeAll(info.referencedBy.length),
@@ -808,8 +881,7 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
           if (info.indexes.isEmpty) ...[
             _label('Indexes (0)'),
             const SizedBox(height: 4),
-            const Text('None',
-                style: TextStyle(color: _textLo, fontSize: 11.5)),
+            Text('None', style: TextStyle(color: t.textLow, fontSize: 11.5)),
           ] else
             _collapsible(
               key: 'idx',
@@ -823,9 +895,10 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
                       '${ix.unique ? "UNIQUE " : ""}${ix.name} '
                       '(${ix.columns.join(", ")})',
                       style: TextStyle(
-                          color: ix.unique ? _accent : _textMid,
-                          fontSize: 11.5,
-                          fontFamily: 'monospace'),
+                        color: ix.unique ? t.accent : t.textMid,
+                        fontSize: 11.5,
+                        fontFamily: 'monospace',
+                      ),
                     ),
                   ),
               ],
@@ -850,8 +923,8 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: _bg,
-        border: Border.all(color: _hair),
+        color: t.canvas,
+        border: Border.all(color: t.hairline),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Row(
@@ -862,20 +935,26 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
               children: [
                 _label('Rows'),
                 const SizedBox(height: 2),
-                Text(value,
-                    style: const TextStyle(
-                        color: _text, fontSize: 18, fontFamily: 'monospace')),
+                Text(
+                  value,
+                  style: TextStyle(
+                    color: t.textHigh,
+                    fontSize: 18,
+                    fontFamily: 'monospace',
+                  ),
+                ),
                 if (sub != null)
-                  Text(sub,
-                      style: const TextStyle(color: _textLo, fontSize: 10.5)),
+                  Text(sub, style: TextStyle(color: t.textLow, fontSize: 10.5)),
               ],
             ),
           ),
           if (exact == null)
             Button(
               onPressed: _counting ? null : _countExactly,
-              child: Text(_counting ? 'Counting…' : 'Count exactly',
-                  style: const TextStyle(fontSize: 11)),
+              child: Text(
+                _counting ? 'Counting…' : 'Count exactly',
+                style: const TextStyle(fontSize: 11),
+              ),
             ),
         ],
       ),
@@ -896,17 +975,16 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
     // easier when every numeric type sits together, then dates, then text —
     // a count-descending list interleaves them arbitrarily.
     int rank(String type) => switch (_kindForType(type)) {
-          ColumnEditorKind.integer || ColumnEditorKind.decimal => 0,
-          ColumnEditorKind.date ||
-          ColumnEditorKind.dateTime ||
-          ColumnEditorKind.time =>
-            1,
-          ColumnEditorKind.text => 2,
-          ColumnEditorKind.boolean => 3,
-          ColumnEditorKind.enumeration => 4,
-          ColumnEditorKind.json => 5,
-          ColumnEditorKind.binary => 6,
-        };
+      ColumnEditorKind.integer || ColumnEditorKind.decimal => 0,
+      ColumnEditorKind.date ||
+      ColumnEditorKind.dateTime ||
+      ColumnEditorKind.time => 1,
+      ColumnEditorKind.text => 2,
+      ColumnEditorKind.boolean => 3,
+      ColumnEditorKind.enumeration => 4,
+      ColumnEditorKind.json => 5,
+      ColumnEditorKind.binary => 6,
+    };
     final ordered = counts.entries.toList()
       ..sort((a, b) {
         final byKind = rank(a.key).compareTo(rank(b.key));
@@ -932,15 +1010,18 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
             builder: (context, states) => Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
               decoration: BoxDecoration(
-                color: states.isHovered ? VoltPalette.hover : _bg,
-                border: Border.all(color: _hair),
+                color: states.isHovered ? t.hover : t.canvas,
+                border: Border.all(color: t.hairline),
                 borderRadius: BorderRadius.circular(3),
               ),
-              child: Text('${e.value} × ${e.key}',
-                  style: TextStyle(
-                      color: _colorForType(e.key),
-                      fontSize: 10.5,
-                      fontFamily: 'monospace')),
+              child: Text(
+                '${e.value} × ${e.key}',
+                style: TextStyle(
+                  color: _colorForType(e.key),
+                  fontSize: 10.5,
+                  fontFamily: 'monospace',
+                ),
+              ),
             ),
           ),
       ],
@@ -958,16 +1039,16 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
       (!_collapsed.contains('!$key') && count > _inlineLimit);
 
   void _toggleSection(String key, int count) => setState(() {
-        if (_isCollapsed(key, count)) {
-          _collapsed
-            ..remove(key)
-            ..add('!$key'); // explicitly opened
-        } else {
-          _collapsed
-            ..add(key)
-            ..remove('!$key');
-        }
-      });
+    if (_isCollapsed(key, count)) {
+      _collapsed
+        ..remove(key)
+        ..add('!$key'); // explicitly opened
+    } else {
+      _collapsed
+        ..add(key)
+        ..remove('!$key');
+    }
+  });
 
   /// Above this a section collapses by default and Overview shows a preview
   /// rather than the whole list.
@@ -1006,10 +1087,9 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
     });
   }
 
-  ColumnEditorKind _kindForType(String dataType) =>
-      ColumnEditorResolver(widget.engine)
-          .resolve(dataType, nullable: true)
-          .kind;
+  ColumnEditorKind _kindForType(String dataType) => ColumnEditorResolver(
+    widget.engine,
+  ).resolve(dataType, nullable: true).kind;
 
   /// How many *distinct* tables this one points at.
   static int _distinctTargets(List<ColumnInfo> fks) =>
@@ -1017,36 +1097,39 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
 
   /// Semantic kind for a column, via the same resolver that drives the grid's
   /// editors — so the colour and the editor always agree about what a type is.
-  ColumnEditorKind _kindOf(ColumnInfo c) =>
-      ColumnEditorResolver(widget.engine)
-          .resolve(c.dataType, nullable: c.nullable)
-          .kind;
+  ColumnEditorKind _kindOf(ColumnInfo c) => ColumnEditorResolver(
+    widget.engine,
+  ).resolve(c.dataType, nullable: c.nullable).kind;
 
   Color _colorForType(String dataType) => _colors.of(
-      ColumnEditorResolver(widget.engine)
-          .resolve(dataType, nullable: true)
-          .kind);
+    ColumnEditorResolver(widget.engine).resolve(dataType, nullable: true).kind,
+  );
 
   Widget _stat(String label, String value, {String? sub}) => Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: _bg,
-          border: Border.all(color: _hair),
-          borderRadius: BorderRadius.circular(4),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: t.canvas,
+      border: Border.all(color: t.hairline),
+      borderRadius: BorderRadius.circular(4),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _label(label),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: TextStyle(
+            color: t.textHigh,
+            fontSize: 15,
+            fontFamily: 'monospace',
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _label(label),
-            const SizedBox(height: 2),
-            Text(value,
-                style: const TextStyle(
-                    color: _text, fontSize: 15, fontFamily: 'monospace')),
-            if (sub != null)
-              Text(sub, style: const TextStyle(color: _textLo, fontSize: 10.5)),
-          ],
-        ),
-      );
+        if (sub != null)
+          Text(sub, style: TextStyle(color: t.textLow, fontSize: 10.5)),
+      ],
+    ),
+  );
 
   Widget _section(String label, String? value, {required String emptyNote}) =>
       Column(
@@ -1055,12 +1138,16 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
           _label(label),
           const SizedBox(height: 4),
           if (value == null)
-            Text(emptyNote,
-                style: const TextStyle(color: _textLo, fontSize: 11.5))
+            Text(emptyNote, style: TextStyle(color: t.textLow, fontSize: 11.5))
           else
-            SelectableText(value,
-                style: const TextStyle(
-                    color: _accent, fontSize: 11.5, fontFamily: 'monospace')),
+            SelectableText(
+              value,
+              style: TextStyle(
+                color: t.accent,
+                fontSize: 11.5,
+                fontFamily: 'monospace',
+              ),
+            ),
         ],
       );
 
@@ -1072,9 +1159,11 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
     if (_relationFilter.isEmpty) return all;
     final needle = _relationFilter.toLowerCase();
     return all
-        .where((r) =>
-            r.table.toLowerCase().contains(needle) ||
-            r.column.toLowerCase().contains(needle))
+        .where(
+          (r) =>
+              r.table.toLowerCase().contains(needle) ||
+              r.column.toLowerCase().contains(needle),
+        )
         .toList();
   }
 
@@ -1084,15 +1173,15 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
       all.length <= _inlineLimit ? all : all.take(_inlineLimit).toList();
 
   Widget _seeAll(int total) => Padding(
-        padding: const EdgeInsets.only(top: 4),
-        child: HoverButton(
-          onPressed: () => setState(() => _tab = 2),
-          builder: (context, states) => Text(
-            'and ${total - _inlineLimit} more — see Relations',
-            style: const TextStyle(color: _accent, fontSize: 10.5),
-          ),
-        ),
-      );
+    padding: const EdgeInsets.only(top: 4),
+    child: HoverButton(
+      onPressed: () => setState(() => _tab = 2),
+      builder: (context, states) => Text(
+        'and ${total - _inlineLimit} more — see Relations',
+        style: TextStyle(color: t.accent, fontSize: 10.5),
+      ),
+    ),
+  );
 
   /// A section that can be folded away, with its count in the header — so a
   /// list of 959 doesn't push everything else off the tab.
@@ -1120,7 +1209,7 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
                       ? FluentIcons.chevron_right
                       : FluentIcons.chevron_down,
                   size: 8,
-                  color: _textLo,
+                  color: t.textLow,
                 ),
                 const SizedBox(width: 6),
                 _label('$title ($count)'),
@@ -1134,8 +1223,10 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
           if (subtitle != null)
             Padding(
               padding: const EdgeInsets.only(left: 14, bottom: 4),
-              child: Text(subtitle,
-                  style: const TextStyle(color: _textLo, fontSize: 10.5)),
+              child: Text(
+                subtitle,
+                style: TextStyle(color: t.textLow, fontSize: 10.5),
+              ),
             ),
           Padding(
             padding: const EdgeInsets.only(left: 14),
@@ -1150,12 +1241,15 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
     );
   }
 
-  Widget _label(String text) => Text(text.toUpperCase(),
-      style: const TextStyle(
-          color: _textLo,
-          fontSize: 9.5,
-          letterSpacing: 1.2,
-          fontWeight: FontWeight.w600));
+  Widget _label(String text) => Text(
+    text.toUpperCase(),
+    style: TextStyle(
+      color: t.textLow,
+      fontSize: 9.5,
+      letterSpacing: 1.2,
+      fontWeight: FontWeight.w600,
+    ),
+  );
 
   static String _number(int n) {
     final s = '$n';

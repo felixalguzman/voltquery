@@ -2,7 +2,6 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:re_editor/re_editor.dart';
 import 'package:re_highlight/languages/sql.dart';
-import 'package:re_highlight/styles/atom-one-dark.dart';
 
 import '../../core/theme/volt_tokens.dart';
 
@@ -13,7 +12,6 @@ import '../../core/shell/window_chrome.dart';
 import 'known_hosts_section.dart';
 import 'settings_providers.dart';
 import 'vault_section.dart';
-
 
 /// App preferences.
 ///
@@ -31,6 +29,7 @@ Future<void> showSettingsDialog(BuildContext context) {
 
 enum _Section {
   general('General', FluentIcons.settings),
+  appearance('Appearance', FluentIcons.color),
   editor('Editor', FluentIcons.edit),
   results('Results', FluentIcons.table),
   window('Window', FluentIcons.tiles),
@@ -95,6 +94,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                 padding: const EdgeInsets.only(right: 8),
                 child: switch (_section) {
                   _Section.general => _generalSection(),
+                  _Section.appearance => _appearanceSection(),
                   _Section.editor => _editorSection(),
                   _Section.results => _resultsSection(),
                   _Section.window => _windowSection(),
@@ -120,7 +120,8 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
     final ok = await confirm(
       context,
       title: 'Reset all settings?',
-      message: 'Every preference goes back to its default. Saved connections, '
+      message:
+          'Every preference goes back to its default. Saved connections, '
           'history and vault secrets are not affected.',
       confirmLabel: 'Reset',
     );
@@ -131,45 +132,70 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
   }
 
   Widget _rail() => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final s in _Section.values)
-            HoverButton(
-              onPressed: () => setState(() => _section = s),
-              builder: (context, states) => Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                margin: const EdgeInsets.only(bottom: 2, right: 8),
-                decoration: BoxDecoration(
-                  color: _section == s
-                      ? t.accentWash
-                      : (states.isHovered ? t.hover : null),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Row(
-                  children: [
-                    Icon(s.icon,
-                        size: 13,
-                        color: _section == s ? t.accent : t.textMid),
-                    const SizedBox(width: 8),
-                    // Flexible so a narrow window ellipsises the longest label
-                    // ("Connections") instead of overflowing the rail.
-                    Flexible(
-                      child: Text(s.label,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 12.5,
-                              color: _section == s ? t.accent : t.textHigh)),
-                    ),
-                  ],
-                ),
-              ),
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      for (final s in _Section.values)
+        HoverButton(
+          onPressed: () => setState(() => _section = s),
+          builder: (context, states) => Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            margin: const EdgeInsets.only(bottom: 2, right: 8),
+            decoration: BoxDecoration(
+              color: _section == s
+                  ? t.accentWash
+                  : (states.isHovered ? t.hover : null),
+              borderRadius: BorderRadius.circular(4),
             ),
-        ],
-      );
+            child: Row(
+              children: [
+                Icon(
+                  s.icon,
+                  size: 13,
+                  color: _section == s ? t.accent : t.textMid,
+                ),
+                const SizedBox(width: 8),
+                // Flexible so a narrow window ellipsises the longest label
+                // ("Connections") instead of overflowing the rail.
+                Flexible(
+                  child: Text(
+                    s.label,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: _section == s ? t.accent : t.textHigh,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+    ],
+  );
 
   // ---------------------------------------------------------------- sections
+
+  Widget _appearanceSection() {
+    final s = _settings;
+    return _sectionBody([
+      _SettingRow(
+        label: 'Theme',
+        description: 'Applies immediately. The light palette is not the dark '
+            'one inverted — the accent, the hovers and the state colours are '
+            'each chosen against their own background.',
+        child: ComboBox<AppTheme>(
+          value: s.theme,
+          items: [
+            for (final v in AppTheme.values)
+              ComboBoxItem(value: v, child: Text(v.label)),
+          ],
+          onChanged: (v) =>
+              v == null ? null : _edit((p) => p.copyWith(theme: v)),
+        ),
+      ),
+    ]);
+  }
 
   Widget _generalSection() {
     final s = _settings;
@@ -181,7 +207,8 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
             'history is the only record of what you ran.',
         child: ToggleSwitch(
           checked: s.historyRetentionEnabled,
-          onChanged: (v) => _edit((p) => p.copyWith(historyRetentionEnabled: v)),
+          onChanged: (v) =>
+              _edit((p) => p.copyWith(historyRetentionEnabled: v)),
         ),
       ),
       _SettingRow(
@@ -248,49 +275,49 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
   static const _previewLines = 3;
 
   Widget _preview(AppSettings s) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Preview',
-              style: TextStyle(color: t.textMid, fontSize: 11)),
-          const SizedBox(height: 6),
-          Container(
-            // Grows with the font instead of being a fixed box: a scrollbar on
-            // three lines of sample SQL is noise, and at 24pt the sample was
-            // genuinely cut off.
-            height: _previewLines * s.editorFontSize * 1.6 + 16,
-            decoration: BoxDecoration(
-              border: Border.all(color: t.hairline),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            clipBehavior: Clip.antiAlias,
-            // The real editor widget, read-only — same highlighter, same
-            // theme, same font resolution. A hand-styled Text sample can agree
-            // with the editor today and drift from it tomorrow, and this one
-            // already had: it showed the SQL in flat white while the editor
-            // syntax-highlights.
-            child: IgnorePointer(
-              child: ScrollConfiguration(
-                // The sample always fits, so any scrollbar here is decoration.
-                behavior:
-                    ScrollConfiguration.of(context).copyWith(scrollbars: false),
-                child: CodeEditor(
-                  controller: _previewCode,
-                  readOnly: true,
-                  style: CodeEditorStyle(
-                    fontSize: s.editorFontSize,
-                    fontFamily: s.editorFontFamily,
-                    backgroundColor: t.canvas,
-                    codeTheme: CodeHighlightTheme(
-                      languages: {'sql': CodeHighlightThemeMode(mode: langSql)},
-                      theme: atomOneDarkTheme,
-                    ),
-                  ),
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text('Preview', style: TextStyle(color: t.textMid, fontSize: 11)),
+      const SizedBox(height: 6),
+      Container(
+        // Grows with the font instead of being a fixed box: a scrollbar on
+        // three lines of sample SQL is noise, and at 24pt the sample was
+        // genuinely cut off.
+        height: _previewLines * s.editorFontSize * 1.6 + 16,
+        decoration: BoxDecoration(
+          border: Border.all(color: t.hairline),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        clipBehavior: Clip.antiAlias,
+        // The real editor widget, read-only — same highlighter, same
+        // theme, same font resolution. A hand-styled Text sample can agree
+        // with the editor today and drift from it tomorrow, and this one
+        // already had: it showed the SQL in flat white while the editor
+        // syntax-highlights.
+        child: IgnorePointer(
+          child: ScrollConfiguration(
+            // The sample always fits, so any scrollbar here is decoration.
+            behavior: ScrollConfiguration.of(
+              context,
+            ).copyWith(scrollbars: false),
+            child: CodeEditor(
+              controller: _previewCode,
+              readOnly: true,
+              style: CodeEditorStyle(
+                fontSize: s.editorFontSize,
+                fontFamily: s.editorFontFamily,
+                backgroundColor: t.canvas,
+                codeTheme: CodeHighlightTheme(
+                  languages: {'sql': CodeHighlightThemeMode(mode: langSql)},
+                  theme: t.codeTheme,
                 ),
               ),
             ),
           ),
-        ],
-      );
+        ),
+      ),
+    ],
+  );
 
   Widget _resultsSection() {
     final s = _settings;
@@ -408,18 +435,18 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
   }
 
   Widget _securitySection() => _sectionBody([
-        const VaultSection(),
-        const SizedBox(height: 8),
-        Container(height: 1, color: t.hairline),
-        const SizedBox(height: 12),
-        const KnownHostsSection(),
-      ]);
+    const VaultSection(),
+    const SizedBox(height: 8),
+    Container(height: 1, color: t.hairline),
+    const SizedBox(height: 12),
+    const KnownHostsSection(),
+  ]);
 
   Widget _sectionBody(List<Widget> children) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: children,
-      );
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    mainAxisSize: MainAxisSize.min,
+    children: children,
+  );
 
   /// [NumberBox] fires `onChanged` on commit (spinner or focus loss), never per
   /// keystroke — typing "500" into a field that applied every digit would set
@@ -434,20 +461,19 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
     num? min,
     num? max,
     bool enabled = true,
-  }) =>
-      SizedBox(
-        width: 132,
-        child: NumberBox<T>(
-          value: value,
-          min: min,
-          max: max,
-          smallChange: step,
-          largeChange: step * 10,
-          mode: SpinButtonPlacementMode.inline,
-          clearButton: false,
-          onChanged: enabled ? (v) => v == null ? null : onChanged(v) : null,
-        ),
-      );
+  }) => SizedBox(
+    width: 132,
+    child: NumberBox<T>(
+      value: value,
+      min: min,
+      max: max,
+      smallChange: step,
+      largeChange: step * 10,
+      mode: SpinButtonPlacementMode.inline,
+      clearButton: false,
+      onChanged: enabled ? (v) => v == null ? null : onChanged(v) : null,
+    ),
+  );
 }
 
 /// One label + description + control row.
@@ -479,16 +505,23 @@ class _SettingRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label,
-                    style: TextStyle(
-                        fontSize: 12.5, color: enabled ? t.textHigh : t.textLow)),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: enabled ? t.textHigh : t.textLow,
+                  ),
+                ),
                 if (description != null) ...[
                   const SizedBox(height: 3),
-                  Text(description!,
-                      style: TextStyle(
-                          fontSize: 11,
-                          height: 1.35,
-                          color: enabled ? t.textMid : t.textLow)),
+                  Text(
+                    description!,
+                    style: TextStyle(
+                      fontSize: 11,
+                      height: 1.35,
+                      color: enabled ? t.textMid : t.textLow,
+                    ),
+                  ),
                 ],
               ],
             ),
@@ -561,13 +594,13 @@ class _TextSettingState extends State<_TextSetting> {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-        width: widget.width,
-        child: TextBox(
-          controller: _controller,
-          focusNode: _focus,
-          onSubmitted: (_) => _commit(),
-        ),
-      );
+    width: widget.width,
+    child: TextBox(
+      controller: _controller,
+      focusNode: _focus,
+      onSubmitted: (_) => _commit(),
+    ),
+  );
 }
 
 /// Search-and-pick over the installed monospace families, each rendered in

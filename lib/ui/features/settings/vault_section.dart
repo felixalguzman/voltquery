@@ -8,7 +8,6 @@ import '../connections/connection_providers.dart';
 import '../connections/master_password_dialog.dart';
 import 'settings_providers.dart';
 
-
 /// Credentials vault controls (ADR-0006): lock state, re-keying, auto-lock.
 class VaultSection extends ConsumerStatefulWidget {
   const VaultSection({super.key});
@@ -35,11 +34,16 @@ class _VaultSectionState extends ConsumerState<VaultSection> {
       children: [
         Row(
           children: [
-            Icon(unlocked ? FluentIcons.unlock : FluentIcons.lock,
-                size: 13, color: unlocked ? t.accent : t.textMid),
+            Icon(
+              unlocked ? FluentIcons.unlock : FluentIcons.lock,
+              size: 13,
+              color: unlocked ? t.accent : t.textMid,
+            ),
             const SizedBox(width: 8),
-            Text(unlocked ? 'Vault unlocked' : 'Vault locked',
-                style: TextStyle(fontSize: 12.5, color: t.textHigh)),
+            Text(
+              unlocked ? 'Vault unlocked' : 'Vault locked',
+              style: TextStyle(fontSize: 12.5, color: t.textHigh),
+            ),
           ],
         ),
         const SizedBox(height: 4),
@@ -63,9 +67,13 @@ class _VaultSectionState extends ConsumerState<VaultSection> {
         ),
         if (_message != null) ...[
           const SizedBox(height: 8),
-          Text(_message!,
-              style: TextStyle(
-                  fontSize: 11.5, color: _messageIsError ? t.danger : t.accent)),
+          Text(
+            _message!,
+            style: TextStyle(
+              fontSize: 11.5,
+              color: _messageIsError ? t.danger : t.accent,
+            ),
+          ),
         ],
         const SizedBox(height: 16),
         Row(
@@ -75,14 +83,19 @@ class _VaultSectionState extends ConsumerState<VaultSection> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Auto-lock after (minutes)',
-                      style: TextStyle(fontSize: 12.5, color: t.textHigh)),
+                  Text(
+                    'Auto-lock after (minutes)',
+                    style: TextStyle(fontSize: 12.5, color: t.textHigh),
+                  ),
                   const SizedBox(height: 3),
                   Text(
                     'Re-locks the vault after this long without input. 0 keeps '
                     'it unlocked until you quit.',
-                    style:
-                        TextStyle(fontSize: 11, height: 1.35, color: t.textMid),
+                    style: TextStyle(
+                      fontSize: 11,
+                      height: 1.35,
+                      color: t.textMid,
+                    ),
                   ),
                 ],
               ),
@@ -99,8 +112,8 @@ class _VaultSectionState extends ConsumerState<VaultSection> {
                 onChanged: (v) => v == null
                     ? null
                     : ref
-                        .read(settingsProvider.notifier)
-                        .edit((p) => p.copyWith(vaultAutoLockMinutes: v)),
+                          .read(settingsProvider.notifier)
+                          .edit((p) => p.copyWith(vaultAutoLockMinutes: v)),
               ),
             ),
           ],
@@ -123,7 +136,8 @@ class _VaultSectionState extends ConsumerState<VaultSection> {
     final store = await ref.read(secretStoreProvider.future);
     if (!store.exists) {
       setState(() {
-        _message = 'No vault yet — one is created the first time you save a '
+        _message =
+            'No vault yet — one is created the first time you save a '
             'connection password.';
         _messageIsError = true;
       });

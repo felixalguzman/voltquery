@@ -20,21 +20,21 @@ class MysqlDriver implements Driver {
 
   @override
   Capabilities get capabilities => const Capabilities(
-        hasServer: true,
-        // In MySQL, SCHEMA and DATABASE are synonyms — information_schema.
-        // schemata *is* the database list. Reporting true means the tree shows
-        // databases at the root, so a connection with no default database is
-        // still browsable (and any database can be reached, not just the
-        // default one).
-        hasSchemas: true,
-        supportsTls: true,
-        // mysql_client hardcodes onBadCertificate: (_) => true.
-        verifiesTlsCertificates: false,
-        supportsQueryCancel: false, // not exposed by mysql_client
-        supportsSavepoints: true,
-        supportsNestedTransactions: false,
-        paramStyle: ParamStyle.question,
-      );
+    hasServer: true,
+    // In MySQL, SCHEMA and DATABASE are synonyms — information_schema.
+    // schemata *is* the database list. Reporting true means the tree shows
+    // databases at the root, so a connection with no default database is
+    // still browsable (and any database can be reached, not just the
+    // default one).
+    hasSchemas: true,
+    supportsTls: true,
+    // mysql_client hardcodes onBadCertificate: (_) => true.
+    verifiesTlsCertificates: false,
+    supportsQueryCancel: false, // not exposed by mysql_client
+    supportsSavepoints: true,
+    supportsNestedTransactions: false,
+    paramStyle: ParamStyle.question,
+  );
 
   @override
   Future<Session> connect(Connection config, {String? secret}) async {
@@ -66,8 +66,11 @@ class MysqlDriver implements Driver {
     } on my.MySQLServerException catch (e) {
       throw _mapMysqlError(e);
     } catch (e) {
-      throw DriverError(DriverErrorKind.connectionFailed, e.toString(),
-          cause: e);
+      throw DriverError(
+        DriverErrorKind.connectionFailed,
+        e.toString(),
+        cause: e,
+      );
     }
   }
 }
@@ -88,8 +91,10 @@ class MysqlSession implements Session {
   bool get inTransaction => false; // TODO(exec-model): track tx state
 
   @override
-  Future<ExecutionResult> execute(String sql,
-      {List<Object?> params = const []}) async {
+  Future<ExecutionResult> execute(
+    String sql, {
+    List<Object?> params = const [],
+  }) async {
     try {
       final rs = await _conn.execute(sql);
       if (rs.numOfColumns == 0) {
@@ -123,7 +128,9 @@ class MysqlSession implements Session {
 
   @override
   Future<void> cancelActive() async => throw DriverError(
-      DriverErrorKind.unsupported, 'mysql_client does not expose query cancel');
+    DriverErrorKind.unsupported,
+    'mysql_client does not expose query cancel',
+  );
 
   @override
   SchemaIntrospector get schema => _MysqlIntrospector(_conn);
@@ -145,8 +152,10 @@ class _MysqlIntrospector implements SchemaIntrospector {
 
   @override
   Future<List<DatabaseInfo>> databases() async {
-    final rs = await _conn.execute('SELECT schema_name FROM '
-        'information_schema.schemata ORDER BY schema_name');
+    final rs = await _conn.execute(
+      'SELECT schema_name FROM '
+      'information_schema.schemata ORDER BY schema_name',
+    );
     return [for (final r in rs.rows) DatabaseInfo(r.colAt(0) ?? '')];
   }
 
@@ -155,8 +164,10 @@ class _MysqlIntrospector implements SchemaIntrospector {
     // System databases are listed rather than hidden: filtering them out
     // without a "show system objects" toggle would silently remove the only
     // way to reach them.
-    final rs = await _conn.execute('SELECT schema_name FROM '
-        'information_schema.schemata ORDER BY schema_name');
+    final rs = await _conn.execute(
+      'SELECT schema_name FROM '
+      'information_schema.schemata ORDER BY schema_name',
+    );
     return [for (final r in rs.rows) SchemaInfo(r.colAt(0) ?? '')];
   }
 
@@ -262,7 +273,10 @@ class _MysqlIntrospector implements SchemaIntrospector {
     return [
       for (final name in order)
         IndexInfo(
-            name: name, columns: byName[name]!.cols, unique: byName[name]!.unique),
+          name: name,
+          columns: byName[name]!.cols,
+          unique: byName[name]!.unique,
+        ),
     ];
   }
 
@@ -328,9 +342,7 @@ class _MysqlIntrospector implements SchemaIntrospector {
 
   @override
   Future<int> rowCount(TableInfo table) async {
-    final rs = await _conn.execute(
-      'SELECT count(*) FROM ${_qualified(table)}',
-    );
+    final rs = await _conn.execute('SELECT count(*) FROM ${_qualified(table)}');
     return int.tryParse(rs.rows.first.colAt(0) ?? '') ?? 0;
   }
 
@@ -346,7 +358,8 @@ class _MysqlIntrospector implements SchemaIntrospector {
     // Across **every** user database, not just the session's: MySQL's schema
     // level *is* the database, the tree browses all of them, and "which
     // database has this table" is half the question being asked.
-    const notSystem = "table_schema NOT IN "
+    const notSystem =
+        "table_schema NOT IN "
         "('information_schema', 'mysql', 'performance_schema', 'sys')";
 
     final objects = await _conn.execute(
@@ -434,8 +447,12 @@ DriverError _mapMysqlError(my.MySQLServerException e) {
     1044 || 1142 || 1143 => DriverErrorKind.permissionDenied,
     _ => DriverErrorKind.serverError,
   };
-  return DriverError(kind, e.message,
-      nativeCode: e.errorCode.toString(), cause: e);
+  return DriverError(
+    kind,
+    e.message,
+    nativeCode: e.errorCode.toString(),
+    cause: e,
+  );
 }
 
 /// `enum('small','large')` / `set('a','b')` -> the permitted values.

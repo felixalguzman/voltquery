@@ -55,7 +55,8 @@ class DriverErrorHelper {
         text.contains('server does not support ssl')) {
       return const DriverErrorHelp(
         headline: "This server doesn't accept encrypted connections.",
-        hint: 'It was reached, but it has TLS turned off. Set TLS to '
+        hint:
+            'It was reached, but it has TLS turned off. Set TLS to '
             '"Disabled" on the Security tab, or enable TLS on the server.',
         remedy: ErrorRemedy.setSslDisable,
         remedyLabel: 'Set TLS to Disabled',
@@ -65,7 +66,8 @@ class DriverErrorHelper {
         (text.contains('secure connection') && text.contains('supported'))) {
       return const DriverErrorHelp(
         headline: 'This account requires an encrypted connection.',
-        hint: "MySQL's default password plugin refuses to authenticate over "
+        hint:
+            "MySQL's default password plugin refuses to authenticate over "
             'plaintext. Set TLS to "Required" on the Security tab.',
         remedy: ErrorRemedy.setSslRequire,
         remedyLabel: 'Set TLS to Required',
@@ -74,7 +76,8 @@ class DriverErrorHelper {
     if (text.contains('certificate')) {
       return const DriverErrorHelp(
         headline: "The server's TLS certificate could not be verified.",
-        hint: 'Supply the issuing CA on the Security tab, or use "Required" '
+        hint:
+            'Supply the issuing CA on the Security tab, or use "Required" '
             'to encrypt without verifying (safe on localhost, not across a '
             'network).',
       );
@@ -82,34 +85,36 @@ class DriverErrorHelper {
 
     return switch (error.kind) {
       DriverErrorKind.authFailed => const DriverErrorHelp(
-          headline: 'The server rejected these credentials.',
-          hint: 'Check the username and password. On an edited connection, '
-              'leaving the password blank keeps the previously saved one.',
-        ),
+        headline: 'The server rejected these credentials.',
+        hint:
+            'Check the username and password. On an edited connection, '
+            'leaving the password blank keeps the previously saved one.',
+      ),
       DriverErrorKind.connectionFailed => DriverErrorHelp(
-          headline: "Couldn't reach the server.",
-          hint: _unreachableHint(text),
-        ),
+        headline: "Couldn't reach the server.",
+        hint: _unreachableHint(text),
+      ),
       DriverErrorKind.objectNotFound => const DriverErrorHelp(
-          headline: 'The database or object does not exist.',
-          hint: 'Check the database name — on this server it is '
-              'case-sensitive.',
-        ),
+        headline: 'The database or object does not exist.',
+        hint:
+            'Check the database name — on this server it is '
+            'case-sensitive.',
+      ),
       DriverErrorKind.permissionDenied => const DriverErrorHelp(
-          headline: 'This account lacks permission for that.',
-          hint: 'The connection worked; the account is missing a grant.',
-        ),
+        headline: 'This account lacks permission for that.',
+        hint: 'The connection worked; the account is missing a grant.',
+      ),
       DriverErrorKind.syntaxError => const DriverErrorHelp(
-          headline: 'The server could not parse that statement.',
-        ),
+        headline: 'The server could not parse that statement.',
+      ),
       DriverErrorKind.constraintViolation => const DriverErrorHelp(
-          headline: 'The change violates a constraint.',
-          hint: 'A unique, foreign-key or check constraint rejected it.',
-        ),
+        headline: 'The change violates a constraint.',
+        hint: 'A unique, foreign-key or check constraint rejected it.',
+      ),
       DriverErrorKind.unsupported => DriverErrorHelp(
-          headline: 'Not supported by this driver.',
-          hint: error.message,
-        ),
+        headline: 'Not supported by this driver.',
+        hint: error.message,
+      ),
       _ => const DriverErrorHelp(headline: 'The server returned an error.'),
     };
   }
@@ -133,7 +138,7 @@ class DriverErrorHelper {
 
   /// The mode a remedy switches to.
   static SslMode? modeFor(ErrorRemedy remedy) => switch (remedy) {
-        ErrorRemedy.setSslDisable => SslMode.disable,
-        ErrorRemedy.setSslRequire => SslMode.require,
-      };
+    ErrorRemedy.setSslDisable => SslMode.disable,
+    ErrorRemedy.setSslRequire => SslMode.require,
+  };
 }

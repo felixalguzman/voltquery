@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 
 import '../../core/theme/volt_tokens.dart';
 
-
 /// Substring match, case- and accent-insensitive as far as `toLowerCase` goes.
 ///
 /// **Substring, not prefix.** Real schemas are prefix-heavy — `ven_factura`,
@@ -146,18 +145,23 @@ class _FilterFieldState extends State<FilterField> {
           style: TextStyle(color: t.textHigh, fontSize: 11.5),
           placeholderStyle: TextStyle(color: t.textLow, fontSize: 11.5),
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-          decoration: WidgetStatePropertyAll(BoxDecoration(
-            color: t.canvas,
-            border: Border.all(color: active ? t.accent : t.hairline),
-            borderRadius: BorderRadius.circular(3),
-          )),
+          decoration: WidgetStatePropertyAll(
+            BoxDecoration(
+              color: t.canvas,
+              border: Border.all(color: active ? t.accent : t.hairline),
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
           // fluent draws a second, thicker underline on focus; the border
           // above already says "focused".
           foregroundDecoration: const WidgetStatePropertyAll(BoxDecoration()),
           prefix: Padding(
             padding: const EdgeInsets.only(left: 6),
-            child: Icon(FluentIcons.filter,
-                size: 9, color: active ? t.accent : t.textLow),
+            child: Icon(
+              FluentIcons.filter,
+              size: 9,
+              color: active ? t.accent : t.textLow,
+            ),
           ),
           // A bare gesture target, not an IconButton: fluent's button carries
           // minimum-size constraints that overflow a 24px field.
@@ -167,17 +171,23 @@ class _FilterFieldState extends State<FilterField> {
                   onTap: _clear,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      if (widget.matchCount != null) ...[
-                        Text('${widget.matchCount}',
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (widget.matchCount != null) ...[
+                          Text(
+                            '${widget.matchCount}',
                             style: TextStyle(
-                                color: t.textLow,
-                                fontSize: 10,
-                                fontFamily: 'monospace')),
-                        const SizedBox(width: 5),
+                              color: t.textLow,
+                              fontSize: 10,
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                        ],
+                        Icon(FluentIcons.clear, size: 8, color: t.textLow),
                       ],
-                      Icon(FluentIcons.clear, size: 8, color: t.textLow),
-                    ]),
+                    ),
                   ),
                 )
               : null,

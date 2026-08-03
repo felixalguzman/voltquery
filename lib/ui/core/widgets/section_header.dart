@@ -2,7 +2,6 @@ import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../core/theme/volt_tokens.dart';
 
-
 /// Height of a sidebar section header. A collapsed section shrinks to exactly
 /// this, so the title stays clickable — collapsing must never make a panel
 /// unreachable.
@@ -47,19 +46,21 @@ class SectionHeader extends StatelessWidget {
             AnimatedRotation(
               turns: collapsed ? -0.25 : 0,
               duration: const Duration(milliseconds: 120),
-              child: Icon(FluentIcons.chevron_down,
-                  size: 9, color: t.textMid),
+              child: Icon(FluentIcons.chevron_down, size: 9, color: t.textMid),
             ),
             const SizedBox(width: 6),
           ],
           Expanded(
-            child: Text(title,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                    color: t.textMid,
-                    fontSize: 10.5,
-                    letterSpacing: 1.4,
-                    fontWeight: FontWeight.w600)),
+            child: Text(
+              title,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: t.textMid,
+                fontSize: 10.5,
+                letterSpacing: 1.4,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
           const SizedBox(width: 4),
           ...actions,
