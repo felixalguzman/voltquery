@@ -5,14 +5,6 @@ import '../../core/theme/volt_tokens.dart';
 
 import '../../../data/services/known_hosts.dart';
 
-// Palette lives in ui/core/theme (#7); these are local names for it.
-const _bg = VoltPalette.canvas;
-const _hair = VoltPalette.hairline;
-const _text = VoltPalette.textHigh;
-const _textMid = VoltPalette.textMid;
-const _warn = VoltPalette.warning;
-const _err = VoltPalette.danger;
-
 /// Asks whether to trust an SSH bastion's host key.
 ///
 /// Two very different situations share this dialog, and the difference is the
@@ -32,99 +24,99 @@ Future<bool> showHostKeyDialog(
   final changed = verdict == HostKeyVerdict.changed;
   final accepted = await showDialog<bool>(
     context: context,
-    builder: (context) => ContentDialog(
-      constraints: const BoxConstraints(maxWidth: 520),
-      title: Row(
-        children: [
-          Icon(
-            changed ? FluentIcons.warning : FluentIcons.lock,
-            size: 16,
-            color: changed ? _err : _warn,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
+    builder: (context) {
+      final t = VoltTheme.of(context);
+      return ContentDialog(
+        constraints: const BoxConstraints(maxWidth: 520),
+        title: Row(
+          children: [
+            Icon(
+              changed ? FluentIcons.warning : FluentIcons.lock,
+              size: 16,
+              color: changed ? t.danger : t.warning,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                changed ? 'This host key has CHANGED' : 'Unrecognised SSH host',
+                style: const TextStyle(fontSize: 16),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
               changed
-                  ? 'This host key has CHANGED'
-                  : 'Unrecognised SSH host',
-              style: const TextStyle(fontSize: 16),
+                  ? '$host:$port presented a different key than the one you '
+                        'previously trusted.\n\n'
+                        'This happens legitimately when a server is rebuilt or '
+                        'rekeyed — but it is also exactly what a machine-in-the-'
+                        'middle looks like. Do not continue unless you know the '
+                        'host changed.'
+                  : "You haven't connected to $host:$port before. Check that "
+                        'this fingerprint matches the server — for example against '
+                        '`ssh-keyscan $host`.',
+              style: TextStyle(
+                color: changed ? t.danger : t.textMid,
+                fontSize: 12.5,
+              ),
             ),
-          ),
-        ],
-      ),
-      content: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            changed
-                ? '$host:$port presented a different key than the one you '
-                    'previously trusted.\n\n'
-                    'This happens legitimately when a server is rebuilt or '
-                    'rekeyed — but it is also exactly what a machine-in-the-'
-                    'middle looks like. Do not continue unless you know the '
-                    'host changed.'
-                : "You haven't connected to $host:$port before. Check that "
-                    'this fingerprint matches the server — for example against '
-                    '`ssh-keyscan $host`.',
-            style: TextStyle(
-              color: changed ? _err : _textMid,
-              fontSize: 12.5,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: _bg,
-              border: Border.all(color: _hair),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: SelectableText(
-                    fingerprint,
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 12,
-                      color: _text,
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: t.canvas,
+                border: Border.all(color: t.hairline),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SelectableText(
+                      fingerprint,
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                        color: t.textHigh,
+                      ),
                     ),
                   ),
-                ),
-                Tooltip(
-                  message: 'Copy fingerprint',
-                  child: IconButton(
-                    icon: const Icon(FluentIcons.copy,
-                        size: 12, color: _textMid),
-                    onPressed: () =>
-                        Clipboard.setData(ClipboardData(text: fingerprint)),
+                  Tooltip(
+                    message: 'Copy fingerprint',
+                    child: IconButton(
+                      icon: Icon(FluentIcons.copy, size: 12, color: t.textMid),
+                      onPressed: () =>
+                          Clipboard.setData(ClipboardData(text: fingerprint)),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
-      actions: [
-        Button(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
+          ],
         ),
-        // Not a FilledButton on the changed path: the safe choice shouldn't be
-        // the one styled as the obvious default.
-        if (changed)
+        actions: [
           Button(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Trust the new key'),
-          )
-        else
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Trust and connect'),
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
           ),
-      ],
-    ),
+          // Not a FilledButton on the changed path: the safe choice shouldn't be
+          // the one styled as the obvious default.
+          if (changed)
+            Button(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Trust the new key'),
+            )
+          else
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Trust and connect'),
+            ),
+        ],
+      );
+    },
   );
   return accepted ?? false;
 }

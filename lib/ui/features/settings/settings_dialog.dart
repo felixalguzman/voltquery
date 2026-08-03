@@ -14,12 +14,6 @@ import 'known_hosts_section.dart';
 import 'settings_providers.dart';
 import 'vault_section.dart';
 
-// Palette lives in ui/core/theme (#7); these are local names for it.
-const _hair = VoltPalette.hairline;
-const _accent = VoltPalette.accent;
-const _text = VoltPalette.textHigh;
-const _textMid = VoltPalette.textMid;
-const _textLo = VoltPalette.textLow;
 
 /// App preferences.
 ///
@@ -56,6 +50,7 @@ class SettingsDialog extends ConsumerStatefulWidget {
 }
 
 class _SettingsDialogState extends ConsumerState<SettingsDialog> {
+  VoltTokens get t => VoltTheme.of(context);
   _Section _section = _Section.general;
 
   /// Sample for the editor preview. Held in state, not rebuilt per frame — a
@@ -80,6 +75,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final t = VoltTheme.of(context);
     final screen = MediaQuery.sizeOf(context);
     return ContentDialog(
       constraints: BoxConstraints(
@@ -91,7 +87,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SizedBox(width: 150, child: _rail()),
-          Container(width: 1, color: _hair),
+          Container(width: 1, color: t.hairline),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.only(left: 18),
@@ -147,15 +143,15 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                 margin: const EdgeInsets.only(bottom: 2, right: 8),
                 decoration: BoxDecoration(
                   color: _section == s
-                      ? VoltPalette.accentWash
-                      : (states.isHovered ? VoltPalette.hover : null),
+                      ? t.accentWash
+                      : (states.isHovered ? t.hover : null),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Row(
                   children: [
                     Icon(s.icon,
                         size: 13,
-                        color: _section == s ? _accent : _textMid),
+                        color: _section == s ? t.accent : t.textMid),
                     const SizedBox(width: 8),
                     // Flexible so a narrow window ellipsises the longest label
                     // ("Connections") instead of overflowing the rail.
@@ -164,7 +160,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                               fontSize: 12.5,
-                              color: _section == s ? _accent : _text)),
+                              color: _section == s ? t.accent : t.textHigh)),
                     ),
                   ],
                 ),
@@ -229,7 +225,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
             'the system default. Anything not listed can still be typed.',
         child: _FontPicker(
           value: s.editorFontFamily,
-          families: ref.watch(monospaceFontsProvider).value ?? const [],
+          families: ref.watch(monospaceFontsProvider).value ?? [],
           onCommit: (v) => _edit((p) => p.copyWith(editorFontFamily: v)),
         ),
       ),
@@ -254,8 +250,8 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
   Widget _preview(AppSettings s) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Preview',
-              style: TextStyle(color: _textMid, fontSize: 11)),
+          Text('Preview',
+              style: TextStyle(color: t.textMid, fontSize: 11)),
           const SizedBox(height: 6),
           Container(
             // Grows with the font instead of being a fixed box: a scrollbar on
@@ -263,7 +259,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
             // genuinely cut off.
             height: _previewLines * s.editorFontSize * 1.6 + 16,
             decoration: BoxDecoration(
-              border: Border.all(color: _hair),
+              border: Border.all(color: t.hairline),
               borderRadius: BorderRadius.circular(4),
             ),
             clipBehavior: Clip.antiAlias,
@@ -283,7 +279,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                   style: CodeEditorStyle(
                     fontSize: s.editorFontSize,
                     fontFamily: s.editorFontFamily,
-                    backgroundColor: VoltPalette.canvas,
+                    backgroundColor: t.canvas,
                     codeTheme: CodeHighlightTheme(
                       languages: {'sql': CodeHighlightThemeMode(mode: langSql)},
                       theme: atomOneDarkTheme,
@@ -414,7 +410,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
   Widget _securitySection() => _sectionBody([
         const VaultSection(),
         const SizedBox(height: 8),
-        Container(height: 1, color: _hair),
+        Container(height: 1, color: t.hairline),
         const SizedBox(height: 12),
         const KnownHostsSection(),
       ]);
@@ -473,6 +469,7 @@ class _SettingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = VoltTheme.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
@@ -484,14 +481,14 @@ class _SettingRow extends StatelessWidget {
               children: [
                 Text(label,
                     style: TextStyle(
-                        fontSize: 12.5, color: enabled ? _text : _textLo)),
+                        fontSize: 12.5, color: enabled ? t.textHigh : t.textLow)),
                 if (description != null) ...[
                   const SizedBox(height: 3),
                   Text(description!,
                       style: TextStyle(
                           fontSize: 11,
                           height: 1.35,
-                          color: enabled ? _textMid : _textLo)),
+                          color: enabled ? t.textMid : t.textLow)),
                 ],
               ],
             ),
@@ -523,6 +520,7 @@ class _TextSetting extends StatefulWidget {
 }
 
 class _TextSettingState extends State<_TextSetting> {
+  VoltTokens get t => VoltTheme.of(context);
   late final _controller = TextEditingController(text: widget.value);
   final _focus = FocusNode();
 
@@ -595,6 +593,7 @@ class _FontPicker extends StatefulWidget {
 }
 
 class _FontPickerState extends State<_FontPicker> {
+  VoltTokens get t => VoltTheme.of(context);
   late final _controller = TextEditingController(text: widget.value);
   final _focus = FocusNode();
 
@@ -660,6 +659,7 @@ class _FontPickerState extends State<_FontPicker> {
 
   @override
   Widget build(BuildContext context) {
+    final t = VoltTheme.of(context);
     return SizedBox(
       // Wide enough for the real names installed on a dev machine —
       // "JetBrainsMono Nerd Font Mono" ellipsised to "JetBrainsMono Nerd Fo…"
@@ -670,7 +670,7 @@ class _FontPickerState extends State<_FontPicker> {
         controller: _controller,
         focusNode: _focus,
         clearButtonEnabled: false,
-        trailingIcon: const Icon(FluentIcons.font, size: 12, color: _textMid),
+        trailingIcon: Icon(FluentIcons.font, size: 12, color: t.textMid),
         placeholder: widget.value,
         items: [
           for (final family in widget.families)
@@ -702,6 +702,7 @@ class _Note extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = VoltTheme.of(context);
     final parts = text.split('**');
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -713,12 +714,12 @@ class _Note extends StatelessWidget {
                 text: part,
                 style: TextStyle(
                   fontWeight: i.isOdd ? FontWeight.w600 : FontWeight.normal,
-                  color: i.isOdd ? _text : _textMid,
+                  color: i.isOdd ? t.textHigh : t.textMid,
                 ),
               ),
           ],
         ),
-        style: const TextStyle(fontSize: 11, height: 1.35, color: _textMid),
+        style: TextStyle(fontSize: 11, height: 1.35, color: t.textMid),
       ),
     );
   }

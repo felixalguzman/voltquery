@@ -1,4 +1,5 @@
-import 'package:cryptography/cryptography.dart' show SecretBoxAuthenticationError;
+import 'package:cryptography/cryptography.dart'
+    show SecretBoxAuthenticationError;
 import 'package:file_selector/file_selector.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
@@ -21,14 +22,6 @@ import '../../core/menu/context_menu.dart';
 import '../../core/widgets/section_header.dart';
 import 'server_form.dart';
 
-// Palette lives in ui/core/theme (#7); these are local names for it.
-const _panel = VoltPalette.panel;
-const _accent = VoltPalette.accent;
-const _accentDim = VoltPalette.accentWash;
-const _textHi = VoltPalette.textHigh;
-const _textMid = VoltPalette.textMid;
-
-
 /// Saved connections + the built-in demo. Click to switch (rebuilds the
 /// sessions); "+" adds a SQLite file; hover a saved one to delete. Wires the
 /// #14 wizard's connection-list role — the full add-wizard arrives with Postgres.
@@ -40,6 +33,7 @@ class ConnectionsPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = VoltTheme.of(context);
     // Riverpod 3: `value` is the nullable accessor; `valueOrNull` is gone.
     final saved =
         ref.watch(savedConnectionsProvider).value ?? const <Connection>[];
@@ -47,7 +41,7 @@ class ConnectionsPanel extends ConsumerWidget {
     final unlocked = ref.watch(vaultLockProvider);
 
     return Container(
-      decoration: const BoxDecoration(color: _panel),
+      decoration: BoxDecoration(color: t.panel),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -66,26 +60,34 @@ class ConnectionsPanel extends ConsumerWidget {
     );
   }
 
-  Widget _header(BuildContext context, WidgetRef ref, bool unlocked) =>
-      SectionHeader(
-        title: 'CONNECTIONS',
-        collapsed: collapsed,
-        onToggle: onToggle,
-        actions: [
-          IconButton(
-            icon: Icon(unlocked ? FluentIcons.unlock : FluentIcons.lock,
-                size: 12, color: unlocked ? _accent : _textMid),
-            onPressed: () => _toggleLock(context, ref, unlocked),
+  Widget _header(BuildContext context, WidgetRef ref, bool unlocked) {
+    final t = VoltTheme.of(context);
+    return SectionHeader(
+      title: 'CONNECTIONS',
+      collapsed: collapsed,
+      onToggle: onToggle,
+      actions: [
+        IconButton(
+          icon: Icon(
+            unlocked ? FluentIcons.unlock : FluentIcons.lock,
+            size: 12,
+            color: unlocked ? t.accent : t.textMid,
           ),
-          IconButton(
-            icon: const Icon(FluentIcons.add, size: 12, color: _textMid),
-            onPressed: () => _addMenu(context, ref),
-          ),
-        ],
-      );
+          onPressed: () => _toggleLock(context, ref, unlocked),
+        ),
+        IconButton(
+          icon: Icon(FluentIcons.add, size: 12, color: t.textMid),
+          onPressed: () => _addMenu(context, ref),
+        ),
+      ],
+    );
+  }
 
   Future<void> _toggleLock(
-      BuildContext context, WidgetRef ref, bool unlocked) async {
+    BuildContext context,
+    WidgetRef ref,
+    bool unlocked,
+  ) async {
     final store = await ref.read(secretStoreProvider.future);
     if (unlocked) {
       store.lock();
@@ -99,7 +101,10 @@ class ConnectionsPanel extends ConsumerWidget {
   /// Ensures the vault is unlocked (creating it on first run). Returns true on
   /// success.
   Future<bool> _unlockVault(
-      BuildContext context, WidgetRef ref, SecretStore store) async {
+    BuildContext context,
+    WidgetRef ref,
+    SecretStore store,
+  ) async {
     if (!store.isLocked) return true;
     final pw = await showMasterPasswordDialog(context, isNew: !store.exists);
     if (pw == null) return false;
@@ -114,21 +119,25 @@ class ConnectionsPanel extends ConsumerWidget {
   }
 
   Future<void> _error(BuildContext context, String message) => showDialog(
-        context: context,
-        builder: (ctx) => ContentDialog(
-          content: Text(message),
-          actions: [
-            FilledButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('OK')),
-          ],
+    context: context,
+    builder: (ctx) => ContentDialog(
+      content: Text(message),
+      actions: [
+        FilledButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('OK'),
         ),
-      );
+      ],
+    ),
+  );
 
   /// Switches to [c]; if it needs a vault secret and the vault is locked,
   /// unlock first so the connection doesn't fail auth with a null password.
   Future<void> _select(
-      BuildContext context, WidgetRef ref, Connection c) async {
+    BuildContext context,
+    WidgetRef ref,
+    Connection c,
+  ) async {
     if (c.credentialRef != null) {
       final store = await ref.read(secretStoreProvider.future);
       if (store.isLocked) {
@@ -158,7 +167,10 @@ class ConnectionsPanel extends ConsumerWidget {
           ],
         ),
         actions: [
-          Button(child: const Text('Cancel'), onPressed: () => Navigator.pop(ctx)),
+          Button(
+            child: const Text('Cancel'),
+            onPressed: () => Navigator.pop(ctx),
+          ),
         ],
       ),
     );
@@ -180,17 +192,22 @@ class ConnectionsPanel extends ConsumerWidget {
       onPressed: () => Navigator.pop(ctx, value),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 10),
-          Text(label),
-        ]),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 10),
+            Text(label),
+          ],
+        ),
       ),
     );
   }
 
   Future<void> _addServer(
-      BuildContext context, WidgetRef ref, Engine engine) async {
+    BuildContext context,
+    WidgetRef ref,
+    Engine engine,
+  ) async {
     final settings = ref.read(settingsProvider);
     final result = await showServerConnectionDialog(
       context,
@@ -207,7 +224,10 @@ class ConnectionsPanel extends ConsumerWidget {
   /// Reopens the form on a saved connection. Same dialog, prefilled — keeping
   /// the id, so the vault entry and history stay attached to it.
   Future<void> _editServer(
-      BuildContext context, WidgetRef ref, Connection c) async {
+    BuildContext context,
+    WidgetRef ref,
+    Connection c,
+  ) async {
     final result = await showServerConnectionDialog(
       context,
       engine: c.engine,
@@ -259,7 +279,9 @@ class ConnectionsPanel extends ConsumerWidget {
   /// credential silently would be a surprising thing for a UI to do.
   Future<void> _duplicate(WidgetRef ref, Connection c) async {
     final id = const Uuid().v4();
-    await ref.read(connectionRepositoryProvider).save(
+    await ref
+        .read(connectionRepositoryProvider)
+        .save(
           Connection(
             id: id,
             name: '${c.name} (copy)',
@@ -275,8 +297,14 @@ class ConnectionsPanel extends ConsumerWidget {
         );
   }
 
-  Widget _row(BuildContext context, WidgetRef ref, Connection c, String activeId,
-      {bool builtIn = false}) {
+  Widget _row(
+    BuildContext context,
+    WidgetRef ref,
+    Connection c,
+    String activeId, {
+    bool builtIn = false,
+  }) {
+    final t = VoltTheme.of(context);
     final active = c.id == activeId;
     final (IconData icon, Color color) = engineBrand(c.engine);
     return ContextMenuRegion(
@@ -311,40 +339,48 @@ class ConnectionsPanel extends ConsumerWidget {
       child: HoverButton(
         onPressed: () => _select(context, ref, c),
         builder: (context, states) => Container(
-        color: active ? _accentDim : (states.isHovered ? VoltPalette.hover : null),
-        padding: EdgeInsets.only(left: c.options.colorTag == null ? 12 : 8,
-            right: 6),
-        height: 30,
-        child: Row(children: [
-          // Environment tag, when set: a red bar down the row is the
-          // conventional "this is production" cue, and it needs to be visible
-          // before you run anything, not buried in a settings dialog.
-          if (c.options.colorTag case final tag?) ...[
-            Container(
-              width: 3,
-              height: 18,
-              decoration: BoxDecoration(
-                color: Color(tag),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(width: 5),
-          ],
-          // Brand glyph (left). Right stays free for a live status dot (#14).
-          SizedBox(width: 16, child: Icon(icon, size: 15, color: color)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(c.name,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                    color: active ? _accent : _textHi, fontSize: 12.5)),
+          color: active ? t.accentWash : (states.isHovered ? t.hover : null),
+          padding: EdgeInsets.only(
+            left: c.options.colorTag == null ? 12 : 8,
+            right: 6,
           ),
-          if (!builtIn && states.isHovered)
-            IconButton(
-              icon: const Icon(FluentIcons.delete, size: 11, color: _textMid),
-              onPressed: () => _delete(ref, c, activeId),
-            ),
-        ]),
+          height: 30,
+          child: Row(
+            children: [
+              // Environment tag, when set: a red bar down the row is the
+              // conventional "this is production" cue, and it needs to be visible
+              // before you run anything, not buried in a settings dialog.
+              if (c.options.colorTag case final tag?) ...[
+                Container(
+                  width: 3,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: Color(tag),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(width: 5),
+              ],
+              // Brand glyph (left). Right stays free for a live status dot (#14).
+              SizedBox(width: 16, child: Icon(icon, size: 15, color: color)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  c.name,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: active ? t.accent : t.textHigh,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ),
+              if (!builtIn && states.isHovered)
+                IconButton(
+                  icon: Icon(FluentIcons.delete, size: 11, color: t.textMid),
+                  onPressed: () => _delete(ref, c, activeId),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -352,12 +388,17 @@ class ConnectionsPanel extends ConsumerWidget {
 
   /// Deleting a saved connection also drops its vault secret — leaving an
   /// orphaned credential behind would be a small, silent data leak.
-  Future<void> _confirmDelete(BuildContext context, WidgetRef ref,
-      Connection c, String activeId) async {
+  Future<void> _confirmDelete(
+    BuildContext context,
+    WidgetRef ref,
+    Connection c,
+    String activeId,
+  ) async {
     final yes = await confirm(
       context,
       title: 'Delete "${c.name}"?',
-      message: 'The saved connection and its stored password are removed. '
+      message:
+          'The saved connection and its stored password are removed. '
           'This cannot be undone.',
     );
     if (!yes) return;
@@ -366,8 +407,10 @@ class ConnectionsPanel extends ConsumerWidget {
 
   Future<void> _addSqlite(WidgetRef ref) async {
     const group = XTypeGroup(
-        label: 'SQLite', extensions: ['db', 'sqlite', 'sqlite3']);
-    final file = await openFile(acceptedTypeGroups: const [group]);
+      label: 'SQLite',
+      extensions: ['db', 'sqlite', 'sqlite3'],
+    );
+    final file = await openFile(acceptedTypeGroups: [group]);
     if (file == null) return;
     final conn = Connection(
       id: const Uuid().v4(),
