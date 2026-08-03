@@ -4,6 +4,8 @@ import 'package:re_editor/re_editor.dart';
 import 'package:re_highlight/languages/sql.dart';
 import 'package:re_highlight/styles/atom-one-dark.dart';
 
+import '../../core/theme/volt_tokens.dart';
+
 import '../../../domain/models/app_settings.dart';
 import '../../../domain/models/ssl_mode.dart';
 import '../../core/menu/confirm.dart';
@@ -12,12 +14,12 @@ import 'known_hosts_section.dart';
 import 'settings_providers.dart';
 import 'vault_section.dart';
 
-// TODO(theming #7): unify tokens into ui/core/theme.
-const _hair = Color(0xFF262A31);
-const _accent = Color(0xFF2FE6FF);
-const _text = Color(0xFFE6E8EC);
-const _textMid = Color(0xFF9BA1AD);
-const _textLo = Color(0xFF5A6069);
+// Palette lives in ui/core/theme (#7); these are local names for it.
+const _hair = VoltPalette.hairline;
+const _accent = VoltPalette.accent;
+const _text = VoltPalette.textHigh;
+const _textMid = VoltPalette.textMid;
+const _textLo = VoltPalette.textLow;
 
 /// App preferences.
 ///
@@ -145,8 +147,8 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                 margin: const EdgeInsets.only(bottom: 2, right: 8),
                 decoration: BoxDecoration(
                   color: _section == s
-                      ? const Color(0x222FE6FF)
-                      : (states.isHovered ? const Color(0x14FFFFFF) : null),
+                      ? VoltPalette.accentWash
+                      : (states.isHovered ? VoltPalette.hover : null),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Row(
@@ -281,7 +283,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                   style: CodeEditorStyle(
                     fontSize: s.editorFontSize,
                     fontFamily: s.editorFontFamily,
-                    backgroundColor: const Color(0xFF0D0E11),
+                    backgroundColor: VoltPalette.canvas,
                     codeTheme: CodeHighlightTheme(
                       languages: {'sql': CodeHighlightThemeMode(mode: langSql)},
                       theme: atomOneDarkTheme,

@@ -4,6 +4,8 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/volt_tokens.dart';
+
 import '../../../domain/models/history_entry.dart';
 import '../../../domain/models/schema.dart';
 import '../../../domain/sql/sql_statement_splitter.dart';
@@ -13,14 +15,14 @@ import '../schema_browser/table_info_dialog.dart';
 import '../settings/settings_providers.dart';
 import 'search_providers.dart';
 
-// TODO(theming #7): unify tokens into ui/core/theme.
-const _hair = Color(0xFF262A31);
-const _accent = Color(0xFF2FE6FF);
-const _text = Color(0xFFE6E8EC);
-const _textMid = Color(0xFF9BA1AD);
-const _textLo = Color(0xFF5A6069);
-const _fk = Color(0xFFB98CFF);
-const _err = Color(0xFFFF6B6B);
+// Palette lives in ui/core/theme (#7); these are local names for it.
+const _hair = VoltPalette.hairline;
+const _accent = VoltPalette.accent;
+const _text = VoltPalette.textHigh;
+const _textMid = VoltPalette.textMid;
+const _textLo = VoltPalette.textLow;
+const _fk = VoltPalette.violet;
+const _err = VoltPalette.danger;
 
 /// Search everything: tables, views, columns and query history at once.
 ///
@@ -226,8 +228,8 @@ class _SearchDialogState extends ConsumerState<SearchDialog> {
                     const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                 decoration: BoxDecoration(
                   color: _filter == f
-                      ? const Color(0x222FE6FF)
-                      : (states.isHovered ? const Color(0x14FFFFFF) : null),
+                      ? VoltPalette.accentWash
+                      : (states.isHovered ? VoltPalette.hover : null),
                   border: Border.all(
                       color: _filter == f ? _accent : _hair),
                   borderRadius: BorderRadius.circular(3),
@@ -343,8 +345,8 @@ class _SearchDialogState extends ConsumerState<SearchDialog> {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
           color: selected
-              ? const Color(0x222FE6FF)
-              : (states.isHovered ? const Color(0x14FFFFFF) : null),
+              ? VoltPalette.accentWash
+              : (states.isHovered ? VoltPalette.hover : null),
           borderRadius: BorderRadius.circular(4),
         ),
         child: Row(children: [

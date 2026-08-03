@@ -4,6 +4,8 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/volt_tokens.dart';
+
 import '../../../domain/drivers/driver_error.dart';
 import '../../../domain/models/column_editor.dart';
 import '../../../domain/models/schema.dart';
@@ -20,13 +22,13 @@ import 'schema_repository.dart';
 import 'table_info_dialog.dart';
 
 // TODO(theming #7): unify these tokens into ui/core/theme.
-const _panel = Color(0xFF16181D);
-const _hair = Color(0xFF262A31);
-const _accent = Color(0xFF2FE6FF);
-const _text = Color(0xFFE6E8EC);
-const _textMid = Color(0xFF9BA1AD);
-const _textLo = Color(0xFF5A6069);
-const _err = Color(0xFFFF6B6B);
+const _panel = VoltPalette.panel;
+const _hair = VoltPalette.hairline;
+const _accent = VoltPalette.accent;
+const _text = VoltPalette.textHigh;
+const _textMid = VoltPalette.textMid;
+const _textLo = VoltPalette.textLow;
+const _err = VoltPalette.danger;
 const _mono = TextStyle(color: _text, fontSize: 12.5, fontFamily: 'monospace');
 
 /// Left panel: the active connection's schema as a **lazy tree** (ADR-0008 /
@@ -409,7 +411,7 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
                 color: c.isPrimaryKey
                     ? _accent
                     : c.isForeignKey
-                        ? const Color(0xFFB98CFF)
+                        ? VoltPalette.violet
                         : _textLo),
             // Name sizes to content but capped at ~55% of the *actual* row
             // width (via LayoutBuilder — flex weights would reserve a fixed
@@ -451,7 +453,7 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
                         textAlign: TextAlign.right,
                         style: TextStyle(
                             color: c.references != null
-                                ? const Color(0xFFB98CFF)
+                                ? VoltPalette.violet
                                 : SqlTypeColors.dark.of(
                                     ColumnEditorResolver(
                                             ref.read(currentConnectionProvider)
@@ -829,7 +831,7 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
           height: 24,
           padding: const EdgeInsets.only(left: 8, right: 6),
           decoration: const BoxDecoration(
-            color: Color(0xFF1B1E24),
+            color: VoltPalette.panelAlt,
             border: Border(bottom: BorderSide(color: _hair)),
           ),
           child: Row(children: [
@@ -938,7 +940,7 @@ class _FilterHit extends StatelessWidget {
     return HoverButton(
       onPressed: onTap,
       builder: (context, states) => Container(
-        color: states.isHovered ? const Color(0x142FE6FF) : null,
+        color: states.isHovered ? VoltPalette.accentTint : null,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         child: Row(children: [
           Icon(icon, size: 11, color: _textMid),

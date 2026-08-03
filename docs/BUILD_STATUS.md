@@ -4,7 +4,7 @@ Snapshot of the implementation so a fresh session (or you) can pick up. The
 **spec** (what to build) lives in [`docs/README.md`](README.md) → CONTEXT.md,
 ADRs 0001–0009, `docs/design/*`. This file tracks **what's built** so far.
 
-## Done (83 PRs merged to `master`)
+## Done (84 PRs merged to `master`)
 
 Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/MariaDB**
 — all interchangeable behind the driver port (ADR-0003).
@@ -185,8 +185,19 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   only), *Security* (change master password, auto-lock, trusted SSH hosts).
 - **State**: Riverpod **codegen** (`@riverpod`, ADR-0004). Run
   `dart run build_runner build` after editing providers/drift tables.
-- **Theming**: inline "Clean Dev-Tool" tokens (dark, cyan accent) — not yet in
-  `ui/core/theme` (still TODO per #7).
+- **Theming** (`ui/core/theme/`, #7 step 1): the "Clean Dev-Tool" palette lives
+  in **one file**. There were **109** private `const _accent = Color(0xFF2FE6FF)`
+  declarations across 19 files, and four colours had already drifted — two reds,
+  two greens, *three* ambers — so "the error colour" meant one thing in the
+  history panel and another in the grid. `VoltPalette` holds the hexes as
+  compile-time constants (so no widget lost a `const`), `VoltTokens`/`VoltTheme`
+  expose the same palette through the tree for a future theme switch, and
+  `SqlTypeColors` / `engineBrand` sit beside them as the other colour
+  vocabularies. A test walks `lib/` and fails on any `Color(0x…)` outside
+  `ui/core/theme/`, which is the drift starting again.
+  **Deliberately not done:** migrating widgets from the file-local aliases to
+  `VoltTheme.of(context)`. That is ~400 call sites and every one loses `const`;
+  it is the prerequisite for Settings→Appearance and belongs in its own PR.
 
 - **Grid row writes** (#79): **Add Row** (status bar), **Duplicate Row** and
   **Delete Row** (row context menu), all staged into the same buffer as cell
@@ -235,7 +246,7 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   home in the menu bar, and the status bar's actions go icon-only rather than
   disappear. Run is the last thing standing.
 
-**391 tests** green (`flutter test`, +16 more with live PG/MySQL); `flutter analyze` clean.
+**395 tests** green (`flutter test`, +16 more with live PG/MySQL); `flutter analyze` clean.
 
 ## Deferred / known gaps
 

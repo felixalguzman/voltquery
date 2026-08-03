@@ -2,15 +2,17 @@ import 'package:cryptography/cryptography.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/volt_tokens.dart';
+
 import '../connections/connection_providers.dart';
 import '../connections/master_password_dialog.dart';
 import 'settings_providers.dart';
 
-// TODO(theming #7): unify tokens into ui/core/theme.
-const _accent = Color(0xFF2FE6FF);
-const _text = Color(0xFFE6E8EC);
-const _textMid = Color(0xFF9BA1AD);
-const _err = Color(0xFFFF6B6B);
+// Palette lives in ui/core/theme (#7); these are local names for it.
+const _accent = VoltPalette.accent;
+const _text = VoltPalette.textHigh;
+const _textMid = VoltPalette.textMid;
+const _err = VoltPalette.danger;
 
 /// Credentials vault controls (ADR-0006): lock state, re-keying, auto-lock.
 class VaultSection extends ConsumerStatefulWidget {

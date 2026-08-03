@@ -1,15 +1,17 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
+import '../../core/theme/volt_tokens.dart';
+
 import '../../../domain/export/result_export.dart';
 
-// TODO(theming #7): unify tokens into ui/core/theme.
-const _bg = Color(0xFF0D0E11);
-const _hair = Color(0xFF262A31);
-const _text = Color(0xFFE6E8EC);
-const _textMid = Color(0xFF9BA1AD);
-const _textLo = Color(0xFF5A6069);
-const _accent = Color(0xFF2FE6FF);
-const _warn = Color(0xFFE8B84B);
+// Palette lives in ui/core/theme (#7); these are local names for it.
+const _bg = VoltPalette.canvas;
+const _hair = VoltPalette.hairline;
+const _text = VoltPalette.textHigh;
+const _textMid = VoltPalette.textMid;
+const _textLo = VoltPalette.textLow;
+const _accent = VoltPalette.accent;
+const _warn = VoltPalette.warning;
 
 /// Which rows leave the app.
 enum ExportScope {
@@ -228,7 +230,7 @@ class _ExportDialogState extends State<ExportDialog> {
         builder: (context, states) => Container(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
           decoration: BoxDecoration(
-            color: states.isHovered ? const Color(0x0FFFFFFF) : null,
+            color: states.isHovered ? VoltPalette.hoverSoft : null,
             borderRadius: BorderRadius.circular(3),
           ),
           child: Row(children: [

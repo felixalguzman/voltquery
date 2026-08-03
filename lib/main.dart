@@ -6,6 +6,7 @@ import 'data/repositories/settings_repository.dart';
 import 'data/services/local_store.dart';
 import 'ui/core/shell/app_shell.dart';
 import 'ui/core/shell/window_chrome.dart';
+import 'ui/core/theme/volt_tokens.dart';
 import 'ui/features/history/history_providers.dart';
 import 'ui/features/query_workspace/worksheet_providers.dart';
 import 'ui/features/settings/vault_auto_lock.dart';
@@ -72,7 +73,13 @@ class VoltQueryApp extends StatelessWidget {
       darkTheme: FluentThemeData(
         brightness: Brightness.dark,
         accentColor: Colors.teal,
-        scaffoldBackgroundColor: const Color(0xFF0D0E11),
+        scaffoldBackgroundColor: VoltPalette.canvas,
+      ),
+      // One palette for the whole tree (#7). Everything that paints reads it
+      // from here rather than declaring its own copy of the hex.
+      builder: (context, child) => VoltTheme(
+        tokens: VoltTokens.dark,
+        child: child ?? const SizedBox.shrink(),
       ),
       home: const _Home(),
     );

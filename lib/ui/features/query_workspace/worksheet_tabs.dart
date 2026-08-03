@@ -1,18 +1,20 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/volt_tokens.dart';
+
 import '../../core/menu/context_menu.dart';
 
 import 'worksheet_providers.dart';
 import 'worksheet_view.dart';
 
-// TODO(theming #7): unify tokens into ui/core/theme.
-const _bg = Color(0xFF0D0E11);
-const _panel = Color(0xFF16181D);
-const _hair = Color(0xFF262A31);
-const _accent = Color(0xFF2FE6FF);
-const _textMid = Color(0xFF9BA1AD);
-const _textLo = Color(0xFF5A6069);
+// Palette lives in ui/core/theme (#7); these are local names for it.
+const _bg = VoltPalette.canvas;
+const _panel = VoltPalette.panel;
+const _hair = VoltPalette.hairline;
+const _accent = VoltPalette.accent;
+const _textMid = VoltPalette.textMid;
+const _textLo = VoltPalette.textLow;
 
 /// The worksheet tab bar + bodies. Each tab is a Worksheet with its **own**
 /// live Session (ADR-0002/0004) — an [IndexedStack] keeps every tab mounted so
@@ -108,7 +110,7 @@ class WorksheetTabBar extends ConsumerWidget {
         child: Row(children: [
           Text('Query ${i + 1}',
               style: TextStyle(
-                  color: active ? const Color(0xFFE6E8EC) : _textLo,
+                  color: active ? VoltPalette.textHigh : _textLo,
                   fontSize: 12)),
           const SizedBox(width: 6),
           if (tabs.ids.length > 1)

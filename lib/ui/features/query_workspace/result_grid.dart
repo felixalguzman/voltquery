@@ -10,6 +10,8 @@ import 'package:re_editor/re_editor.dart';
 import 'package:re_highlight/languages/sql.dart';
 import 'package:re_highlight/styles/atom-one-dark.dart';
 
+import '../../core/theme/volt_tokens.dart';
+
 import '../../../domain/models/column_editor.dart';
 import '../../../domain/drivers/result.dart';
 import '../../../domain/sql/dml_builder.dart';
@@ -24,17 +26,17 @@ import 'grid_editability.dart';
 import 'worksheet_providers.dart';
 import 'worksheet_state.dart';
 
-// TODO(theming #7): unify tokens into ui/core/theme.
-const _bg = Color(0xFF0D0E11);
-const _panel = Color(0xFF16181D);
-const _hair = Color(0xFF262A31);
-const _accent = Color(0xFF2FE6FF);
-const _text = Color(0xFFE6E8EC);
-const _textMid = Color(0xFF9BA1AD);
-const _textLo = Color(0xFF5A6069);
-const _dirty = Color(0xFFE8B84B);
-const _added = Color(0xFF4CD97B);
-const _removed = Color(0xFFE05561);
+// Palette lives in ui/core/theme (#7); these are local names for it.
+const _bg = VoltPalette.canvas;
+const _panel = VoltPalette.panel;
+const _hair = VoltPalette.hairline;
+const _accent = VoltPalette.accent;
+const _text = VoltPalette.textHigh;
+const _textMid = VoltPalette.textMid;
+const _textLo = VoltPalette.textLow;
+const _dirty = VoltPalette.warning;
+const _added = VoltPalette.success;
+const _removed = VoltPalette.danger;
 
 /// Which row of the *result* a grid row stands for — never where pluto happens
 /// to be showing it.
@@ -771,7 +773,7 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
       builder: (context, states) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
-          color: states.isHovered ? const Color(0x14FFFFFF) : null,
+          color: states.isHovered ? VoltPalette.hover : null,
           borderRadius: BorderRadius.circular(3),
         ),
         child: Row(
@@ -817,7 +819,7 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
       ),
       gridBackgroundColor: _panel,
       rowColor: _panel,
-      activatedColor: Color(0xFF1E2A30),
+      activatedColor: VoltPalette.selected,
       borderColor: _hair,
     ),
   );

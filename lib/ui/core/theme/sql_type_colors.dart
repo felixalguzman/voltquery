@@ -1,5 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
+import '../../core/theme/volt_tokens.dart';
+
 import '../../../domain/models/column_editor.dart';
 
 /// Colours for SQL data types, keyed by **semantic kind** rather than by the
@@ -37,10 +39,10 @@ class SqlTypeColors {
   /// particular are what you scan a wide table for.
   static const dark = SqlTypeColors(
     text: Color(0xFF8FB8D8),
-    number: Color(0xFF6FE39A),
-    boolean: Color(0xFFE8B84B),
-    temporal: Color(0xFF2FE6FF),
-    json: Color(0xFFB98CFF),
+    number: VoltPalette.success,
+    boolean: VoltPalette.warning,
+    temporal: VoltPalette.accent,
+    json: VoltPalette.violet,
     enumeration: Color(0xFFFF9E64),
     binary: Color(0xFF7A828F),
   );

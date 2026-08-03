@@ -5,6 +5,8 @@ import 'package:re_editor/re_editor.dart';
 import 'package:re_highlight/languages/sql.dart';
 import 'package:re_highlight/styles/atom-one-dark.dart';
 
+import '../../core/theme/volt_tokens.dart';
+
 import '../../../domain/models/column_editor.dart';
 import '../../../domain/models/engine.dart';
 import '../../../domain/models/history_entry.dart';
@@ -15,15 +17,15 @@ import '../history/history_providers.dart';
 import '../query_workspace/worksheet_providers.dart';
 import 'schema_repository.dart';
 
-// TODO(theming #7): unify tokens into ui/core/theme.
-const _bg = Color(0xFF0D0E11);
-const _hair = Color(0xFF262A31);
-const _accent = Color(0xFF2FE6FF);
-const _text = Color(0xFFE6E8EC);
-const _textMid = Color(0xFF9BA1AD);
-const _textLo = Color(0xFF5A6069);
-const _fk = Color(0xFFB98CFF);
-const _default = Color(0xFFE0B978);
+// Palette lives in ui/core/theme (#7); these are local names for it.
+const _bg = VoltPalette.canvas;
+const _hair = VoltPalette.hairline;
+const _accent = VoltPalette.accent;
+const _text = VoltPalette.textHigh;
+const _textMid = VoltPalette.textMid;
+const _textLo = VoltPalette.textLow;
+const _fk = VoltPalette.violet;
+const _default = VoltPalette.warning;
 
 /// Quick facts about a table: size, shape, keys and indexes, without writing a
 /// query for any of it.
@@ -186,7 +188,7 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
         builder: (context, snap) {
           if (snap.hasError) {
             return Text('Could not read table info: ${snap.error}',
-                style: const TextStyle(color: Color(0xFFFF6B6B), fontSize: 12));
+                style: const TextStyle(color: VoltPalette.danger, fontSize: 12));
           }
           if (!snap.hasData) {
             return SizedBox(
@@ -246,8 +248,8 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: _tab == i
-                        ? const Color(0x222FE6FF)
-                        : (states.isHovered ? const Color(0x14FFFFFF) : null),
+                        ? VoltPalette.accentWash
+                        : (states.isHovered ? VoltPalette.hover : null),
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(
                       color: _tab == i ? _accent : Colors.transparent,
@@ -342,8 +344,8 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
             color: active
-                ? const Color(0x222FE6FF)
-                : (states.isHovered ? const Color(0x14FFFFFF) : _bg),
+                ? VoltPalette.accentWash
+                : (states.isHovered ? VoltPalette.hover : _bg),
             border: Border.all(color: active ? _accent : _hair),
             borderRadius: BorderRadius.circular(3),
           ),
@@ -570,7 +572,7 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
           margin: const EdgeInsets.only(bottom: 3),
           decoration: BoxDecoration(
-            color: states.isHovered ? const Color(0x14FFFFFF) : _bg,
+            color: states.isHovered ? VoltPalette.hover : _bg,
             border: Border.all(color: _hair),
             borderRadius: BorderRadius.circular(3),
           ),
@@ -930,7 +932,7 @@ class _TableInfoDialogState extends ConsumerState<_TableInfoDialog> {
             builder: (context, states) => Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
               decoration: BoxDecoration(
-                color: states.isHovered ? const Color(0x14FFFFFF) : _bg,
+                color: states.isHovered ? VoltPalette.hover : _bg,
                 border: Border.all(color: _hair),
                 borderRadius: BorderRadius.circular(3),
               ),

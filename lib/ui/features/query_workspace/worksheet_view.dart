@@ -7,6 +7,8 @@ import 'package:re_editor/re_editor.dart';
 import 'package:re_highlight/languages/sql.dart';
 import 'package:re_highlight/styles/atom-one-dark.dart';
 
+import '../../core/theme/volt_tokens.dart';
+
 import '../../../domain/sql/sql_statement_splitter.dart';
 import '../search/search_providers.dart';
 import '../settings/settings_providers.dart';
@@ -16,13 +18,13 @@ import 'worksheet_providers.dart';
 import 'worksheet_state.dart';
 
 // Clean Dev-Tool tokens (ADR-0007/theming #7) — inline until ui/core/theme lands.
-const _bg = Color(0xFF0D0E11);
-const _panel = Color(0xFF16181D);
-const _hair = Color(0xFF262A31);
-const _accent = Color(0xFF2FE6FF);
-const _textMid = Color(0xFF9BA1AD);
-const _err = Color(0xFFFF6B6B);
-const _ok = Color(0xFF6FE39A);
+const _bg = VoltPalette.canvas;
+const _panel = VoltPalette.panel;
+const _hair = VoltPalette.hairline;
+const _accent = VoltPalette.accent;
+const _textMid = VoltPalette.textMid;
+const _err = VoltPalette.danger;
+const _ok = VoltPalette.success;
 
 /// The query workspace: `re_editor` (top) + `pluto_grid` (bottom) in a resizable
 /// vertical `MultiPane`, driven by [worksheetProvider]. First end-to-end slice
@@ -422,10 +424,10 @@ Widget _scriptBody(
   return Column(children: [
     Container(
       width: double.infinity,
-      color: const Color(0x22FFB020),
+      color: VoltPalette.accentWash,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       child: const Text('■ Run canceled — remaining statements were not run.',
-          style: TextStyle(color: Color(0xFFFFB020), fontSize: 11.5)),
+          style: TextStyle(color: VoltPalette.warning, fontSize: 11.5)),
     ),
     Expanded(child: body),
   ]);

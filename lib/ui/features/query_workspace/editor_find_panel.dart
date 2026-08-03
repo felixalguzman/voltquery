@@ -2,14 +2,16 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:re_editor/re_editor.dart';
 
-// TODO(theming #7): unify tokens into ui/core/theme.
-const _panel = Color(0xFF16181D);
-const _bg = Color(0xFF0D0E11);
-const _hair = Color(0xFF262A31);
-const _accent = Color(0xFF2FE6FF);
-const _text = Color(0xFFE6E8EC);
-const _textLo = Color(0xFF5A6069);
-const _err = Color(0xFFFF6B6B);
+import '../../core/theme/volt_tokens.dart';
+
+// Palette lives in ui/core/theme (#7); these are local names for it.
+const _panel = VoltPalette.panel;
+const _bg = VoltPalette.canvas;
+const _hair = VoltPalette.hairline;
+const _accent = VoltPalette.accent;
+const _text = VoltPalette.textHigh;
+const _textLo = VoltPalette.textLow;
+const _err = VoltPalette.danger;
 
 /// The editor's find/replace bar (`Ctrl+F` / `Ctrl+H`).
 ///
@@ -207,14 +209,14 @@ class EditorFindPanel extends StatelessWidget implements PreferredSizeWidget {
           margin: const EdgeInsets.symmetric(horizontal: 1),
           decoration: BoxDecoration(
             color: active
-                ? const Color(0x222FE6FF)
-                : (states.isHovered ? const Color(0x14FFFFFF) : null),
+                ? VoltPalette.accentWash
+                : (states.isHovered ? VoltPalette.hover : null),
             borderRadius: BorderRadius.circular(3),
           ),
           child: Icon(icon,
               size: 11,
               color: !enabled
-                  ? const Color(0xFF3A3F47)
+                  ? VoltPalette.chip
                   : active
                       ? _accent
                       : _textLo),
@@ -228,7 +230,7 @@ class EditorFindPanel extends StatelessWidget implements PreferredSizeWidget {
         builder: (context, states) => Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-            color: states.isHovered ? const Color(0x14FFFFFF) : null,
+            color: states.isHovered ? VoltPalette.hover : null,
             border: Border.all(color: _hair),
             borderRadius: BorderRadius.circular(3),
           ),

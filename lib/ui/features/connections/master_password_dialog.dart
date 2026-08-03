@@ -1,5 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
+import '../../core/theme/volt_tokens.dart';
+
 /// Prompts for the vault master password (ADR-0006). [isNew] = first-run create
 /// (with confirm + "not recoverable" warning); otherwise unlock. Returns the
 /// password, or null if cancelled.
@@ -92,12 +94,12 @@ class _ChangeMasterPasswordDialogState
           const Text(
             '⚠ Not recoverable. Your saved secrets are re-keyed, not re-entered '
             '— they stay exactly as they are.',
-            style: TextStyle(color: Color(0xFF9BA1AD), fontSize: 11.5),
+            style: TextStyle(color: VoltPalette.textMid, fontSize: 11.5),
           ),
           if (_error != null) ...[
             const SizedBox(height: 8),
             Text(_error!,
-                style: const TextStyle(color: Color(0xFFFF6B6B), fontSize: 12)),
+                style: const TextStyle(color: VoltPalette.danger, fontSize: 12)),
           ],
         ],
       ),
@@ -174,12 +176,12 @@ class _MasterPasswordDialogState extends State<_MasterPasswordDialog> {
             widget.isNew
                 ? '⚠ Not recoverable — VoltQuery cannot reset it. Encrypts your saved connection secrets.'
                 : 'Unlocks your saved secrets for this session.',
-            style: const TextStyle(color: Color(0xFF9BA1AD), fontSize: 11.5),
+            style: const TextStyle(color: VoltPalette.textMid, fontSize: 11.5),
           ),
           if (_error != null) ...[
             const SizedBox(height: 8),
             Text(_error!,
-                style: const TextStyle(color: Color(0xFFFF6B6B), fontSize: 12)),
+                style: const TextStyle(color: VoltPalette.danger, fontSize: 12)),
           ],
         ],
       ),

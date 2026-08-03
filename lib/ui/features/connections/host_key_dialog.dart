@@ -1,15 +1,17 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/theme/volt_tokens.dart';
+
 import '../../../data/services/known_hosts.dart';
 
-// TODO(theming #7): unify tokens into ui/core/theme.
-const _bg = Color(0xFF0D0E11);
-const _hair = Color(0xFF262A31);
-const _text = Color(0xFFE6E8EC);
-const _textMid = Color(0xFF9BA1AD);
-const _warn = Color(0xFFE8B84B);
-const _err = Color(0xFFFF6B6B);
+// Palette lives in ui/core/theme (#7); these are local names for it.
+const _bg = VoltPalette.canvas;
+const _hair = VoltPalette.hairline;
+const _text = VoltPalette.textHigh;
+const _textMid = VoltPalette.textMid;
+const _warn = VoltPalette.warning;
+const _err = VoltPalette.danger;
 
 /// Asks whether to trust an SSH bastion's host key.
 ///

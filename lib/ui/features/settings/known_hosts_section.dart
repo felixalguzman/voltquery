@@ -1,15 +1,17 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/volt_tokens.dart';
+
 import '../../../data/services/known_hosts.dart';
 import '../../core/menu/confirm.dart';
 import '../query_workspace/worksheet_providers.dart';
 
-// TODO(theming #7): unify tokens into ui/core/theme.
-const _hair = Color(0xFF262A31);
-const _text = Color(0xFFE6E8EC);
-const _textMid = Color(0xFF9BA1AD);
-const _textLo = Color(0xFF5A6069);
+// Palette lives in ui/core/theme (#7); these are local names for it.
+const _hair = VoltPalette.hairline;
+const _text = VoltPalette.textHigh;
+const _textMid = VoltPalette.textMid;
+const _textLo = VoltPalette.textLow;
 
 /// The SSH bastions whose host keys have been accepted (`known_hosts.json`).
 ///
@@ -54,7 +56,7 @@ class _KnownHostsSectionState extends ConsumerState<KnownHostsSection> {
             if (snap.hasError) {
               return Text('Could not read known hosts: ${snap.error}',
                   style:
-                      const TextStyle(color: Color(0xFFFF6B6B), fontSize: 11.5));
+                      const TextStyle(color: VoltPalette.danger, fontSize: 11.5));
             }
             if (!snap.hasData) {
               return const Padding(
