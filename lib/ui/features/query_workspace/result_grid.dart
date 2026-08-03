@@ -120,21 +120,12 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
   /// and result columns can repeat names (`SELECT id, id`).
   static String _fieldKey(int i) => 'c$i';
 
-  /// A row's primary-key values **as originally read** — never the staged ones,
-  /// or an edit would address the row by a value that isn't in the table yet.
+  /// A row's primary-key values as originally read. Shared with the debug
+  /// bridge so what it reports is what would actually run.
   Map<String, Object?>? _pkValues(int rowIndex) {
     final e = _edit;
-    if (e == null || rowIndex >= widget.rows.rows.length) return null;
-    final keys = <String, Object?>{};
-    for (final pkName in e.primaryKey) {
-      final col = widget.rows.fields.indexWhere(
-        (f) => f.name.toLowerCase() == pkName.toLowerCase(),
-      );
-      // The PK wasn't selected (e.g. `SELECT name FROM t`) → can't address it.
-      if (col < 0) return null;
-      keys[pkName] = widget.rows.rows[rowIndex].values[col];
-    }
-    return keys;
+    if (e == null) return null;
+    return primaryKeyValues(e, widget.rows.fields, widget.rows.rows, rowIndex);
   }
 
   /// pluto's column type for an editor kind. `text` is the deliberate fallback:

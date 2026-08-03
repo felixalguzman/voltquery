@@ -4,7 +4,7 @@ Snapshot of the implementation so a fresh session (or you) can pick up. The
 **spec** (what to build) lives in [`docs/README.md`](README.md) → CONTEXT.md,
 ADRs 0001–0009, `docs/design/*`. This file tracks **what's built** so far.
 
-## Done (79 PRs merged to `master`)
+## Done (82 PRs merged to `master`)
 
 Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/MariaDB**
 — all interchangeable behind the driver port (ADR-0003).
@@ -214,7 +214,7 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   home in the menu bar, and the status bar's actions go icon-only rather than
   disappear. Run is the last thing standing.
 
-**352 tests** green (`flutter test`, +16 more with live PG/MySQL); `flutter analyze` clean.
+**355 tests** green (`flutter test`, +16 more with live PG/MySQL); `flutter analyze` clean.
 
 ## Deferred / known gaps
 
@@ -342,6 +342,35 @@ Riverpod 3 migration notes (for anyone touching providers):
   as the read returns — for a stream provider that lands mid-loading and throws.
   Hold a `container.listen(...)` subscription across the await (tests only; the
   app watches these providers).
+
+### Debug bridge — ask the running app, don't read pixels
+
+`lib/debug/debug_bridge.dart` registers VM-service extensions on a debug build,
+and `tool/vq` calls them from the shell. Driving the app through Flutter Driver
+means asserting on screenshots; a staged edit is data, so read it back as data.
+
+```bash
+flutter run -d linux -t test_driver/app.dart \
+  --vmservice-out-file=.dart_tool/vmservice.txt
+
+tool/vq snapshot                   # connection, tabs, staged grid edits + the SQL they'd run
+tool/vq errors                     # Flutter errors so far (--clear to reset)
+tool/vq run "SELECT * FROM orders" # run in the active worksheet
+```
+
+`snapshot` builds each grid's statements through the **same**
+`GridEditBuffer.toSql` and `primaryKeyValues` the UI uses, so it can't drift
+into describing statements the app would never send. `errors` matters most:
+a `RenderFlex` overflow never throws, so `tool/vq errors` is how a layout
+regression becomes a one-line check — it reports the summary **and the
+`file:line`**, which needs `debugTransformDebugCreator` (the raw diagnostics
+carry only a chain of widget types).
+
+Debug-only twice over: `registerDebugExtensions` returns immediately unless
+`kDebugMode`, and nothing in `lib/main.dart` references it — only
+`test_driver/app.dart` — so a release build never links it in. `main()` takes
+an optional `onContainerReady` so the bridge attaches to the app's real
+`ProviderContainer` rather than a second one beside it.
 
 ### Driving the live app
 

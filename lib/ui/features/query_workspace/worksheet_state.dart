@@ -1,3 +1,5 @@
+import 'dart:core';
+
 import '../../../domain/drivers/driver_error.dart';
 import '../../../domain/drivers/result.dart';
 import '../../../domain/sql/sql_statement_splitter.dart';
@@ -99,3 +101,14 @@ class WorksheetScript extends WorksheetResult {
       if (o.isRows) o,
   ];
 }
+
+/// Identity of one result grid's staged-edit buffer.
+///
+/// Keyed on the *result object* as well as the tab and sub-tab index: re-running
+/// a query produces a new [WorksheetRows], and reusing the id would carry the
+/// previous run's staged edits onto rows they no longer describe.
+///
+/// Shared so the view that builds a grid and the debug bridge that inspects one
+/// cannot disagree about which buffer is which.
+String gridIdFor(String worksheetId, int resultIndex, WorksheetRows rows) =>
+    '$worksheetId:$resultIndex:${identityHashCode(rows)}';
