@@ -206,7 +206,15 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
     editable and read-only grids. Fixed for both, which is also what makes
     row-delete safe to add.
 
-**350 tests** green (`flutter test`, +16 more with live PG/MySQL); `flutter analyze` clean.
+- **Narrow-pane behaviour** (#81, found by driving the live app): both the
+  worksheet toolbar and the grid status bar overflowed once their pane was
+  dragged narrow, which paints the buttons past the edge — **▶ Run and Add Row
+  were simply unclickable**. Both now shed content in priority order: the
+  identity text ellipsises first, then secondary controls that have another
+  home in the menu bar, and the status bar's actions go icon-only rather than
+  disappear. Run is the last thing standing.
+
+**352 tests** green (`flutter test`, +16 more with live PG/MySQL); `flutter analyze` clean.
 
 ## Deferred / known gaps
 
@@ -334,6 +342,25 @@ Riverpod 3 migration notes (for anyone touching providers):
   as the read returns — for a stream provider that lands mid-loading and throws.
   Hold a `container.listen(...)` subscription across the await (tests only; the
   app watches these providers).
+
+### Driving the live app
+
+`test_driver/app.dart` is the normal app plus `enableFlutterDriverExtension()`
+— a separate entrypoint on purpose, since that extension opens a control
+channel into the isolate and has no business in a shipped build:
+
+```bash
+flutter run -d linux -t test_driver/app.dart
+```
+
+With it running, the Dart MCP server (`claude mcp add dart -- dart mcp-server`)
+can tap, screenshot, hot-reload and read runtime errors against the real app.
+Two things it needs from us: **fluent's `Tooltip` is not material's**, so
+`find.byTooltip` / driver's `ByTooltipMessage` see nothing — status-bar actions
+carry `gridActionKey(label)` and are selected `ByValueKey`. And a
+`RenderFlex` overflow **does not throw in release**: the child is still laid
+out, just never painted and never hit-testable, so a too-narrow pane silently
+eats a button. Both narrow-pane bugs below were found this way, not by tests.
 
 ### Cross-engine live tests
 

@@ -80,6 +80,10 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # Drives the live app from outside (test_driver/app.dart). Dev-only on
+  # purpose: the driver extension opens a control channel into the isolate.
+  flutter_driver:
+    sdk: flutter
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

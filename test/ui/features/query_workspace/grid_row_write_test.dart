@@ -45,8 +45,9 @@ final _rows = WorksheetRows(
   editability: _editability,
 );
 
-Future<ProviderContainer> _pumpGrid(WidgetTester tester) async {
-  tester.view.physicalSize = const Size(1000, 700);
+Future<ProviderContainer> _pumpGrid(WidgetTester tester,
+    {double width = 1000}) async {
+  tester.view.physicalSize = Size(width, 700);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
 
@@ -217,6 +218,54 @@ void main() {
     expect(pending.has('id'), isFalse);
     expect(_sqlOf(_buffer(container)).single,
         '''INSERT INTO "customers" ("name") VALUES ('a');''');
+  });
+
+  testWidgets('a narrow results pane keeps every action reachable',
+      (tester) async {
+    // Found by driving the live app: the results pane is user-resizable, and
+    // at ~217px the status bar overflowed by 69px — which does not throw in
+    // release, it just lays the buttons out past the edge and never paints
+    // them. Add Row became untappable.
+    final container = await _pumpGrid(tester, width: 260);
+
+    // Staged through the notifier rather than the row menus: at this width the
+    // grid's own cells are scrolled off horizontally, and the subject here is
+    // the status bar, not how the changes got there.
+    final edits = container.read(gridEditsProvider(_gridId).notifier);
+    edits.stage(const StagedEdit(
+      rowIndex: 1,
+      column: 'name',
+      oldValue: 'a',
+      newValue: 'z',
+    ));
+    edits.toggleDelete(0);
+    edits.addRow();
+    await tester.pumpAndSettle();
+    expect(_buffer(container).count, 3, reason: 'bar is in its widest state');
+
+    // By key, not tooltip: `find.byTooltip` matches material's Tooltip and this
+    // app is on fluent's, a different class entirely. The label is gone at this
+    // width anyway, which is the whole point.
+    Finder barButton(String label) =>
+        find.byKey(ValueKey(gridActionKey(label)));
+
+    for (final label in ['Add Row', 'Discard', 'Review & Apply']) {
+      final button = barButton(label);
+      expect(button, findsOneWidget, reason: '$label is missing');
+      // Past the right edge is exactly what an overflow does — the child is
+      // still laid out, just never painted and never hit-testable.
+      expect(tester.getBottomRight(button).dx, lessThanOrEqualTo(260.5),
+          reason: '$label runs off the 260px pane');
+    }
+
+    // Labels are dropped at this width — the icon plus its tooltip is what
+    // fits, and losing a word beats losing the button.
+    expect(find.text('Review & Apply'), findsNothing);
+
+    // And it is genuinely tappable, which is the thing that broke.
+    await tester.tap(barButton('Discard'));
+    await tester.pumpAndSettle();
+    expect(_buffer(container).isEmpty, isTrue);
   });
 
   testWidgets('the status bar names the three kinds of pending change',
