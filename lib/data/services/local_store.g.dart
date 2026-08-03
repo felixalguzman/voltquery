@@ -1693,12 +1693,221 @@ class SettingsRowsCompanion extends UpdateCompanion<SettingsRow> {
   }
 }
 
+class $UiStateRowsTable extends UiStateRows
+    with TableInfo<$UiStateRowsTable, UiStateRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $UiStateRowsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _keyMeta = const VerificationMeta('key');
+  @override
+  late final GeneratedColumn<String> key = GeneratedColumn<String>(
+    'key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _valueMeta = const VerificationMeta('value');
+  @override
+  late final GeneratedColumn<String> value = GeneratedColumn<String>(
+    'value',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [key, value];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'ui_state_rows';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<UiStateRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('key')) {
+      context.handle(
+        _keyMeta,
+        key.isAcceptableOrUnknown(data['key']!, _keyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_keyMeta);
+    }
+    if (data.containsKey('value')) {
+      context.handle(
+        _valueMeta,
+        value.isAcceptableOrUnknown(data['value']!, _valueMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_valueMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {key};
+  @override
+  UiStateRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return UiStateRow(
+      key: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}key'],
+      )!,
+      value: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}value'],
+      )!,
+    );
+  }
+
+  @override
+  $UiStateRowsTable createAlias(String alias) {
+    return $UiStateRowsTable(attachedDatabase, alias);
+  }
+}
+
+class UiStateRow extends DataClass implements Insertable<UiStateRow> {
+  final String key;
+  final String value;
+  const UiStateRow({required this.key, required this.value});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['key'] = Variable<String>(key);
+    map['value'] = Variable<String>(value);
+    return map;
+  }
+
+  UiStateRowsCompanion toCompanion(bool nullToAbsent) {
+    return UiStateRowsCompanion(key: Value(key), value: Value(value));
+  }
+
+  factory UiStateRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return UiStateRow(
+      key: serializer.fromJson<String>(json['key']),
+      value: serializer.fromJson<String>(json['value']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'key': serializer.toJson<String>(key),
+      'value': serializer.toJson<String>(value),
+    };
+  }
+
+  UiStateRow copyWith({String? key, String? value}) =>
+      UiStateRow(key: key ?? this.key, value: value ?? this.value);
+  UiStateRow copyWithCompanion(UiStateRowsCompanion data) {
+    return UiStateRow(
+      key: data.key.present ? data.key.value : this.key,
+      value: data.value.present ? data.value.value : this.value,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('UiStateRow(')
+          ..write('key: $key, ')
+          ..write('value: $value')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(key, value);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is UiStateRow &&
+          other.key == this.key &&
+          other.value == this.value);
+}
+
+class UiStateRowsCompanion extends UpdateCompanion<UiStateRow> {
+  final Value<String> key;
+  final Value<String> value;
+  final Value<int> rowid;
+  const UiStateRowsCompanion({
+    this.key = const Value.absent(),
+    this.value = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  UiStateRowsCompanion.insert({
+    required String key,
+    required String value,
+    this.rowid = const Value.absent(),
+  }) : key = Value(key),
+       value = Value(value);
+  static Insertable<UiStateRow> custom({
+    Expression<String>? key,
+    Expression<String>? value,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (key != null) 'key': key,
+      if (value != null) 'value': value,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  UiStateRowsCompanion copyWith({
+    Value<String>? key,
+    Value<String>? value,
+    Value<int>? rowid,
+  }) {
+    return UiStateRowsCompanion(
+      key: key ?? this.key,
+      value: value ?? this.value,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (key.present) {
+      map['key'] = Variable<String>(key.value);
+    }
+    if (value.present) {
+      map['value'] = Variable<String>(value.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('UiStateRowsCompanion(')
+          ..write('key: $key, ')
+          ..write('value: $value, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$LocalStore extends GeneratedDatabase {
   _$LocalStore(QueryExecutor e) : super(e);
   $LocalStoreManager get managers => $LocalStoreManager(this);
   late final $HistoryRowsTable historyRows = $HistoryRowsTable(this);
   late final $ConnectionRowsTable connectionRows = $ConnectionRowsTable(this);
   late final $SettingsRowsTable settingsRows = $SettingsRowsTable(this);
+  late final $UiStateRowsTable uiStateRows = $UiStateRowsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1707,6 +1916,7 @@ abstract class _$LocalStore extends GeneratedDatabase {
     historyRows,
     connectionRows,
     settingsRows,
+    uiStateRows,
   ];
 }
 
@@ -2541,6 +2751,142 @@ typedef $$SettingsRowsTableProcessedTableManager =
       SettingsRow,
       PrefetchHooks Function()
     >;
+typedef $$UiStateRowsTableCreateCompanionBuilder =
+    UiStateRowsCompanion Function({
+      required String key,
+      required String value,
+      Value<int> rowid,
+    });
+typedef $$UiStateRowsTableUpdateCompanionBuilder =
+    UiStateRowsCompanion Function({
+      Value<String> key,
+      Value<String> value,
+      Value<int> rowid,
+    });
+
+class $$UiStateRowsTableFilterComposer
+    extends Composer<_$LocalStore, $UiStateRowsTable> {
+  $$UiStateRowsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$UiStateRowsTableOrderingComposer
+    extends Composer<_$LocalStore, $UiStateRowsTable> {
+  $$UiStateRowsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$UiStateRowsTableAnnotationComposer
+    extends Composer<_$LocalStore, $UiStateRowsTable> {
+  $$UiStateRowsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get key =>
+      $composableBuilder(column: $table.key, builder: (column) => column);
+
+  GeneratedColumn<String> get value =>
+      $composableBuilder(column: $table.value, builder: (column) => column);
+}
+
+class $$UiStateRowsTableTableManager
+    extends
+        RootTableManager<
+          _$LocalStore,
+          $UiStateRowsTable,
+          UiStateRow,
+          $$UiStateRowsTableFilterComposer,
+          $$UiStateRowsTableOrderingComposer,
+          $$UiStateRowsTableAnnotationComposer,
+          $$UiStateRowsTableCreateCompanionBuilder,
+          $$UiStateRowsTableUpdateCompanionBuilder,
+          (
+            UiStateRow,
+            BaseReferences<_$LocalStore, $UiStateRowsTable, UiStateRow>,
+          ),
+          UiStateRow,
+          PrefetchHooks Function()
+        > {
+  $$UiStateRowsTableTableManager(_$LocalStore db, $UiStateRowsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$UiStateRowsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$UiStateRowsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$UiStateRowsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> key = const Value.absent(),
+                Value<String> value = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => UiStateRowsCompanion(key: key, value: value, rowid: rowid),
+          createCompanionCallback:
+              ({
+                required String key,
+                required String value,
+                Value<int> rowid = const Value.absent(),
+              }) => UiStateRowsCompanion.insert(
+                key: key,
+                value: value,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$UiStateRowsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$LocalStore,
+      $UiStateRowsTable,
+      UiStateRow,
+      $$UiStateRowsTableFilterComposer,
+      $$UiStateRowsTableOrderingComposer,
+      $$UiStateRowsTableAnnotationComposer,
+      $$UiStateRowsTableCreateCompanionBuilder,
+      $$UiStateRowsTableUpdateCompanionBuilder,
+      (UiStateRow, BaseReferences<_$LocalStore, $UiStateRowsTable, UiStateRow>),
+      UiStateRow,
+      PrefetchHooks Function()
+    >;
 
 class $LocalStoreManager {
   final _$LocalStore _db;
@@ -2551,4 +2897,6 @@ class $LocalStoreManager {
       $$ConnectionRowsTableTableManager(_db, _db.connectionRows);
   $$SettingsRowsTableTableManager get settingsRows =>
       $$SettingsRowsTableTableManager(_db, _db.settingsRows);
+  $$UiStateRowsTableTableManager get uiStateRows =>
+      $$UiStateRowsTableTableManager(_db, _db.uiStateRows);
 }

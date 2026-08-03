@@ -708,7 +708,7 @@ final class GridEditsProvider
   }
 }
 
-String _$gridEditsHash() => r'e7df2f62a996b1e40a59d572980759fe8fb82383';
+String _$gridEditsHash() => r'28df9704b11e314a4740d5578fdd8541b4fb05e0';
 
 /// Pending cell edits for one result grid, keyed `<worksheetId>:<resultIndex>`
 /// so each result sub-tab stages independently.
@@ -1168,7 +1168,7 @@ final class WorksheetProvider
   }
 }
 
-String _$worksheetHash() => r'd942b78724f8ced6460d7843bd096936f4468ab1';
+String _$worksheetHash() => r'53eddabac30a036b19f7a176deba598e76073464';
 
 /// Per-Worksheet result state (family keyed by WorksheetId).
 

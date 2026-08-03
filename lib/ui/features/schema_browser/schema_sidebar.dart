@@ -9,6 +9,7 @@ import '../../core/theme/volt_tokens.dart';
 import '../../../domain/drivers/driver_error.dart';
 import '../../../domain/models/column_editor.dart';
 import '../../../domain/models/schema.dart';
+import '../../../domain/models/tree_expansion.dart';
 import '../../core/theme/sql_type_colors.dart';
 import '../../../domain/sql/sql_statement_splitter.dart';
 import '../../core/menu/context_menu.dart';
@@ -95,9 +96,19 @@ class SchemaSidebar extends ConsumerWidget {
 
 /// Carried in each expandable node's `value`: how to load its children, and a
 /// latch so we fetch (and append) them at most once per node.
+/// The lazy Indexes folder's label. Named because it is also a path segment in
+/// [TreeExpansion], so renaming it would silently orphan saved state.
+const String kIndexesLabel = 'Indexes';
+
 class _Loader {
-  _Loader(this.load);
+  _Loader(this.load, this.path);
   final Future<List<TreeViewItem>> Function() load;
+
+  /// Where this node sits, for [TreeExpansion]. Carried here rather than
+  /// derived on demand: by the time a node is toggled, walking back up the tree
+  /// to rebuild its path would mean matching on widget text.
+  final String path;
+
   bool loaded = false;
 }
 
@@ -204,10 +215,82 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
       if (!mounted) return;
       _controller.items = roots;
       setState(() => _roots = roots);
+      await _restoreExpansion();
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e);
     }
+  }
+
+  /// Which nodes were open last time, for this connection.
+  TreeExpansion _expansion = const TreeExpansion();
+
+  /// Records an expand or collapse and persists it.
+  ///
+  /// Fire-and-forget: a failed write costs the next restore, and blocking the
+  /// tree on a local disk write would be a worse trade.
+  void _remember(String path, bool expanded) {
+    final next =
+        expanded ? _expansion.expand(path) : _expansion.collapse(path);
+    if (next == _expansion) return;
+    _expansion = next;
+    unawaited(
+      ref
+          .read(uiStateRepositoryProvider)
+          .writeTreeExpansion(_connectionId, next),
+    );
+  }
+
+  String get _connectionId => ref.read(currentConnectionProvider).id;
+
+  /// Re-opens what was open, breadth-first and capped.
+  ///
+  /// Sequential rather than concurrent: each expansion loads its children, and
+  /// a child cannot be found until its parent has them. A path that no longer
+  /// resolves is dropped — a table someone deleted should just stop coming
+  /// back, not raise anything.
+  Future<void> _restoreExpansion() async {
+    _expansion = await ref
+        .read(uiStateRepositoryProvider)
+        .readTreeExpansion(_connectionId);
+    if (_expansion.isEmpty || !mounted) return;
+
+    final resolved = <String>{};
+    for (final path in _expansion.restoreOrder()) {
+      if (!mounted) return;
+      final item = _itemAt(path);
+      if (item == null) continue;
+      resolved.add(path);
+      item.expanded = true;
+      await _onExpand(item, true);
+    }
+    if (!mounted) return;
+    setState(() {});
+
+    // Prune in one write rather than per miss, so a stale saved state costs a
+    // single update instead of one per dropped table.
+    final pruned = _expansion.prune(resolved.contains);
+    if (pruned != _expansion) {
+      _expansion = pruned;
+      unawaited(ref
+          .read(uiStateRepositoryProvider)
+          .writeTreeExpansion(_connectionId, pruned));
+    }
+  }
+
+  /// The loaded node at [path], or null when it no longer exists.
+  TreeViewItem? _itemAt(String path) {
+    TreeViewItem? walk(Iterable<TreeViewItem> items) {
+      for (final item in items) {
+        final loader = item.value;
+        if (loader is _Loader && loader.path == path) return item;
+        final hit = walk(item.children);
+        if (hit != null) return hit;
+      }
+      return null;
+    }
+
+    return walk(_roots ?? const <TreeViewItem>[]);
   }
 
   // --- Node builders ---------------------------------------------------------
@@ -223,23 +306,27 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
       ),
     ),
     lazy: true,
-    value: _Loader(() async => _objectItems(await widget.repo.tables(s))),
+    value: _Loader(
+      () async => _objectItems(await widget.repo.tables(s), parent: s.name),
+      TreeExpansion.pathOf([s.name]),
+    ),
     onExpandToggle: _onExpand,
   );
 
-  List<TreeViewItem> _objectItems(List<TableInfo> all) {
+  List<TreeViewItem> _objectItems(List<TableInfo> all, {String parent = ''}) {
     for (final o in all) {
       _objects[_keyOf(o)] = o;
     }
     return [
       for (final o in all.where((o) => o.kind == ObjectKind.table))
-        _objectItem(o, FluentIcons.table),
+        _objectItem(o, FluentIcons.table, parent),
       for (final o in all.where((o) => o.kind == ObjectKind.view))
-        _objectItem(o, FluentIcons.page),
+        _objectItem(o, FluentIcons.page, parent),
     ];
   }
 
-  TreeViewItem _objectItem(TableInfo obj, IconData icon) => TreeViewItem(
+  TreeViewItem _objectItem(TableInfo obj, IconData icon, String parent) =>
+      TreeViewItem(
     // fluent hardcodes its expander chevron at 8px, which is a very small
     // target — miss it and the row press opens a worksheet instead. The
     // object icon doubles as a second, larger expand/collapse target.
@@ -293,8 +380,8 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
     value: _Loader(() async {
       final cols = await widget.repo.columns(obj);
       _columns[_keyOf(obj)] = cols;
-      return [..._columnItems(cols), _indexesFolder(obj)];
-    }),
+      return [..._columnItems(cols), _indexesFolder(obj, parent)];
+    }, _pathOf(parent, obj.name)),
     onInvoked: (item, reason) async {
       // The chevron also fires onInvoked(expandToggle) — ignore that; only a
       // row press opens the table (preview = seed + run).
@@ -497,20 +584,29 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
   ];
 
   /// The lazy "Indexes" group under a table/view.
-  TreeViewItem _indexesFolder(TableInfo obj) => TreeViewItem(
+  TreeViewItem _indexesFolder(TableInfo obj, String parent) => TreeViewItem(
     leading: Icon(FluentIcons.folder, size: 12, color: t.textLow),
     content: _row(
       Text(
-        'Indexes',
+        kIndexesLabel,
         style: TextStyle(color: t.textMid, fontSize: 11.5, letterSpacing: 0.3),
       ),
     ),
     lazy: true,
     value: _Loader(
       () async => _indexItems(obj, await widget.repo.indexes(obj)),
+      _pathOf(parent, obj.name, kIndexesLabel),
     ),
     onExpandToggle: _onExpand,
   );
+
+  /// A node's path, skipping the schema level on engines that have none.
+  static String _pathOf(String parent, String name, [String? child]) =>
+      TreeExpansion.pathOf([
+        if (parent.isNotEmpty) parent,
+        name,
+        if (child != null) child,
+      ]);
 
   List<TreeViewItem> _indexItems(TableInfo obj, List<IndexInfo> indexes) => [
     for (final ix in indexes)
@@ -601,8 +697,9 @@ class _SchemaTreeState extends ConsumerState<_SchemaTree> {
   // --- Lazy expand -----------------------------------------------------------
 
   Future<void> _onExpand(TreeViewItem item, bool getsExpanded) async {
-    if (!getsExpanded) return;
     final loader = item.value;
+    if (loader is _Loader) _remember(loader.path, getsExpanded);
+    if (!getsExpanded) return;
     if (loader is! _Loader || loader.loaded) return;
     loader.loaded = true;
     try {

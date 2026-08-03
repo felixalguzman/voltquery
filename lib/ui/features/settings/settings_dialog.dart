@@ -127,6 +127,8 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
     );
     if (!ok) return;
     await ref.read(settingsProvider.notifier).resetToDefaults();
+    // Layout lives in its own table now, so "reset everything" has to say so.
+    await ref.read(uiStateRepositoryProvider).reset();
     // The window is the one setting with an effect outside the app's own state.
     await applyTitleBarVisibility(const AppSettings().titleBarVisible);
   }

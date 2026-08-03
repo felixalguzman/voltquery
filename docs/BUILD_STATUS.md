@@ -4,7 +4,7 @@ Snapshot of the implementation so a fresh session (or you) can pick up. The
 **spec** (what to build) lives in [`docs/README.md`](README.md) → CONTEXT.md,
 ADRs 0001–0009, `docs/design/*`. This file tracks **what's built** so far.
 
-## Done (85 PRs merged to `master`)
+## Done (86 PRs merged to `master`)
 
 Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/MariaDB**
 — all interchangeable behind the driver port (ADR-0003).
@@ -86,7 +86,7 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   a crash mid-rekey can't lose every secret. **Auto-locks** after an idle
   timeout (`VaultAutoLock` wraps the app; 0 = never).
   *Deviation:* vault used on all platforms; mac/win keychain deferred.
-- **Persistence** (drift `voltquery.db`, ADR-0005, schema **v6**): query
+- **Persistence** (drift `voltquery.db`, ADR-0005, schema **v7**): query
   **history** panel + saved connections + settings. Secret-free. History rows
   carry a **`HistorySource`** — `editor` (typed and run), `gridEdit` (DML the
   result grid generated), `tool` (app-composed but user-triggered, e.g. Table
@@ -214,7 +214,7 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   home in the menu bar, and the status bar's actions go icon-only rather than
   disappear. Run is the last thing standing.
 
-**397 tests** green (`flutter test`, +16 more with live PG/MySQL); `flutter analyze` clean.
+**413 tests** green (`flutter test`, +16 more with live PG/MySQL); `flutter analyze` clean.
 
 ## Deferred / known gaps
 
