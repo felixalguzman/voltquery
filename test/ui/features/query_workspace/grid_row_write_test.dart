@@ -11,6 +11,7 @@ import 'package:voltquery/domain/sql/sql_statement_splitter.dart';
 import 'package:voltquery/ui/features/history/history_providers.dart';
 import 'package:voltquery/ui/features/query_workspace/grid_edit_buffer.dart';
 import 'package:voltquery/ui/features/query_workspace/grid_editability.dart';
+import 'package:voltquery/ui/features/query_workspace/grid_undo.dart';
 import 'package:voltquery/ui/features/query_workspace/result_grid.dart';
 import 'package:voltquery/ui/features/query_workspace/worksheet_providers.dart';
 import 'package:voltquery/ui/features/query_workspace/worksheet_state.dart';
@@ -220,6 +221,30 @@ void main() {
         '''INSERT INTO "customers" ("name") VALUES ('a');''');
   });
 
+  testWidgets('Undo Apply appears only once there is something to undo',
+      (tester) async {
+    final container = await _pumpGrid(tester);
+    Finder undo() => find.byKey(ValueKey(gridActionKey('Undo Apply')));
+
+    // Nothing applied yet.
+    expect(undo(), findsNothing);
+
+    container.read(lastApplyProvider('ws').notifier).record(const GridUndo(
+          statements: ['UPDATE "customers" SET "name" = \'a\' WHERE "id" = 2;'],
+          complete: true,
+          insertCount: 0,
+        ));
+    await tester.pumpAndSettle();
+    expect(undo(), findsOneWidget);
+
+    // An apply with nothing recoverable records an empty undo, which must not
+    // offer a button that would do nothing.
+    container.read(lastApplyProvider('ws').notifier).record(
+        const GridUndo(statements: [], complete: false, insertCount: 1));
+    await tester.pumpAndSettle();
+    expect(undo(), findsNothing);
+  });
+
   testWidgets('a narrow results pane keeps every action reachable',
       (tester) async {
     // Found by driving the live app: the results pane is user-resizable, and
@@ -240,6 +265,12 @@ void main() {
     ));
     edits.toggleDelete(0);
     edits.addRow();
+    // Undo Apply is a *fourth* button; the widest state includes it.
+    container.read(lastApplyProvider('ws').notifier).record(const GridUndo(
+          statements: ['UPDATE "customers" SET "name" = NULL WHERE "id" = 1;'],
+          complete: true,
+          insertCount: 0,
+        ));
     await tester.pumpAndSettle();
     expect(_buffer(container).count, 3, reason: 'bar is in its widest state');
 
@@ -249,7 +280,13 @@ void main() {
     Finder barButton(String label) =>
         find.byKey(ValueKey(gridActionKey(label)));
 
-    for (final label in ['Add Row', 'Discard', 'Review & Apply']) {
+    for (final label in [
+      'Undo Apply',
+      'Export',
+      'Add Row',
+      'Discard',
+      'Review & Apply',
+    ]) {
       final button = barButton(label);
       expect(button, findsOneWidget, reason: '$label is missing');
       // Past the right edge is exactly what an overflow does — the child is

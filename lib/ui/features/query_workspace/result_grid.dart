@@ -22,6 +22,7 @@ import '../settings/settings_providers.dart';
 import 'export_dialog.dart';
 import 'grid_edit_buffer.dart';
 import 'grid_editability.dart';
+import 'grid_undo.dart';
 import 'worksheet_providers.dart';
 import 'worksheet_state.dart';
 
@@ -264,6 +265,17 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
     // are already rendered in place.
     final structural = buf.deletes.isNotEmpty || buf.inserts.isNotEmpty;
 
+    // Built now, while the old values are still the ones on screen — after the
+    // apply, `rows` describes a table that no longer exists.
+    final undo = GridUndo.of(
+      buffer: buf,
+      editability: e,
+      dialect: dialect,
+      fields: widget.rows.fields,
+      rows: widget.rows.rows,
+      pkValuesFor: _pkValues,
+    );
+
     final result = await ref
         .read(worksheetProvider(widget.worksheetId).notifier)
         .applyGridEdits(statements);
@@ -271,6 +283,13 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
 
     if (result.ok) {
       ref.read(gridEditsProvider(widget.gridId).notifier).clear();
+      ref
+          .read(lastApplyProvider(widget.worksheetId).notifier)
+          .record(
+            undo.isEmpty
+                ? const GridUndo(statements: [], complete: true, insertCount: 0)
+                : undo,
+          );
       await displayInfoBar(
         context,
         builder: (context, close) => InfoBar(
@@ -280,6 +299,15 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
           ),
           severity: InfoBarSeverity.success,
           onClose: close,
+          action: undo.isEmpty
+              ? null
+              : Button(
+                  onPressed: () {
+                    close();
+                    _undoLastApply();
+                  },
+                  child: const Text('Undo'),
+                ),
         ),
       );
       final sql = widget.sourceSql;
@@ -552,6 +580,41 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
     }
   }
 
+  /// Puts the last applied batch back, after the same review the forward
+  /// direction gets — an undo that runs unseen is just another surprise write.
+  Future<void> _undoLastApply() async {
+    final undo = ref.read(lastApplyProvider(widget.worksheetId));
+    if (undo == null || undo.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => _ReviewDialog(
+        statements: undo.statements,
+        title: 'Undo last apply',
+        note: undo.summary,
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final result = await ref
+        .read(worksheetProvider(widget.worksheetId).notifier)
+        .applyGridEdits(undo.statements);
+    if (!mounted) return;
+
+    if (result.ok) {
+      // One deep: the entry just consumed described a table state that no
+      // longer exists, and the one before it was already stale.
+      ref.read(lastApplyProvider(widget.worksheetId).notifier).clear();
+      _toast('Undone · ${result.rowsAffected} row(s)');
+      final sql = widget.sourceSql;
+      if (sql != null) {
+        await ref.read(worksheetProvider(widget.worksheetId).notifier).run(sql);
+      }
+    } else {
+      _toastError('Undo failed', result.error!.message);
+    }
+  }
+
   /// The exported text and how many rows it holds.
   Future<(String, int)> _serialize(ExportRequest request, String? sql) async {
     if (request.scope == ExportScope.visible || sql == null) {
@@ -653,6 +716,8 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
   Widget _statusBar(GridEditBuffer buf) {
     final r = widget.rows;
     final pending = buf.count;
+    final undo = ref.watch(lastApplyProvider(widget.worksheetId));
+    final undoable = undo != null && !undo.isEmpty;
     return Container(
       height: 28,
       alignment: Alignment.centerLeft,
@@ -712,6 +777,19 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
               // Always offered on an editable grid, not only once something is
               // staged: adding the first row is exactly the case where there is
               // nothing to right-click.
+              // Offered for as long as it is valid, not just for the life of a
+              // toast: a safety net you have to catch in four seconds is not
+              // one.
+              if (undoable) ...[
+                _barButton(
+                  'Undo Apply',
+                  FluentIcons.undo,
+                  t.warning,
+                  _undoLastApply,
+                  compact: compact,
+                ),
+                const SizedBox(width: 4),
+              ],
               _barButton(
                 'Export',
                 FluentIcons.download,
@@ -844,9 +922,16 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
 /// Shows the exact statements before they run — the safety payoff of staging
 /// edits instead of writing on blur.
 class _ReviewDialog extends StatelessWidget {
-  const _ReviewDialog({required this.statements});
+  const _ReviewDialog({required this.statements, this.title, this.note});
 
   final List<String> statements;
+
+  /// Overrides the "Review N statements" heading — an undo is a different
+  /// question even though it is the same review.
+  final String? title;
+
+  /// Replaces the explanation above the SQL.
+  final String? note;
 
   @override
   Widget build(BuildContext context) {
@@ -854,8 +939,9 @@ class _ReviewDialog extends StatelessWidget {
     return ContentDialog(
       constraints: const BoxConstraints(maxWidth: 620, maxHeight: 520),
       title: Text(
-        'Review ${statements.length} statement'
-        '${statements.length == 1 ? '' : 's'}',
+        title ??
+            'Review ${statements.length} statement'
+                '${statements.length == 1 ? '' : 's'}',
         style: const TextStyle(fontSize: 16),
       ),
       content: Column(
