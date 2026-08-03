@@ -2,9 +2,6 @@ import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../core/theme/volt_tokens.dart';
 
-// Palette lives in ui/core/theme (#7); these are local names for it.
-const _textMid = VoltPalette.textMid;
-
 /// Asks before doing something irreversible.
 ///
 /// The app has no undo, so anything that destroys data or state gets one of
@@ -18,24 +15,27 @@ Future<bool> confirm(
 }) async {
   final result = await showDialog<bool>(
     context: context,
-    builder: (context) => ContentDialog(
-      constraints: const BoxConstraints(maxWidth: 420),
-      title: Text(title, style: const TextStyle(fontSize: 16)),
-      content: Text(
-        message,
-        style: const TextStyle(color: _textMid, fontSize: 12.5),
-      ),
-      actions: [
-        Button(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
+    builder: (context) {
+      final t = VoltTheme.of(context);
+      return ContentDialog(
+        constraints: const BoxConstraints(maxWidth: 420),
+        title: Text(title, style: const TextStyle(fontSize: 16)),
+        content: Text(
+          message,
+          style: TextStyle(color: t.textMid, fontSize: 12.5),
         ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: Text(confirmLabel),
-        ),
-      ],
-    ),
+        actions: [
+          Button(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(confirmLabel),
+          ),
+        ],
+      );
+    },
   );
   return result ?? false;
 }

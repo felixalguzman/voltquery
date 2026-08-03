@@ -5,8 +5,10 @@ import '../../core/theme/volt_tokens.dart';
 /// Prompts for the vault master password (ADR-0006). [isNew] = first-run create
 /// (with confirm + "not recoverable" warning); otherwise unlock. Returns the
 /// password, or null if cancelled.
-Future<String?> showMasterPasswordDialog(BuildContext context,
-    {required bool isNew}) {
+Future<String?> showMasterPasswordDialog(
+  BuildContext context, {
+  required bool isNew,
+}) {
   return showDialog<String>(
     context: context,
     builder: (_) => _MasterPasswordDialog(isNew: isNew),
@@ -16,7 +18,8 @@ Future<String?> showMasterPasswordDialog(BuildContext context,
 /// Prompts for the current master password and a replacement. Returns null if
 /// cancelled. Verifying `current` is the store's job, not this dialog's.
 Future<({String current, String next})?> showChangeMasterPasswordDialog(
-    BuildContext context) {
+  BuildContext context,
+) {
   return showDialog<({String current, String next})>(
     context: context,
     builder: (_) => const _ChangeMasterPasswordDialog(),
@@ -74,7 +77,10 @@ class _ChangeMasterPasswordDialogState
           InfoLabel(
             label: 'Current password',
             child: TextBox(
-                controller: _current, obscureText: true, autofocus: true),
+              controller: _current,
+              obscureText: true,
+              autofocus: true,
+            ),
           ),
           const SizedBox(height: 10),
           InfoLabel(
@@ -98,15 +104,18 @@ class _ChangeMasterPasswordDialogState
           ),
           if (_error != null) ...[
             const SizedBox(height: 8),
-            Text(_error!,
-                style: const TextStyle(color: VoltPalette.danger, fontSize: 12)),
+            Text(
+              _error!,
+              style: const TextStyle(color: VoltPalette.danger, fontSize: 12),
+            ),
           ],
         ],
       ),
       actions: [
         Button(
-            child: const Text('Cancel'),
-            onPressed: () => Navigator.pop(context)),
+          child: const Text('Cancel'),
+          onPressed: () => Navigator.pop(context),
+        ),
         FilledButton(onPressed: _submit, child: const Text('Change')),
       ],
     );
@@ -180,18 +189,22 @@ class _MasterPasswordDialogState extends State<_MasterPasswordDialog> {
           ),
           if (_error != null) ...[
             const SizedBox(height: 8),
-            Text(_error!,
-                style: const TextStyle(color: VoltPalette.danger, fontSize: 12)),
+            Text(
+              _error!,
+              style: const TextStyle(color: VoltPalette.danger, fontSize: 12),
+            ),
           ],
         ],
       ),
       actions: [
         Button(
-            child: const Text('Cancel'),
-            onPressed: () => Navigator.pop(context)),
+          child: const Text('Cancel'),
+          onPressed: () => Navigator.pop(context),
+        ),
         FilledButton(
-            onPressed: _submit,
-            child: Text(widget.isNew ? 'Create' : 'Unlock')),
+          onPressed: _submit,
+          child: Text(widget.isNew ? 'Create' : 'Unlock'),
+        ),
       ],
     );
   }

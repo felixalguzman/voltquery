@@ -43,7 +43,9 @@ class SettingsRepository {
 
   /// Writes one setting. [value] must be JSON-encodable.
   Future<void> put(String key, Object? value) {
-    return _db.into(_db.settingsRows).insert(
+    return _db
+        .into(_db.settingsRows)
+        .insert(
           SettingsRowsCompanion.insert(key: key, value: jsonEncode(value)),
           mode: InsertMode.insertOrReplace,
         );

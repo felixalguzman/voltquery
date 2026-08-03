@@ -152,23 +152,28 @@ class GridEditBuffer {
 
   /// Append a new row, optionally pre-filled (that's how "duplicate row" works).
   GridEditBuffer addRow([Map<String, Object?> seed = const {}]) => _copy(
-        inserts: [...inserts, PendingRow(id: nextRowId, values: seed)],
-        nextRowId: nextRowId + 1,
-      );
+    inserts: [
+      ...inserts,
+      PendingRow(id: nextRowId, values: seed),
+    ],
+    nextRowId: nextRowId + 1,
+  );
 
-  GridEditBuffer setPendingValue(int id, String column, Object? value) =>
-      _copy(inserts: [
-        for (final r in inserts) r.id == id ? r.set(column, value) : r,
-      ]);
+  GridEditBuffer setPendingValue(int id, String column, Object? value) => _copy(
+    inserts: [for (final r in inserts) r.id == id ? r.set(column, value) : r],
+  );
 
   /// Back to unspecified, so the column drops out of the `INSERT` again.
-  GridEditBuffer clearPendingValue(int id, String column) =>
-      _copy(inserts: [
-        for (final r in inserts) r.id == id ? r.unset(column) : r,
-      ]);
+  GridEditBuffer clearPendingValue(int id, String column) => _copy(
+    inserts: [for (final r in inserts) r.id == id ? r.unset(column) : r],
+  );
 
-  GridEditBuffer removePendingRow(int id) =>
-      _copy(inserts: [for (final r in inserts) if (r.id != id) r]);
+  GridEditBuffer removePendingRow(int id) => _copy(
+    inserts: [
+      for (final r in inserts)
+        if (r.id != id) r,
+    ],
+  );
 
   /// Everything discarded. [nextRowId] deliberately carries over so ids stay
   /// unique for the life of the buffer even across a discard.
@@ -179,13 +184,12 @@ class GridEditBuffer {
     Set<int>? deletes,
     List<PendingRow>? inserts,
     int? nextRowId,
-  }) =>
-      GridEditBuffer(
-        edits: edits ?? this.edits,
-        deletes: deletes ?? this.deletes,
-        inserts: inserts ?? this.inserts,
-        nextRowId: nextRowId ?? this.nextRowId,
-      );
+  }) => GridEditBuffer(
+    edits: edits ?? this.edits,
+    deletes: deletes ?? this.deletes,
+    inserts: inserts ?? this.inserts,
+    nextRowId: nextRowId ?? this.nextRowId,
+  );
 
   /// NULL and the empty string are deliberately distinct here.
   static bool _same(Object? a, Object? b) {
@@ -230,11 +234,7 @@ class GridEditBuffer {
           if (editability.editorFor(e.column) case final editor?)
             CellEdit(e.column, e.newValue, editor),
       ];
-      final sql = builder.update(
-        editability.target,
-        cells,
-        RowIdentity(keys),
-      );
+      final sql = builder.update(editability.target, cells, RowIdentity(keys));
       if (sql != null) statements.add(sql);
     }
 

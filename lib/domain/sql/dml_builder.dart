@@ -61,8 +61,7 @@ class DmlBuilder {
   String? insert(EditableTarget target, List<CellEdit> values) {
     if (values.isEmpty) return null;
     final cols = values.map((e) => _ident(e.column)).join(', ');
-    final vals =
-        values.map((e) => _literal(e.value, e.editor)).join(', ');
+    final vals = values.map((e) => _literal(e.value, e.editor)).join(', ');
     return 'INSERT INTO ${_table(target)} ($cols) VALUES ($vals);';
   }
 
@@ -85,13 +84,14 @@ class DmlBuilder {
   /// PK predicate. Original values are encoded with a plain-text editor: PKs
   /// are ints/uuids/strings in practice, and we want the value exactly as read.
   String _where(RowIdentity identity) => identity.keys.entries
-      .map((e) => e.value == null
-          ? '${_ident(e.key)} IS NULL'
-          : '${_ident(e.key)} = ${_rawLiteral(e.value)}')
+      .map(
+        (e) => e.value == null
+            ? '${_ident(e.key)} IS NULL'
+            : '${_ident(e.key)} = ${_rawLiteral(e.value)}',
+      )
       .join(' AND ');
 
-  String _table(EditableTarget t) =>
-      dialect.qualify(t.table, schema: t.schema);
+  String _table(EditableTarget t) => dialect.qualify(t.table, schema: t.schema);
 
   /// Quote an identifier for the dialect. Shared with the schema tree's
   /// generated SELECTs so the two can't drift apart.
@@ -103,8 +103,7 @@ class DmlBuilder {
     return switch (editor.kind) {
       ColumnEditorKind.boolean => _boolLiteral(value),
       ColumnEditorKind.integer ||
-      ColumnEditorKind.decimal =>
-        _numberLiteral(value),
+      ColumnEditorKind.decimal => _numberLiteral(value),
       // JSON, dates and enums all travel as quoted strings; the engine casts.
       _ => _quote('$value'),
     };
@@ -112,18 +111,23 @@ class DmlBuilder {
 
   /// Original PK values, encoded by runtime type (we have no editor for them).
   String _rawLiteral(Object? value) => switch (value) {
-        null => 'NULL',
-        bool b => _boolLiteral(b),
-        num n => '$n',
-        _ => _quote('$value'),
-      };
+    null => 'NULL',
+    bool b => _boolLiteral(b),
+    num n => '$n',
+    _ => _quote('$value'),
+  };
 
   String _boolLiteral(Object value) {
     final truthy = switch (value) {
       bool b => b,
       num n => n != 0,
-      _ => const {'true', 't', '1', 'yes', 'y'}
-          .contains('$value'.toLowerCase()),
+      _ => const {
+        'true',
+        't',
+        '1',
+        'yes',
+        'y',
+      }.contains('$value'.toLowerCase()),
     };
     // Postgres has real booleans; MySQL/SQLite store 0/1.
     if (dialect == SqlDialect.postgres) return truthy ? 'TRUE' : 'FALSE';

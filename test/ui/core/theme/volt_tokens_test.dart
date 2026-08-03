@@ -48,6 +48,54 @@ void main() {
     expect(values.toSet(), hasLength(values.length));
   });
 
+  test('the light palette is not the dark one inverted', () {
+    const d = VoltTokens.dark;
+    const l = VoltTokens.light;
+
+    // Surfaces flip, which is the easy half.
+    expect(l.canvas.computeLuminance(), greaterThan(d.canvas.computeLuminance()));
+    expect(l.textHigh.computeLuminance(), lessThan(d.textHigh.computeLuminance()));
+
+    // The half that gets forgotten: an accent tuned to glow on near-black is
+    // nearly invisible on white, and a hover that lightens has to darken.
+    expect(l.accent, isNot(d.accent));
+    expect(l.accent.computeLuminance(), lessThan(d.accent.computeLuminance()));
+    expect(l.hover.computeLuminance(), lessThan(d.hover.computeLuminance()));
+
+    // Every state colour is restated rather than reused.
+    for (final (name, dv, lv) in [
+      ('danger', d.danger, l.danger),
+      ('warning', d.warning, l.warning),
+      ('success', d.success, l.success),
+      ('violet', d.violet, l.violet),
+    ]) {
+      expect(lv, isNot(dv), reason: '$name was carried over unchanged');
+    }
+  });
+
+  test('body text has usable contrast on its own surface', () {
+    // The reason a light theme is more than swapping two colours. WCAG AA for
+    // body text is 4.5:1; this checks the pairs that carry actual content.
+    double ratio(Color fg, Color bg) {
+      final a = fg.computeLuminance(), b = bg.computeLuminance();
+      final (hi, lo) = a > b ? (a, b) : (b, a);
+      return (hi + 0.05) / (lo + 0.05);
+    }
+
+    for (final (name, tokens) in [
+      ('dark', VoltTokens.dark),
+      ('light', VoltTokens.light),
+    ]) {
+      expect(ratio(tokens.textHigh, tokens.panel), greaterThan(4.5),
+          reason: '$name: primary text on a panel');
+      expect(ratio(tokens.textHigh, tokens.canvas), greaterThan(4.5),
+          reason: '$name: primary text on the canvas');
+      // Secondary text is smaller in practice but still read, not scanned.
+      expect(ratio(tokens.textMid, tokens.panel), greaterThan(3.0),
+          reason: '$name: secondary text on a panel');
+    }
+  });
+
   testWidgets('VoltTheme hands the palette down, and dark is the fallback',
       (tester) async {
     late VoltTokens seen;

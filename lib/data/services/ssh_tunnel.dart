@@ -37,13 +37,16 @@ class SshTunnel {
     Duration timeout = const Duration(seconds: 15),
     KnownHostsStore? knownHosts,
     Future<bool> Function(HostKeyVerdict verdict, String fingerprint)?
-        onUnknownHostKey,
+    onUnknownHostKey,
   }) async {
     SSHClient? client;
     ServerSocket? server;
     try {
-      final socket = await SSHSocket.connect(config.host, config.port,
-          timeout: timeout);
+      final socket = await SSHSocket.connect(
+        config.host,
+        config.port,
+        timeout: timeout,
+      );
 
       client = SSHClient(
         socket,
@@ -62,8 +65,11 @@ class SshTunnel {
             return onUnknownHostKey != null &&
                 await onUnknownHostKey(HostKeyVerdict.unknown, fingerprint);
           }
-          final verdict =
-              await store.check(config.host, config.port, fingerprint);
+          final verdict = await store.check(
+            config.host,
+            config.port,
+            fingerprint,
+          );
           if (verdict == HostKeyVerdict.trusted) return true;
           if (onUnknownHostKey == null) return false;
           final accepted = await onUnknownHostKey(verdict, fingerprint);
@@ -83,13 +89,20 @@ class SshTunnel {
         try {
           final forward = await client!.forwardLocal(targetHost, targetPort);
           // Pump both ways; when either side ends, tear the pair down.
-          unawaited(local.addStream(forward.stream).whenComplete(() async {
-            await local.close();
-          }).catchError((_) {}));
-          unawaited(forward.sink
-              .addStream(local)
-              .whenComplete(() => forward.sink.close())
-              .catchError((_) {}));
+          unawaited(
+            local
+                .addStream(forward.stream)
+                .whenComplete(() async {
+                  await local.close();
+                })
+                .catchError((_) {}),
+          );
+          unawaited(
+            forward.sink
+                .addStream(local)
+                .whenComplete(() => forward.sink.close())
+                .catchError((_) {}),
+          );
         } catch (_) {
           // One failed forward must not kill the listener — the driver may
           // simply retry, and an exception here would take the tunnel with it.
@@ -111,7 +124,9 @@ class SshTunnel {
   }
 
   static Future<List<SSHKeyPair>> _identities(
-      SshConfig config, String? passphrase) async {
+    SshConfig config,
+    String? passphrase,
+  ) async {
     if (config.authMode != SshAuthMode.privateKey) return const [];
     final path = config.privateKeyPath;
     if (path == null || path.isEmpty) {

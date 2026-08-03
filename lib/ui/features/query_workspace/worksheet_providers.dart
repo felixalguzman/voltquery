@@ -153,10 +153,10 @@ Future<Session> _openSession(Ref ref, Connection conn) async {
 }
 
 int _defaultPort(Engine engine) => switch (engine) {
-      Engine.postgres => 5432,
-      Engine.mysql => 3306,
-      Engine.sqlite => 0,
-    };
+  Engine.postgres => 5432,
+  Engine.mysql => 3306,
+  Engine.sqlite => 0,
+};
 
 /// Seeds the demo database — a small but *representative* schema, not just one
 /// table.
@@ -444,8 +444,7 @@ class WorksheetOrigins extends _$WorksheetOrigins {
     return null;
   }
 
-  void forget(String worksheetId) =>
-      state = {...state}..remove(worksheetId);
+  void forget(String worksheetId) => state = {...state}..remove(worksheetId);
 }
 
 /// Watches settings, so changing the render cap takes effect on the next run
@@ -453,10 +452,7 @@ class WorksheetOrigins extends _$WorksheetOrigins {
 @riverpod
 WorksheetRunner worksheetRunner(Ref ref) {
   final s = ref.watch(settingsProvider);
-  return WorksheetRunner(
-    rowCap: s.resultRowCap,
-    batchSize: s.resultFetchBatch,
-  );
+  return WorksheetRunner(rowCap: s.resultRowCap, batchSize: s.resultFetchBatch);
 }
 
 /// Pending cell edits for one result grid, keyed `<worksheetId>:<resultIndex>`
@@ -758,15 +754,25 @@ class Worksheet extends _$Worksheet {
         );
       } on DriverError catch (e) {
         sw.stop();
-        await _record(sql, started, sw.elapsedMilliseconds,
-            WorksheetFailure(e), source: HistorySource.gridEdit);
+        await _record(
+          sql,
+          started,
+          sw.elapsedMilliseconds,
+          WorksheetFailure(e),
+          source: HistorySource.gridEdit,
+        );
         if (ownTx) await _rollbackQuietly(session);
         return GridEditApplyResult(applied: 0, error: e);
       } catch (e) {
         sw.stop();
         final err = DriverError(DriverErrorKind.unknown, e.toString());
-        await _record(sql, started, sw.elapsedMilliseconds,
-            WorksheetFailure(err), source: HistorySource.gridEdit);
+        await _record(
+          sql,
+          started,
+          sw.elapsedMilliseconds,
+          WorksheetFailure(err),
+          source: HistorySource.gridEdit,
+        );
         if (ownTx) await _rollbackQuietly(session);
         return GridEditApplyResult(applied: 0, error: err);
       }
@@ -814,7 +820,9 @@ class Worksheet extends _$Worksheet {
   Future<void> _endTx(Future<void> Function(Session) op) async {
     if (!ref.read(worksheetTxProvider(worksheetId))) return;
     try {
-      final session = await ref.read(worksheetSessionProvider(worksheetId).future);
+      final session = await ref.read(
+        worksheetSessionProvider(worksheetId).future,
+      );
       await op(session);
     } finally {
       // Whether or not it threw, the app no longer considers a tx open — a stuck
@@ -830,6 +838,7 @@ class Worksheet extends _$Worksheet {
     DateTime started,
     int ms,
     WorksheetResult result, {
+
     /// Row count for results that aren't [WorksheetRows] — a DML statement's
     /// affected-row count, which the switch below can't recover from a
     /// [WorksheetMessage].

@@ -43,9 +43,9 @@ class UiStateRepository {
   /// A blob written by another version must never stop the window opening, so
   /// anything unreadable reads as "no saved layout".
   Future<Object?> _readJson(String key) async {
-    final row = await (_db.select(_db.settingsRows)
-          ..where((t) => t.key.equals(key)))
-        .getSingleOrNull();
+    final row = await (_db.select(
+      _db.settingsRows,
+    )..where((t) => t.key.equals(key))).getSingleOrNull();
     if (row == null) return null;
     try {
       return jsonDecode(row.value);
@@ -55,7 +55,9 @@ class UiStateRepository {
   }
 
   Future<void> _write(String key, Object? value) {
-    return _db.into(_db.settingsRows).insert(
+    return _db
+        .into(_db.settingsRows)
+        .insert(
           SettingsRowsCompanion.insert(key: key, value: jsonEncode(value)),
           mode: InsertMode.insertOrReplace,
         );

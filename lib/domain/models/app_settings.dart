@@ -1,5 +1,19 @@
 import 'ssl_mode.dart';
 
+/// Which palette the app paints with.
+enum AppTheme {
+  dark('Dark'),
+  light('Light');
+
+  const AppTheme(this.label);
+  final String label;
+
+  /// Unknown or missing decodes to [fallback], which callers pass as the
+  /// model's own default — hardcoding one here would quietly ignore it.
+  static AppTheme byName(String? name, {AppTheme fallback = AppTheme.dark}) =>
+      values.firstWhere((v) => v.name == name, orElse: () => fallback);
+}
+
 /// App-wide preferences — the values that used to be constants scattered
 /// through the widget tree (render caps, editor font, connection defaults).
 ///
@@ -19,10 +33,14 @@ class AppSettings {
     this.tablePreviewLimit = 200,
     this.nullDisplay = 'NULL',
     this.titleBarVisible = true,
+    this.theme = AppTheme.dark,
     this.defaultSslMode = SslMode.require,
     this.defaultConnectTimeoutSeconds = 15,
     this.vaultAutoLockMinutes = 0,
   });
+
+  /// Which palette the app paints with.
+  final AppTheme theme;
 
   /// Prune history on startup. Off keeps every row forever, which is a real
   /// choice — history is the only record of what you ran.
@@ -86,45 +104,45 @@ class AppSettings {
     int? tablePreviewLimit,
     String? nullDisplay,
     bool? titleBarVisible,
+    AppTheme? theme,
     SslMode? defaultSslMode,
     int? defaultConnectTimeoutSeconds,
     int? vaultAutoLockMinutes,
-  }) =>
-      AppSettings(
-        historyRetentionEnabled:
-            historyRetentionEnabled ?? this.historyRetentionEnabled,
-        historyRetentionDays: historyRetentionDays ?? this.historyRetentionDays,
-        historyRetentionRows: historyRetentionRows ?? this.historyRetentionRows,
-        editorFontFamily: editorFontFamily ?? this.editorFontFamily,
-        editorFontSize: editorFontSize ?? this.editorFontSize,
-        resultRowCap: resultRowCap ?? this.resultRowCap,
-        resultFetchBatch: resultFetchBatch ?? this.resultFetchBatch,
-        tablePreviewLimit: tablePreviewLimit ?? this.tablePreviewLimit,
-        nullDisplay: nullDisplay ?? this.nullDisplay,
-        titleBarVisible: titleBarVisible ?? this.titleBarVisible,
-        defaultSslMode: defaultSslMode ?? this.defaultSslMode,
-        defaultConnectTimeoutSeconds:
-            defaultConnectTimeoutSeconds ?? this.defaultConnectTimeoutSeconds,
-        vaultAutoLockMinutes: vaultAutoLockMinutes ?? this.vaultAutoLockMinutes,
-      );
+  }) => AppSettings(
+    historyRetentionEnabled:
+        historyRetentionEnabled ?? this.historyRetentionEnabled,
+    historyRetentionDays: historyRetentionDays ?? this.historyRetentionDays,
+    historyRetentionRows: historyRetentionRows ?? this.historyRetentionRows,
+    editorFontFamily: editorFontFamily ?? this.editorFontFamily,
+    editorFontSize: editorFontSize ?? this.editorFontSize,
+    resultRowCap: resultRowCap ?? this.resultRowCap,
+    resultFetchBatch: resultFetchBatch ?? this.resultFetchBatch,
+    tablePreviewLimit: tablePreviewLimit ?? this.tablePreviewLimit,
+    nullDisplay: nullDisplay ?? this.nullDisplay,
+    titleBarVisible: titleBarVisible ?? this.titleBarVisible,
+    defaultSslMode: defaultSslMode ?? this.defaultSslMode,
+    defaultConnectTimeoutSeconds:
+        defaultConnectTimeoutSeconds ?? this.defaultConnectTimeoutSeconds,
+    vaultAutoLockMinutes: vaultAutoLockMinutes ?? this.vaultAutoLockMinutes,
+  );
 
   /// One entry per settings row. Keys are the wire format — renaming one is a
   /// silent reset to default for everyone who had it set, so don't.
   Map<String, Object?> toJson() => {
-        'historyRetentionEnabled': historyRetentionEnabled,
-        'historyRetentionDays': historyRetentionDays,
-        'historyRetentionRows': historyRetentionRows,
-        'editorFontFamily': editorFontFamily,
-        'editorFontSize': editorFontSize,
-        'resultRowCap': resultRowCap,
-        'resultFetchBatch': resultFetchBatch,
-        'tablePreviewLimit': tablePreviewLimit,
-        'nullDisplay': nullDisplay,
-        'titleBarVisible': titleBarVisible,
-        'defaultSslMode': defaultSslMode.name,
-        'defaultConnectTimeoutSeconds': defaultConnectTimeoutSeconds,
-        'vaultAutoLockMinutes': vaultAutoLockMinutes,
-      };
+    'historyRetentionEnabled': historyRetentionEnabled,
+    'historyRetentionDays': historyRetentionDays,
+    'historyRetentionRows': historyRetentionRows,
+    'editorFontFamily': editorFontFamily,
+    'editorFontSize': editorFontSize,
+    'resultRowCap': resultRowCap,
+    'resultFetchBatch': resultFetchBatch,
+    'tablePreviewLimit': tablePreviewLimit,
+    'nullDisplay': nullDisplay,
+    'titleBarVisible': titleBarVisible,
+    'defaultSslMode': defaultSslMode.name,
+    'defaultConnectTimeoutSeconds': defaultConnectTimeoutSeconds,
+    'vaultAutoLockMinutes': vaultAutoLockMinutes,
+  };
 
   /// Tolerant like [ConnectionOptions.fromJson]: a value of the wrong type, or
   /// one written by a build that stored it differently, falls back to the
@@ -132,34 +150,63 @@ class AppSettings {
   factory AppSettings.fromJson(Map<String, Object?> json) {
     const d = AppSettings();
     return AppSettings(
-      historyRetentionEnabled:
-          _bool(json['historyRetentionEnabled'], d.historyRetentionEnabled),
+      historyRetentionEnabled: _bool(
+        json['historyRetentionEnabled'],
+        d.historyRetentionEnabled,
+      ),
       historyRetentionDays: _int(
-          json['historyRetentionDays'], d.historyRetentionDays,
-          min: 1),
+        json['historyRetentionDays'],
+        d.historyRetentionDays,
+        min: 1,
+      ),
       historyRetentionRows: _int(
-          json['historyRetentionRows'], d.historyRetentionRows,
-          min: 1),
+        json['historyRetentionRows'],
+        d.historyRetentionRows,
+        min: 1,
+      ),
       editorFontFamily: _string(json['editorFontFamily'], d.editorFontFamily),
-      editorFontSize:
-          _double(json['editorFontSize'], d.editorFontSize, min: 6, max: 48),
-      resultRowCap:
-          _int(json['resultRowCap'], d.resultRowCap, min: 1, max: 1000000),
-      resultFetchBatch:
-          _int(json['resultFetchBatch'], d.resultFetchBatch, min: 1, max: 10000),
-      tablePreviewLimit: _int(json['tablePreviewLimit'], d.tablePreviewLimit,
-          min: 1, max: 1000000),
+      editorFontSize: _double(
+        json['editorFontSize'],
+        d.editorFontSize,
+        min: 6,
+        max: 48,
+      ),
+      resultRowCap: _int(
+        json['resultRowCap'],
+        d.resultRowCap,
+        min: 1,
+        max: 1000000,
+      ),
+      resultFetchBatch: _int(
+        json['resultFetchBatch'],
+        d.resultFetchBatch,
+        min: 1,
+        max: 10000,
+      ),
+      tablePreviewLimit: _int(
+        json['tablePreviewLimit'],
+        d.tablePreviewLimit,
+        min: 1,
+        max: 1000000,
+      ),
       nullDisplay: _string(json['nullDisplay'], d.nullDisplay),
       titleBarVisible: _bool(json['titleBarVisible'], d.titleBarVisible),
       // No `byName` fallback games here: SslMode.byName already lands on
       // `require` for anything unrecognised, never on `disable`.
+      theme: AppTheme.byName(json['theme'] as String?, fallback: d.theme),
       defaultSslMode: SslMode.byName(json['defaultSslMode'] as String?),
       defaultConnectTimeoutSeconds: _int(
-          json['defaultConnectTimeoutSeconds'], d.defaultConnectTimeoutSeconds,
-          min: 1, max: 600),
+        json['defaultConnectTimeoutSeconds'],
+        d.defaultConnectTimeoutSeconds,
+        min: 1,
+        max: 600,
+      ),
       vaultAutoLockMinutes: _int(
-          json['vaultAutoLockMinutes'], d.vaultAutoLockMinutes,
-          min: 0, max: 1440),
+        json['vaultAutoLockMinutes'],
+        d.vaultAutoLockMinutes,
+        min: 0,
+        max: 1440,
+      ),
     );
   }
 
@@ -180,7 +227,12 @@ class AppSettings {
     return n;
   }
 
-  static double _double(Object? v, double fallback, {double? min, double? max}) {
+  static double _double(
+    Object? v,
+    double fallback, {
+    double? min,
+    double? max,
+  }) {
     final n = v is num ? v.toDouble() : null;
     if (n == null) return fallback;
     if (min != null && n < min) return fallback;

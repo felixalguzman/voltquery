@@ -21,8 +21,7 @@ class HistoryRows extends Table {
 
   /// [HistorySource] name. Defaults to `editor` so rows written before this
   /// column existed — all of which were worksheet runs — stay correct.
-  TextColumn get source =>
-      text().withDefault(const Constant('editor'))();
+  TextColumn get source => text().withDefault(const Constant('editor'))();
   IntColumn get rowCount => integer().nullable()();
   TextColumn get errorKind => text().nullable()();
   TextColumn get errorMessage => text().nullable()();
@@ -44,8 +43,7 @@ class ConnectionRows extends Table {
 
   /// [SslMode] name. **Superseded by [options]** in schema v4 and read only by
   /// the v3→v4 migration; kept so that migration has something to read.
-  TextColumn get sslMode =>
-      text().withDefault(const Constant('require'))();
+  TextColumn get sslMode => text().withDefault(const Constant('require'))();
 
   /// Superseded by [options] — see [sslMode].
   TextColumn get caCertPath => text().nullable()();
@@ -57,8 +55,7 @@ class ConnectionRows extends Table {
   /// migration per knob would be all cost and no benefit. The fields the app
   /// branches on are still typed — inside the decoded object.
   TextColumn get options => text().withDefault(const Constant('{}'))();
-  DateTimeColumn get createdAt =>
-      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -94,32 +91,32 @@ class LocalStore extends _$LocalStore {
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        onCreate: (m) => m.createAll(),
-        onUpgrade: (m, from, to) async {
-          if (from < 2) await m.createTable(connectionRows);
-          if (from < 3) {
-            await m.addColumn(connectionRows, connectionRows.sslMode);
-            await m.addColumn(connectionRows, connectionRows.caCertPath);
-          }
-          if (from < 4) {
-            await m.addColumn(connectionRows, connectionRows.options);
-            // Carry the v3 TLS columns into the options blob rather than
-            // letting them fall back to defaults — silently resetting someone's
-            // verify-full connection to `require` on upgrade would be a
-            // security downgrade they never asked for.
-            await customStatement(
-              "UPDATE connection_rows SET options = json_object("
-              "'sslMode', COALESCE(ssl_mode, 'require'), "
-              "'caCertPath', ca_cert_path, "
-              "'enforceForeignKeys', json('true'), "
-              "'readOnly', json('false'), "
-              "'connectTimeoutSeconds', 15)",
-            );
-          }
-          if (from < 5) await m.createTable(settingsRows);
-          if (from < 6) await m.addColumn(historyRows, historyRows.source);
-        },
-      );
+    onCreate: (m) => m.createAll(),
+    onUpgrade: (m, from, to) async {
+      if (from < 2) await m.createTable(connectionRows);
+      if (from < 3) {
+        await m.addColumn(connectionRows, connectionRows.sslMode);
+        await m.addColumn(connectionRows, connectionRows.caCertPath);
+      }
+      if (from < 4) {
+        await m.addColumn(connectionRows, connectionRows.options);
+        // Carry the v3 TLS columns into the options blob rather than
+        // letting them fall back to defaults — silently resetting someone's
+        // verify-full connection to `require` on upgrade would be a
+        // security downgrade they never asked for.
+        await customStatement(
+          "UPDATE connection_rows SET options = json_object("
+          "'sslMode', COALESCE(ssl_mode, 'require'), "
+          "'caCertPath', ca_cert_path, "
+          "'enforceForeignKeys', json('true'), "
+          "'readOnly', json('false'), "
+          "'connectTimeoutSeconds', 15)",
+        );
+      }
+      if (from < 5) await m.createTable(settingsRows);
+      if (from < 6) await m.addColumn(historyRows, historyRows.source);
+    },
+  );
 }
 
 LazyDatabase _openFile() {

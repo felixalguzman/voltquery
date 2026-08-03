@@ -1,4 +1,6 @@
 import 'package:flutter/widgets.dart';
+import 'package:re_highlight/styles/atom-one-dark.dart';
+import 'package:re_highlight/styles/atom-one-light.dart';
 
 /// The app's colour vocabulary, in one place.
 ///
@@ -31,6 +33,10 @@ class VoltTokens {
     required this.violet,
     required this.hover,
     required this.hoverSoft,
+    required this.selected,
+    required this.panelAlt,
+    required this.chip,
+    required this.shadow,
   });
 
   /// The deepest surface — the window background, and the well that panels sit
@@ -82,6 +88,24 @@ class VoltTokens {
   /// A lighter [hover], for rows where the full strength is too loud.
   final Color hoverSoft;
 
+  /// A selected row's fill — distinct from [accentWash], which tints; this one
+  /// replaces the surface.
+  final Color selected;
+
+  /// A surface one step off [panel]: a sticky header, a nested strip.
+  final Color panelAlt;
+
+  /// A neutral chip or pill behind small text.
+  final Color chip;
+
+  /// Drop shadow under a floating surface (menus, flyouts).
+  final Color shadow;
+
+  /// SQL syntax colours for `re_editor`. Part of the theme: a dark highlight
+  /// set on a light surface is where a half-finished theme switch shows.
+  Map<String, TextStyle> get codeTheme =>
+      canvas.computeLuminance() > 0.5 ? atomOneLightTheme : atomOneDarkTheme;
+
   /// The shipped palette: "Clean Dev-Tool" — near-black surfaces, cyan accent.
   static const dark = VoltTokens(
     canvas: VoltPalette.canvas,
@@ -99,6 +123,37 @@ class VoltTokens {
     violet: VoltPalette.violet,
     hover: VoltPalette.hover,
     hoverSoft: VoltPalette.hoverSoft,
+    selected: VoltPalette.selected,
+    panelAlt: VoltPalette.panelAlt,
+    chip: VoltPalette.chip,
+    shadow: VoltPalette.shadow,
+  );
+
+  /// A light palette for bright rooms and projectors.
+  ///
+  /// Not the dark one inverted: an accent that reads as neon on near-black is
+  /// nearly invisible on white, and a hover that lightens has to darken here
+  /// instead. Every value is chosen against its own background.
+  static const light = VoltTokens(
+    canvas: Color(0xFFF4F5F7),
+    panel: Color(0xFFFFFFFF),
+    hairline: Color(0xFFD8DCE3),
+    accent: Color(0xFF0891A8),
+    accentWash: Color(0x220891A8),
+    accentTint: Color(0x140891A8),
+    textHigh: Color(0xFF16181D),
+    textMid: Color(0xFF4B525E),
+    textLow: Color(0xFF858D9A),
+    danger: Color(0xFFC2312F),
+    warning: Color(0xFF9A6B0F),
+    success: Color(0xFF15794A),
+    violet: Color(0xFF6D3FBF),
+    hover: Color(0x0F000000),
+    hoverSoft: Color(0x08000000),
+    selected: Color(0xFFDDF1F5),
+    panelAlt: Color(0xFFEDEFF3),
+    chip: Color(0xFFE2E6EC),
+    shadow: Color(0x33000000),
   );
 
   /// By value, so [VoltTheme.updateShouldNotify] doesn't rebuild the whole app
@@ -120,14 +175,34 @@ class VoltTokens {
       other.success == success &&
       other.violet == violet &&
       other.hover == hover &&
-      other.hoverSoft == hoverSoft;
+      other.hoverSoft == hoverSoft &&
+      other.selected == selected &&
+      other.panelAlt == panelAlt &&
+      other.chip == chip &&
+      other.shadow == shadow;
 
   @override
   int get hashCode => Object.hashAll([
-        canvas, panel, hairline, accent, accentWash, accentTint,
-        textHigh, textMid, textLow, danger, warning, success, violet,
-        hover, hoverSoft,
-      ]);
+    canvas,
+    panel,
+    hairline,
+    accent,
+    accentWash,
+    accentTint,
+    textHigh,
+    textMid,
+    textLow,
+    danger,
+    warning,
+    success,
+    violet,
+    hover,
+    hoverSoft,
+    selected,
+    panelAlt,
+    chip,
+    shadow,
+  ]);
 
   VoltTokens copyWith({
     Color? canvas,
@@ -145,24 +220,31 @@ class VoltTokens {
     Color? violet,
     Color? hover,
     Color? hoverSoft,
-  }) =>
-      VoltTokens(
-        canvas: canvas ?? this.canvas,
-        panel: panel ?? this.panel,
-        hairline: hairline ?? this.hairline,
-        accent: accent ?? this.accent,
-        accentWash: accentWash ?? this.accentWash,
-        accentTint: accentTint ?? this.accentTint,
-        textHigh: textHigh ?? this.textHigh,
-        textMid: textMid ?? this.textMid,
-        textLow: textLow ?? this.textLow,
-        danger: danger ?? this.danger,
-        warning: warning ?? this.warning,
-        success: success ?? this.success,
-        violet: violet ?? this.violet,
-        hover: hover ?? this.hover,
-        hoverSoft: hoverSoft ?? this.hoverSoft,
-      );
+    Color? selected,
+    Color? panelAlt,
+    Color? chip,
+    Color? shadow,
+  }) => VoltTokens(
+    canvas: canvas ?? this.canvas,
+    panel: panel ?? this.panel,
+    hairline: hairline ?? this.hairline,
+    accent: accent ?? this.accent,
+    accentWash: accentWash ?? this.accentWash,
+    accentTint: accentTint ?? this.accentTint,
+    textHigh: textHigh ?? this.textHigh,
+    textMid: textMid ?? this.textMid,
+    textLow: textLow ?? this.textLow,
+    danger: danger ?? this.danger,
+    warning: warning ?? this.warning,
+    success: success ?? this.success,
+    violet: violet ?? this.violet,
+    hover: hover ?? this.hover,
+    hoverSoft: hoverSoft ?? this.hoverSoft,
+    selected: selected ?? this.selected,
+    panelAlt: panelAlt ?? this.panelAlt,
+    chip: chip ?? this.chip,
+    shadow: shadow ?? this.shadow,
+  );
 }
 
 /// The dark palette as compile-time constants.

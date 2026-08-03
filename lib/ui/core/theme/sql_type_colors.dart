@@ -48,15 +48,14 @@ class SqlTypeColors {
   );
 
   Color of(ColumnEditorKind kind) => switch (kind) {
-        ColumnEditorKind.text => text,
-        ColumnEditorKind.integer || ColumnEditorKind.decimal => number,
-        ColumnEditorKind.boolean => boolean,
-        ColumnEditorKind.date ||
-        ColumnEditorKind.dateTime ||
-        ColumnEditorKind.time =>
-          temporal,
-        ColumnEditorKind.json => json,
-        ColumnEditorKind.enumeration => enumeration,
-        ColumnEditorKind.binary => binary,
-      };
+    ColumnEditorKind.text => text,
+    ColumnEditorKind.integer || ColumnEditorKind.decimal => number,
+    ColumnEditorKind.boolean => boolean,
+    ColumnEditorKind.date ||
+    ColumnEditorKind.dateTime ||
+    ColumnEditorKind.time => temporal,
+    ColumnEditorKind.json => json,
+    ColumnEditorKind.enumeration => enumeration,
+    ColumnEditorKind.binary => binary,
+  };
 }

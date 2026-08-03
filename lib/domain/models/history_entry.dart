@@ -21,20 +21,20 @@ enum HistorySource {
   tool;
 
   String get label => switch (this) {
-        HistorySource.editor => 'editor',
-        HistorySource.gridEdit => 'grid edit',
-        HistorySource.tool => 'tool',
-      };
+    HistorySource.editor => 'editor',
+    HistorySource.gridEdit => 'grid edit',
+    HistorySource.tool => 'tool',
+  };
 
   /// True for everything the user did not write themselves — what the panel's
   /// "hide generated" filter hides.
   bool get isGenerated => this != HistorySource.editor;
 
   static HistorySource byName(String? name) => HistorySource.values.firstWhere(
-        (s) => s.name == name,
-        // Rows written before this column existed were all worksheet runs.
-        orElse: () => HistorySource.editor,
-      );
+    (s) => s.name == name,
+    // Rows written before this column existed were all worksheet runs.
+    orElse: () => HistorySource.editor,
+  );
 }
 
 /// A **durable record** of a past Execution (CONTEXT.md / ADR-0005). Does not

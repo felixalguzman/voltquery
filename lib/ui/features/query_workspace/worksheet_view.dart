@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:panes/panes.dart';
 import 'package:re_editor/re_editor.dart';
 import 'package:re_highlight/languages/sql.dart';
-import 'package:re_highlight/styles/atom-one-dark.dart';
 
 import '../../core/theme/volt_tokens.dart';
 
@@ -18,13 +17,6 @@ import 'worksheet_providers.dart';
 import 'worksheet_state.dart';
 
 // Clean Dev-Tool tokens (ADR-0007/theming #7) — inline until ui/core/theme lands.
-const _bg = VoltPalette.canvas;
-const _panel = VoltPalette.panel;
-const _hair = VoltPalette.hairline;
-const _accent = VoltPalette.accent;
-const _textMid = VoltPalette.textMid;
-const _err = VoltPalette.danger;
-const _ok = VoltPalette.success;
 
 /// The query workspace: `re_editor` (top) + `pluto_grid` (bottom) in a resizable
 /// vertical `MultiPane`, driven by [worksheetProvider]. First end-to-end slice
@@ -39,6 +31,7 @@ class WorksheetView extends ConsumerStatefulWidget {
 }
 
 class _WorksheetViewState extends ConsumerState<WorksheetView> {
+  VoltTokens get t => VoltTheme.of(context);
   late final CodeLineEditingController _code;
   final _panes = PaneController(
     entries: [
@@ -53,7 +46,8 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
     // A tab opened from the sidebar carries a seed query; else the default.
     final seed = ref.read(worksheetSeedsProvider)[widget.worksheetId];
     _code = CodeLineEditingController.fromText(
-        seed?.sql ?? 'SELECT * FROM customers;');
+      seed?.sql ?? 'SELECT * FROM customers;',
+    );
     // Publish the selection so Search Everything can open pre-filled with the
     // identifier you just highlighted. Filtered to short single-line text by
     // the provider — selecting a whole query means you want to search, not to
@@ -65,7 +59,9 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
         ref.read(worksheetSeedsProvider.notifier).take(widget.worksheetId);
         // "Preview data" runs on open; "Open in editor" just loads the SQL.
         if (seed.autoRun) {
-          ref.read(worksheetProvider(widget.worksheetId).notifier).run(seed.sql);
+          ref
+              .read(worksheetProvider(widget.worksheetId).notifier)
+              .run(seed.sql);
         }
       });
     }
@@ -100,8 +96,9 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
   /// Run the single statement under the caret (dialect-aware split).
   void _runAtCursor() {
     final engine = ref.read(currentConnectionProvider).engine;
-    final st = SqlStatementSplitter(SqlDialect.of(engine))
-        .statementAt(_code.text, _caretOffset());
+    final st = SqlStatementSplitter(
+      SqlDialect.of(engine),
+    ).statementAt(_code.text, _caretOffset());
     if (st != null) _runSql(st.sql);
   }
 
@@ -125,6 +122,7 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
 
   @override
   Widget build(BuildContext context) {
+    final t = VoltTheme.of(context);
     final result = ref.watch(worksheetProvider(widget.worksheetId));
     final connName = ref.watch(currentConnectionProvider).name;
     // Sidebar can request a query — only the *active* worksheet responds.
@@ -144,7 +142,9 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
     // Menu-bar / global-shortcut commands go to the active worksheet.
     ref.listen<WorksheetCommandEvent?>(worksheetCommandsProvider, (_, e) {
       if (e == null) return;
-      if (ref.read(worksheetTabsProvider).activeId != widget.worksheetId) return;
+      if (ref.read(worksheetTabsProvider).activeId != widget.worksheetId) {
+        return;
+      }
       switch (e.command) {
         case WorksheetCommand.runSmart:
           _runSmart();
@@ -159,7 +159,7 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
       }
     });
     return Container(
-      color: _bg,
+      color: t.canvas,
       child: MultiPane(
         direction: Axis.vertical,
         controller: _panes,
@@ -180,7 +180,7 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
       label: 'SQLite',
       extensions: ['db', 'sqlite', 'sqlite3'],
     );
-    final file = await openFile(acceptedTypeGroups: const [group]);
+    final file = await openFile(acceptedTypeGroups: [group]);
     if (file != null && mounted) {
       ref.read(currentConnectionProvider.notifier).openFile(file.path);
     }
@@ -205,10 +205,10 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
             style: CodeEditorStyle(
               fontSize: ref.watch(settingsProvider).editorFontSize,
               fontFamily: ref.watch(settingsProvider).editorFontFamily,
-              backgroundColor: _bg,
+              backgroundColor: t.canvas,
               codeTheme: CodeHighlightTheme(
                 languages: {'sql': CodeHighlightThemeMode(mode: langSql)},
-                theme: atomOneDarkTheme,
+                theme: t.codeTheme,
               ),
             ),
           ),
@@ -230,8 +230,9 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
             : 'Autocommit (click for manual commit)',
         child: ToggleButton(
           checked: manual,
-          onChanged: (_) =>
-              ref.read(manualCommitProvider(widget.worksheetId).notifier).toggle(),
+          onChanged: (_) => ref
+              .read(manualCommitProvider(widget.worksheetId).notifier)
+              .toggle(),
           child: const Icon(FluentIcons.database_sync, size: 14),
         ),
       ),
@@ -269,9 +270,9 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
     return Container(
       height: 42,
       padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: const BoxDecoration(
-        color: _panel,
-        border: Border(bottom: BorderSide(color: _hair)),
+      decoration: BoxDecoration(
+        color: t.panel,
+        border: Border(bottom: BorderSide(color: t.hairline)),
       ),
       // The editor pane is user-resizable and this bar used to overflow the
       // moment it got narrow — which does not throw in release, it just lays
@@ -279,62 +280,65 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
       // clicked. Losing the primary action to a drag of the splitter is not an
       // acceptable failure mode, so the identity text and the secondary
       // controls give way first and Run is the last thing standing.
-      child: LayoutBuilder(builder: (context, c) {
-        final tight = c.maxWidth < _tightToolbarWidth;
-        final running =
-            ref.watch(worksheetProvider(widget.worksheetId)) is WorksheetRunning;
-        return Row(
-          children: [
-            if (!tight) ...[
-              const Icon(FluentIcons.database, size: 14, color: _accent),
-              const SizedBox(width: 6),
-            ],
-            Expanded(
-              child: Text(
-                '$connName · ${ref.watch(currentConnectionProvider).engine.label}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: _textMid, fontSize: 12),
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Open… and the transaction controls are reachable from the File
-            // and Query menus; Run's only home is here.
-            if (!tight) ...[
-              Button(onPressed: _openFile, child: const Text('Open…')),
-              const SizedBox(width: 8),
-              ..._txControls(),
-              _continueOnErrorToggle(),
-              const SizedBox(width: 10),
-            ],
-            if (running)
-              FilledButton(
-                onPressed: ref
-                    .read(worksheetProvider(widget.worksheetId).notifier)
-                    .cancel,
-                child: const Text('■ Cancel'),
-              )
-            else
-              FilledButton(onPressed: _run, child: const Text('▶ Run')),
-            const SizedBox(width: 6),
-            DropDownButton(
-              title: const Icon(FluentIcons.chevron_down, size: 10),
-              items: [
-                MenuFlyoutItem(
-                  leading: const Icon(FluentIcons.caret_right, size: 12),
-                  text: const Text('Run at cursor   Ctrl+Enter'),
-                  onPressed: _runAtCursor,
-                ),
-                MenuFlyoutItem(
-                  leading: const Icon(FluentIcons.text_field, size: 12),
-                  text: const Text('Run selection'),
-                  onPressed: _runSelection,
-                ),
+      child: LayoutBuilder(
+        builder: (context, c) {
+          final tight = c.maxWidth < _tightToolbarWidth;
+          final running =
+              ref.watch(worksheetProvider(widget.worksheetId))
+                  is WorksheetRunning;
+          return Row(
+            children: [
+              if (!tight) ...[
+                Icon(FluentIcons.database, size: 14, color: t.accent),
+                const SizedBox(width: 6),
               ],
-            ),
-          ],
-        );
-      }),
+              Expanded(
+                child: Text(
+                  '$connName · ${ref.watch(currentConnectionProvider).engine.label}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: t.textMid, fontSize: 12),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Open… and the transaction controls are reachable from the File
+              // and Query menus; Run's only home is here.
+              if (!tight) ...[
+                Button(onPressed: _openFile, child: const Text('Open…')),
+                const SizedBox(width: 8),
+                ..._txControls(),
+                _continueOnErrorToggle(),
+                const SizedBox(width: 10),
+              ],
+              if (running)
+                FilledButton(
+                  onPressed: ref
+                      .read(worksheetProvider(widget.worksheetId).notifier)
+                      .cancel,
+                  child: const Text('■ Cancel'),
+                )
+              else
+                FilledButton(onPressed: _run, child: const Text('▶ Run')),
+              const SizedBox(width: 6),
+              DropDownButton(
+                title: const Icon(FluentIcons.chevron_down, size: 10),
+                items: [
+                  MenuFlyoutItem(
+                    leading: const Icon(FluentIcons.caret_right, size: 12),
+                    text: const Text('Run at cursor   Ctrl+Enter'),
+                    onPressed: _runAtCursor,
+                  ),
+                  MenuFlyoutItem(
+                    leading: const Icon(FluentIcons.text_field, size: 12),
+                    text: const Text('Run selection'),
+                    onPressed: _runSelection,
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -355,36 +359,48 @@ class _SqlEditorShortcuts extends CodeShortcutsActivatorsBuilder {
 
   @override
   List<ShortcutActivator>? build(CodeShortcutType type) => switch (type) {
-        CodeShortcutType.newLine => const [
-            SingleActivator(LogicalKeyboardKey.enter),
-            SingleActivator(LogicalKeyboardKey.enter, shift: true),
-            SingleActivator(LogicalKeyboardKey.numpadEnter),
-            SingleActivator(LogicalKeyboardKey.numpadEnter, shift: true),
-          ],
-        CodeShortcutType.cursorMoveWordBoundaryBackward => const [
-            SingleActivator(LogicalKeyboardKey.arrowLeft, control: true),
-            SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true),
-          ],
-        CodeShortcutType.cursorMoveWordBoundaryForward => const [
-            SingleActivator(LogicalKeyboardKey.arrowRight, control: true),
-            SingleActivator(LogicalKeyboardKey.arrowRight, alt: true),
-          ],
-        // Key→direction kept identical to re_editor's own mapping (only the
-        // modifier changes), so behaviour matches the working Alt+Shift+Arrow.
-        CodeShortcutType.selectionExtendWordBoundaryForward => const [
-            SingleActivator(LogicalKeyboardKey.arrowLeft,
-                control: true, shift: true),
-            SingleActivator(LogicalKeyboardKey.arrowLeft,
-                alt: true, shift: true),
-          ],
-        CodeShortcutType.selectionExtendWordBoundaryBackward => const [
-            SingleActivator(LogicalKeyboardKey.arrowRight,
-                control: true, shift: true),
-            SingleActivator(LogicalKeyboardKey.arrowRight,
-                alt: true, shift: true),
-          ],
-        _ => _base.build(type),
-      };
+    CodeShortcutType.newLine => [
+      const SingleActivator(LogicalKeyboardKey.enter),
+      const SingleActivator(LogicalKeyboardKey.enter, shift: true),
+      const SingleActivator(LogicalKeyboardKey.numpadEnter),
+      const SingleActivator(LogicalKeyboardKey.numpadEnter, shift: true),
+    ],
+    CodeShortcutType.cursorMoveWordBoundaryBackward => [
+      const SingleActivator(LogicalKeyboardKey.arrowLeft, control: true),
+      const SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true),
+    ],
+    CodeShortcutType.cursorMoveWordBoundaryForward => [
+      const SingleActivator(LogicalKeyboardKey.arrowRight, control: true),
+      const SingleActivator(LogicalKeyboardKey.arrowRight, alt: true),
+    ],
+    // Key→direction kept identical to re_editor's own mapping (only the
+    // modifier changes), so behaviour matches the working Alt+Shift+Arrow.
+    CodeShortcutType.selectionExtendWordBoundaryForward => [
+      const SingleActivator(
+        LogicalKeyboardKey.arrowLeft,
+        control: true,
+        shift: true,
+      ),
+      const SingleActivator(
+        LogicalKeyboardKey.arrowLeft,
+        alt: true,
+        shift: true,
+      ),
+    ],
+    CodeShortcutType.selectionExtendWordBoundaryBackward => [
+      const SingleActivator(
+        LogicalKeyboardKey.arrowRight,
+        control: true,
+        shift: true,
+      ),
+      const SingleActivator(
+        LogicalKeyboardKey.arrowRight,
+        alt: true,
+        shift: true,
+      ),
+    ],
+    _ => _base.build(type),
+  };
 }
 
 class _ResultPane extends StatelessWidget {
@@ -394,49 +410,68 @@ class _ResultPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = VoltTheme.of(context);
     return Container(
-      color: _panel,
+      color: t.panel,
       child: switch (result) {
-        WorksheetIdle() => _centered('Run a query to see results.'),
+        WorksheetIdle() => _centered(t, 'Run a query to see results.'),
         WorksheetRunning() => const Center(child: ProgressRing()),
         // A single-statement script renders its one result directly (grid /
         // message / failure); a multi-statement script gets sub-tabs + log.
-        WorksheetScript(:final outcomes, :final canceled) =>
-          _scriptBody(outcomes, canceled, worksheetId),
-        _ => _single(result, worksheetId, 0),
+        WorksheetScript(:final outcomes, :final canceled) => _scriptBody(
+          t,
+          outcomes,
+          canceled,
+          worksheetId,
+        ),
+        _ => _single(t, result, worksheetId, 0),
       },
     );
   }
 }
 
 Widget _scriptBody(
+  VoltTokens t,
   List<StatementOutcome> outcomes,
   bool canceled,
   String worksheetId,
 ) {
   final body = outcomes.isEmpty
-      ? _centered('Run canceled before any statement ran.')
+      ? _centered(t, 'Run canceled before any statement ran.')
       : outcomes.length == 1
-          ? _single(outcomes.first.result, worksheetId, 0,
-              sql: outcomes.first.sql)
-          : _ScriptView(outcomes: outcomes, worksheetId: worksheetId);
+      ? _single(
+          t,
+          outcomes.first.result,
+          worksheetId,
+          0,
+          sql: outcomes.first.sql,
+        )
+      : _ScriptView(outcomes: outcomes, worksheetId: worksheetId);
   if (!canceled) return body;
-  return Column(children: [
-    Container(
-      width: double.infinity,
-      color: VoltPalette.accentWash,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-      child: const Text('■ Run canceled — remaining statements were not run.',
-          style: TextStyle(color: VoltPalette.warning, fontSize: 11.5)),
-    ),
-    Expanded(child: body),
-  ]);
+  return Column(
+    children: [
+      Container(
+        width: double.infinity,
+        color: t.accentWash,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        child: Text(
+          '■ Run canceled — remaining statements were not run.',
+          style: TextStyle(color: t.warning, fontSize: 11.5),
+        ),
+      ),
+      Expanded(child: body),
+    ],
+  );
 }
 
 /// Renders one statement's payload — the original single-result view.
-Widget _single(WorksheetResult r, String worksheetId, int gridIndex,
-        {String? sql}) =>
-    switch (r) {
+Widget _single(
+  VoltTokens t,
+  WorksheetResult r,
+  String worksheetId,
+  int gridIndex, {
+  String? sql,
+}) => switch (r) {
   WorksheetRows() => ResultGrid(
     rows: r,
     worksheetId: worksheetId,
@@ -444,23 +479,30 @@ Widget _single(WorksheetResult r, String worksheetId, int gridIndex,
     sourceSql: sql,
   ),
   WorksheetMessage(:final text) => _banner(
+    t,
     text,
-    color: _ok,
+    color: t.success,
     icon: FluentIcons.check_mark,
   ),
   WorksheetFailure(:final error) => _banner(
+    t,
     '${error.kind.name}: ${error.message}',
-    color: _err,
+    color: t.danger,
     icon: FluentIcons.error_badge,
   ),
-  _ => _centered('Run a query to see results.'),
+  _ => _centered(t, 'Run a query to see results.'),
 };
 
-Widget _centered(String s) => Center(
-  child: Text(s, style: const TextStyle(color: _textMid)),
+Widget _centered(VoltTokens t, String s) => Center(
+  child: Text(s, style: TextStyle(color: t.textMid)),
 );
 
-Widget _banner(String s, {required Color color, required IconData icon}) {
+Widget _banner(
+  VoltTokens t,
+  String s, {
+  required Color color,
+  required IconData icon,
+}) {
   return Padding(
     padding: const EdgeInsets.all(14),
     child: Row(
@@ -488,16 +530,18 @@ class _ScriptView extends StatefulWidget {
 }
 
 class _ScriptViewState extends State<_ScriptView> {
+  VoltTokens get t => VoltTheme.of(context);
   int _tab = 0;
 
   @override
   Widget build(BuildContext context) {
+    final t = VoltTheme.of(context);
     final rows = [
       for (final o in widget.outcomes)
         if (o.isRows) o,
     ];
     // No grids to show → the log is the whole view.
-    if (rows.isEmpty) return _messagesLog(widget.outcomes);
+    if (rows.isEmpty) return _messagesLog(t, widget.outcomes);
 
     final labels = [for (final o in rows) 'Result ${o.index}', 'Messages'];
     final views = <Widget>[
@@ -505,11 +549,10 @@ class _ScriptViewState extends State<_ScriptView> {
         ResultGrid(
           rows: o.result as WorksheetRows,
           worksheetId: widget.worksheetId,
-          gridId: gridIdFor(
-              widget.worksheetId, i, o.result as WorksheetRows),
+          gridId: gridIdFor(widget.worksheetId, i, o.result as WorksheetRows),
           sourceSql: o.sql,
         ),
-      _messagesLog(widget.outcomes),
+      _messagesLog(t, widget.outcomes),
     ];
     final sel = _tab.clamp(0, views.length - 1);
     return Column(
@@ -525,7 +568,7 @@ class _ScriptViewState extends State<_ScriptView> {
   Widget _tabStrip(List<String> labels, int sel) {
     return Container(
       height: 30,
-      color: _bg,
+      color: t.canvas,
       child: Row(
         children: [
           for (var i = 0; i < labels.length; i++)
@@ -539,16 +582,16 @@ class _ScriptViewState extends State<_ScriptView> {
                   decoration: BoxDecoration(
                     border: Border(
                       bottom: BorderSide(
-                        color: active ? _accent : Colors.transparent,
+                        color: active ? t.accent : Colors.transparent,
                         width: 2,
                       ),
                     ),
-                    color: states.isHovered ? _panel : null,
+                    color: states.isHovered ? t.panel : null,
                   ),
                   child: Text(
                     labels[i],
                     style: TextStyle(
-                      color: active ? _accent : _textMid,
+                      color: active ? t.accent : t.textMid,
                       fontSize: 12,
                       fontWeight: active ? FontWeight.w600 : FontWeight.normal,
                     ),
@@ -563,36 +606,36 @@ class _ScriptViewState extends State<_ScriptView> {
 }
 
 /// The execution log — one line per statement (status, detail, duration).
-Widget _messagesLog(List<StatementOutcome> outcomes) {
+Widget _messagesLog(VoltTokens t, List<StatementOutcome> outcomes) {
   return Container(
-    color: _panel,
+    color: t.panel,
     child: ListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 6),
       itemCount: outcomes.length,
-      itemBuilder: (context, i) => _logRow(outcomes[i]),
+      itemBuilder: (context, i) => _logRow(t, outcomes[i]),
     ),
   );
 }
 
-Widget _logRow(StatementOutcome o) {
+Widget _logRow(VoltTokens t, StatementOutcome o) {
   final (String text, Color color, IconData icon) = switch (o.result) {
     WorksheetRows r => (
       '${r.rows.length} row(s)${r.capped ? ' · capped' : ''} · ${r.durationMs} ms',
-      _ok,
+      t.success,
       FluentIcons.check_mark,
     ),
     // DDL has no meaningful affected-row count — show a plain OK.
     WorksheetMessage m => (
       o.kind == StatementKind.ddl ? 'OK' : m.text,
-      _ok,
+      t.success,
       FluentIcons.check_mark,
     ),
     WorksheetFailure f => (
       '${f.error.kind.name}: ${f.error.message}',
-      _err,
+      t.danger,
       FluentIcons.error_badge,
     ),
-    _ => ('', _textMid, FluentIcons.info),
+    _ => ('', t.textMid, FluentIcons.info),
   };
   final preview = o.sql.replaceAll(RegExp(r'\s+'), ' ').trim();
   return Padding(
@@ -604,8 +647,8 @@ Widget _logRow(StatementOutcome o) {
         const SizedBox(width: 8),
         Text(
           '#${o.index}',
-          style: const TextStyle(
-            color: _textMid,
+          style: TextStyle(
+            color: t.textMid,
             fontSize: 11.5,
             fontFamily: 'monospace',
           ),
@@ -620,8 +663,8 @@ Widget _logRow(StatementOutcome o) {
                 preview,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: _textMid,
+                style: TextStyle(
+                  color: t.textMid,
                   fontSize: 11,
                   fontFamily: 'monospace',
                 ),
@@ -633,4 +676,3 @@ Widget _logRow(StatementOutcome o) {
     ),
   );
 }
-

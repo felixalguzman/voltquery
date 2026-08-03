@@ -38,13 +38,14 @@ abstract interface class SecretStore {
 /// each secret is AES-256-GCM(DEK). The derived key lives in memory only.
 class VaultSecretStore implements SecretStore {
   VaultSecretStore(this._file, {Argon2id? kdf})
-      : _kdf = kdf ??
-            Argon2id(
-              parallelism: 1,
-              memory: 12000, // ~12 MB
-              iterations: 3,
-              hashLength: 32,
-            );
+    : _kdf =
+          kdf ??
+          Argon2id(
+            parallelism: 1,
+            memory: 12000, // ~12 MB
+            iterations: 3,
+            hashLength: 32,
+          );
 
   final File _file;
   final Argon2id _kdf;
@@ -66,10 +67,15 @@ class VaultSecretStore implements SecretStore {
       return;
     }
     final data = jsonDecode(await _file.readAsString()) as Map<String, dynamic>;
-    final kek = await _deriveKek(masterPassword, base64Decode(data['salt'] as String));
+    final kek = await _deriveKek(
+      masterPassword,
+      base64Decode(data['salt'] as String),
+    );
     // Throws SecretBoxAuthenticationError if the master password is wrong.
-    final dekBytes = await _aes.decrypt(_boxFrom(data['wrappedDek'] as String),
-        secretKey: kek);
+    final dekBytes = await _aes.decrypt(
+      _boxFrom(data['wrappedDek'] as String),
+      secretKey: kek,
+    );
     _dek = SecretKey(dekBytes);
     _vault = data;
   }
@@ -78,7 +84,10 @@ class VaultSecretStore implements SecretStore {
     final salt = _randomBytes(16);
     final kek = await _deriveKek(masterPassword, salt);
     final dek = await _aes.newSecretKey();
-    final wrapped = await _aes.encrypt(await dek.extractBytes(), secretKey: kek);
+    final wrapped = await _aes.encrypt(
+      await dek.extractBytes(),
+      secretKey: kek,
+    );
     _dek = dek;
     _vault = {
       'version': 1,
@@ -104,12 +113,16 @@ class VaultSecretStore implements SecretStore {
     // vault is currently unlocked, and so `current` is always actually checked
     // instead of trusted because a session happens to be open.
     final data = jsonDecode(await _file.readAsString()) as Map<String, dynamic>;
-    final oldKek =
-        await _deriveKek(current, base64Decode(data['salt'] as String));
+    final oldKek = await _deriveKek(
+      current,
+      base64Decode(data['salt'] as String),
+    );
     // Throws SecretBoxAuthenticationError if `current` is wrong — the same
     // failure unlock() raises, so callers handle one error type.
-    final dekBytes = await _aes
-        .decrypt(_boxFrom(data['wrappedDek'] as String), secretKey: oldKek);
+    final dekBytes = await _aes.decrypt(
+      _boxFrom(data['wrappedDek'] as String),
+      secretKey: oldKek,
+    );
 
     // New salt as well as new password: reusing the old salt would leak that
     // the two passwords were derived against the same parameters.
@@ -180,10 +193,10 @@ class VaultSecretStore implements SecretStore {
   String _boxTo(SecretBox b) => base64Encode(b.concatenation());
 
   SecretBox _boxFrom(String s) => SecretBox.fromConcatenation(
-        base64Decode(s),
-        nonceLength: _aes.nonceLength,
-        macLength: _aes.macAlgorithm.macLength,
-      );
+    base64Decode(s),
+    nonceLength: _aes.nonceLength,
+    macLength: _aes.macAlgorithm.macLength,
+  );
 
   List<int> _randomBytes(int n) {
     final r = Random.secure();

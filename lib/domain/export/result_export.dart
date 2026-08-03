@@ -62,13 +62,12 @@ class ExportOptions {
     String? nullText,
     SqlDialect? dialect,
     String? table,
-  }) =>
-      ExportOptions(
-        includeHeader: includeHeader ?? this.includeHeader,
-        nullText: nullText ?? this.nullText,
-        dialect: dialect ?? this.dialect,
-        table: table ?? this.table,
-      );
+  }) => ExportOptions(
+    includeHeader: includeHeader ?? this.includeHeader,
+    nullText: nullText ?? this.nullText,
+    dialect: dialect ?? this.dialect,
+    table: table ?? this.table,
+  );
 }
 
 /// Serializes a result set.
@@ -116,13 +115,13 @@ abstract class ResultFormatter {
 
   /// A cell as display text, before any format-specific quoting.
   String text(Object? value) => switch (value) {
-        null => options.nullText,
-        // Binary is not text and pretending otherwise corrupts it silently.
-        // Length is the honest summary; a real BLOB export is its own feature.
-        Uint8List b => '<${b.length} bytes>',
-        DateTime d => d.toIso8601String(),
-        _ => '$value',
-      };
+    null => options.nullText,
+    // Binary is not text and pretending otherwise corrupts it silently.
+    // Length is the honest summary; a real BLOB export is its own feature.
+    Uint8List b => '<${b.length} bytes>',
+    DateTime d => d.toIso8601String(),
+    _ => '$value',
+  };
 }
 
 /// CSV and TSV. One class because they differ only in the delimiter and in
@@ -150,7 +149,8 @@ class _DelimitedFormatter extends ResultFormatter {
   /// A leading or trailing space is also quoted — some parsers strip it, and a
   /// value that changes when it round-trips is a bug you find much later.
   String _quote(String value) {
-    final needsQuote = value.contains(delimiter) ||
+    final needsQuote =
+        value.contains(delimiter) ||
         value.contains('"') ||
         value.contains('\n') ||
         value.contains('\r') ||
@@ -189,12 +189,12 @@ class _JsonFormatter extends ResultFormatter {
   /// Null stays null and numbers stay numbers — JSON has both, so stringifying
   /// them would throw away the one advantage this format has.
   Object? _jsonValue(Object? value) => switch (value) {
-        null => null,
-        num() || bool() || String() => value,
-        DateTime d => d.toIso8601String(),
-        Uint8List b => base64Encode(b),
-        _ => '$value',
-      };
+    null => null,
+    num() || bool() || String() => value,
+    DateTime d => d.toIso8601String(),
+    Uint8List b => base64Encode(b),
+    _ => '$value',
+  };
 }
 
 /// One `INSERT` per row, quoted for the target dialect.
@@ -207,17 +207,14 @@ class _InsertFormatter extends ResultFormatter {
   @override
   String row(List<ResultField> fields, ResultRow row, int index) {
     final builder = DmlBuilder(options.dialect);
-    return builder.insert(
-          EditableTarget(table: options.table),
-          [
-            for (var i = 0; i < fields.length; i++)
-              CellEdit(
-                fields[i].name,
-                _literalValue(row.values[i]),
-                _editorFor(row.values[i]),
-              ),
-          ],
-        ) ??
+    return builder.insert(EditableTarget(table: options.table), [
+          for (var i = 0; i < fields.length; i++)
+            CellEdit(
+              fields[i].name,
+              _literalValue(row.values[i]),
+              _editorFor(row.values[i]),
+            ),
+        ]) ??
         '';
   }
 
@@ -229,27 +226,21 @@ class _InsertFormatter extends ResultFormatter {
   /// keeps `10.5` a number instead of the string `'10.5'` — which would still
   /// insert on most engines, and compare and sort wrongly forever after.
   ColumnEditor _editorFor(Object? value) => switch (value) {
-        int() => const ColumnEditor(
-            kind: ColumnEditorKind.integer,
-            nullable: true,
-          ),
-        num() => const ColumnEditor(
-            kind: ColumnEditorKind.decimal,
-            nullable: true,
-          ),
-        bool() => const ColumnEditor(
-            kind: ColumnEditorKind.boolean,
-            nullable: true,
-          ),
-        _ => const ColumnEditor(kind: ColumnEditorKind.text, nullable: true),
-      };
+    int() => const ColumnEditor(kind: ColumnEditorKind.integer, nullable: true),
+    num() => const ColumnEditor(kind: ColumnEditorKind.decimal, nullable: true),
+    bool() => const ColumnEditor(
+      kind: ColumnEditorKind.boolean,
+      nullable: true,
+    ),
+    _ => const ColumnEditor(kind: ColumnEditorKind.text, nullable: true),
+  };
 
   /// Only the values with no SQL literal of their own need converting.
   Object? _literalValue(Object? value) => switch (value) {
-        DateTime d => d.toIso8601String(),
-        Uint8List b => base64Encode(b),
-        _ => value,
-      };
+    DateTime d => d.toIso8601String(),
+    Uint8List b => base64Encode(b),
+    _ => value,
+  };
 }
 
 /// A pipe table with aligned columns.
@@ -281,16 +272,17 @@ class _MarkdownFormatter extends ResultFormatter {
       for (var i = 0; i < names.length; i++)
         [
           names[i].length,
-          for (final row in cells) if (i < row.length) row[i].length,
+          for (final row in cells)
+            if (i < row.length) row[i].length,
           // The separator needs three dashes to be a table at all.
           3,
         ].reduce((a, b) => a > b ? a : b),
     ];
 
     String pad(List<String> row) => _line([
-          for (var i = 0; i < names.length; i++)
-            (i < row.length ? row[i] : '').padRight(widths[i]),
-        ]);
+      for (var i = 0; i < names.length; i++)
+        (i < row.length ? row[i] : '').padRight(widths[i]),
+    ]);
 
     final out = StringBuffer();
     if (options.includeHeader) {

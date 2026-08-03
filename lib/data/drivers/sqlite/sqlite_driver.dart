@@ -18,15 +18,15 @@ class SqliteDriver implements Driver {
 
   @override
   Capabilities get capabilities => const Capabilities(
-        hasServer: false,
-        hasSchemas: false,
-        supportsTls: false,
-        verifiesTlsCertificates: false,
-        supportsQueryCancel: false, // sqlite3_interrupt not exposed
-        supportsSavepoints: true, // via raw SAVEPOINT SQL
-        supportsNestedTransactions: false,
-        paramStyle: ParamStyle.question,
-      );
+    hasServer: false,
+    hasSchemas: false,
+    supportsTls: false,
+    verifiesTlsCertificates: false,
+    supportsQueryCancel: false, // sqlite3_interrupt not exposed
+    supportsSavepoints: true, // via raw SAVEPOINT SQL
+    supportsNestedTransactions: false,
+    paramStyle: ParamStyle.question,
+  );
 
   @override
   Future<Session> connect(Connection config, {String? secret}) async {
@@ -68,8 +68,10 @@ class SqliteSession implements Session {
   bool get inTransaction => !_db.autocommit;
 
   @override
-  Future<ExecutionResult> execute(String sql,
-      {List<Object?> params = const []}) async {
+  Future<ExecutionResult> execute(
+    String sql, {
+    List<Object?> params = const [],
+  }) async {
     try {
       final stmt = _db.prepare(sql);
       final cursor = stmt.selectCursor(params);
@@ -101,13 +103,16 @@ class SqliteSession implements Session {
   Future<void> rollback() async => _db.execute('ROLLBACK');
 
   @override
-  Future<void> useDatabase(String name) async =>
-      throw DriverError(DriverErrorKind.unsupported,
-          'SQLite has no server-side database switching');
+  Future<void> useDatabase(String name) async => throw DriverError(
+    DriverErrorKind.unsupported,
+    'SQLite has no server-side database switching',
+  );
 
   @override
   Future<void> cancelActive() async => throw DriverError(
-      DriverErrorKind.unsupported, 'SQLite query cancel is not supported');
+    DriverErrorKind.unsupported,
+    'SQLite query cancel is not supported',
+  );
 
   @override
   SchemaIntrospector get schema => _SqliteSchemaIntrospector(_db);
@@ -127,8 +132,7 @@ class _SqliteSchemaIntrospector implements SchemaIntrospector {
   Future<List<DatabaseInfo>> databases() async => const [DatabaseInfo('main')];
 
   @override
-  Future<List<SchemaInfo>> schemas(DatabaseInfo database) async =>
-      const []; // SQLite has no schema level (Capabilities.hasSchemas == false)
+  Future<List<SchemaInfo>> schemas(DatabaseInfo database) async => const []; // SQLite has no schema level (Capabilities.hasSchemas == false)
 
   @override
   Future<List<TableInfo>> tables(SchemaInfo schema) async {
@@ -201,16 +205,19 @@ class _SqliteSchemaIntrospector implements SchemaIntrospector {
     for (final row in list) {
       final idxName = row['name'] as String;
       final info = _db.select(
-          "PRAGMA index_info('${idxName.replaceAll("'", "''")}')");
-      result.add(IndexInfo(
-        name: idxName,
-        // 'name' is null for expression columns — skip those entries.
-        columns: [
-          for (final c in info)
-            if (c['name'] != null) c['name'] as String,
-        ],
-        unique: (row['unique'] as int) == 1,
-      ));
+        "PRAGMA index_info('${idxName.replaceAll("'", "''")}')",
+      );
+      result.add(
+        IndexInfo(
+          name: idxName,
+          // 'name' is null for expression columns — skip those entries.
+          columns: [
+            for (final c in info)
+              if (c['name'] != null) c['name'] as String,
+          ],
+          unique: (row['unique'] as int) == 1,
+        ),
+      );
     }
     return result;
   }
@@ -246,8 +253,9 @@ class _SqliteSchemaIntrospector implements SchemaIntrospector {
     for (final row in tables) {
       final other = row['name'] as String;
       if (other == table.name) continue;
-      final fks =
-          _db.select("PRAGMA foreign_key_list('${other.replaceAll("'", "''")}')");
+      final fks = _db.select(
+        "PRAGMA foreign_key_list('${other.replaceAll("'", "''")}')",
+      );
       for (final fk in fks) {
         if (fk['table'] == table.name) {
           out.add(ColumnRef(table: other, column: fk['from'] as String));
@@ -314,15 +322,17 @@ class _SqliteSchemaIntrospector implements SchemaIntrospector {
     final objects = !scope.includesObjects
         ? const <sq.Row>[]
         : _db.select(
-      "SELECT name, type FROM sqlite_master "
-      "WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%' "
-      "AND name LIKE ? ESCAPE '\\' ORDER BY name LIMIT ?",
-      [like, limit],
-    );
+            "SELECT name, type FROM sqlite_master "
+            "WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%' "
+            "AND name LIKE ? ESCAPE '\\' ORDER BY name LIMIT ?",
+            [like, limit],
+          );
     final hits = [
       for (final row in objects)
         SchemaSearchHit(
-          kind: row['type'] == 'view' ? SchemaHitKind.view : SchemaHitKind.table,
+          kind: row['type'] == 'view'
+              ? SchemaHitKind.view
+              : SchemaHitKind.table,
           name: row['name'] as String,
           table: TableInfo(
             name: row['name'] as String,
@@ -403,8 +413,12 @@ DriverError _mapSqliteError(sq.SqliteException e) {
   } else {
     kind = DriverErrorKind.unknown;
   }
-  return DriverError(kind, e.message,
-      nativeCode: e.resultCode.toString(), cause: e);
+  return DriverError(
+    kind,
+    e.message,
+    nativeCode: e.resultCode.toString(),
+    cause: e,
+  );
 }
 
 class _SqliteResultCursor implements ResultCursor {

@@ -13,16 +13,6 @@ import '../../../domain/models/history_entry.dart';
 import '../query_workspace/worksheet_providers.dart';
 import 'history_providers.dart';
 
-// Palette lives in ui/core/theme (#7); these are local names for it.
-const _panel = VoltPalette.panel;
-const _hair = VoltPalette.hairline;
-const _accent = VoltPalette.accent;
-const _textHi = VoltPalette.textHigh;
-const _textMid = VoltPalette.textMid;
-const _textLo = VoltPalette.textLow;
-const _ok = VoltPalette.success;
-const _err = VoltPalette.danger;
-
 /// Recent query history (persisted, ADR-0005). Click an entry to reload its SQL
 /// into the active worksheet.
 class HistoryPanel extends ConsumerWidget {
@@ -33,13 +23,14 @@ class HistoryPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = VoltTheme.of(context);
     final history = ref.watch(recentHistoryProvider);
     final hideGenerated = ref.watch(hideGeneratedHistoryProvider);
     final filter = ref.watch(historyFilterProvider);
     // No top border: the pane resizer above draws that line now, and a second
     // one here overflows the section when it collapses to header height.
     return Container(
-      decoration: const BoxDecoration(color: _panel),
+      decoration: BoxDecoration(color: t.panel),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -49,8 +40,11 @@ class HistoryPanel extends ConsumerWidget {
             onToggle: onToggle,
             actions: [
               IconButton(
-                icon: Icon(FluentIcons.search,
-                    size: 12, color: filter.open ? _accent : _textLo),
+                icon: Icon(
+                  FluentIcons.search,
+                  size: 12,
+                  color: filter.open ? t.accent : t.textLow,
+                ),
                 onPressed: ref.read(historyFilterProvider.notifier).toggle,
               ),
               Tooltip(
@@ -59,13 +53,14 @@ class HistoryPanel extends ConsumerWidget {
                     : 'Showing everything that ran',
                 child: IconButton(
                   icon: Icon(
-                    hideGenerated ? FluentIcons.filter_solid : FluentIcons.filter,
+                    hideGenerated
+                        ? FluentIcons.filter_solid
+                        : FluentIcons.filter,
                     size: 12,
-                    color: hideGenerated ? _accent : _textLo,
+                    color: hideGenerated ? t.accent : t.textLow,
                   ),
-                  onPressed: () => ref
-                      .read(hideGeneratedHistoryProvider.notifier)
-                      .toggle(),
+                  onPressed: () =>
+                      ref.read(hideGeneratedHistoryProvider.notifier).toggle(),
                 ),
               ),
             ],
@@ -79,14 +74,14 @@ class HistoryPanel extends ConsumerWidget {
           Expanded(
             child: history.when(
               loading: () => const SizedBox.shrink(),
-              error: (e, _) => _pad('$e'),
+              error: (e, _) => _pad(t, '$e'),
               data: (all) {
                 final list = all
                     .where((e) => !hideGenerated || !e.source.isGenerated)
                     .where((e) => matchesFilter(e.sql, filter.text))
                     .toList();
                 if (list.isEmpty) {
-                  return _pad(switch ((all.isEmpty, filter.active)) {
+                  return _pad(t, switch ((all.isEmpty, filter.active)) {
                     (true, _) => '(no history)',
                     (_, true) => '(no match)',
                     _ => '(nothing you ran by hand)',
@@ -105,20 +100,22 @@ class HistoryPanel extends ConsumerWidget {
   }
 
   /// Says who wrote the statement, for anything the user didn't type.
-  Widget _sourceTag(HistorySource source) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-        decoration: BoxDecoration(
-          border: Border.all(color: _hair),
-          borderRadius: BorderRadius.circular(3),
-        ),
-        child: Text(source.label,
-            style: const TextStyle(
-                color: _textMid, fontSize: 9, letterSpacing: 0.3)),
-      );
+  Widget _sourceTag(VoltTokens t, HistorySource source) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+    decoration: BoxDecoration(
+      border: Border.all(color: t.hairline),
+      borderRadius: BorderRadius.circular(3),
+    ),
+    child: Text(
+      source.label,
+      style: TextStyle(color: t.textMid, fontSize: 9, letterSpacing: 0.3),
+    ),
+  );
 
-  Widget _pad(String s) => Padding(
-      padding: const EdgeInsets.all(12),
-      child: Text(s, style: const TextStyle(color: _textLo, fontSize: 12)));
+  Widget _pad(VoltTokens t, String s) => Padding(
+    padding: const EdgeInsets.all(12),
+    child: Text(s, style: TextStyle(color: t.textLow, fontSize: 12)),
+  );
 
   /// "just now" · "14:32" · "Mar 4 14:32".
   ///
@@ -130,7 +127,8 @@ class HistoryPanel extends ConsumerWidget {
     final ago = now.difference(at);
     if (ago.inMinutes < 1) return 'just now';
     if (ago.inMinutes < 60) return '${ago.inMinutes}m ago';
-    final hhmm = '${at.hour.toString().padLeft(2, '0')}:'
+    final hhmm =
+        '${at.hour.toString().padLeft(2, '0')}:'
         '${at.minute.toString().padLeft(2, '0')}';
     final sameDay =
         at.year == now.year && at.month == now.month && at.day == now.day;
@@ -143,6 +141,7 @@ class HistoryPanel extends ConsumerWidget {
   }
 
   Widget _row(BuildContext context, WidgetRef ref, HistoryEntry e) {
+    final t = VoltTheme.of(context);
     final ok = e.status == HistoryStatus.ok;
     final meta = [
       _when(e.startedAt),
@@ -185,56 +184,67 @@ class HistoryPanel extends ConsumerWidget {
       child: HoverButton(
         onPressed: () =>
             ref.read(requestedQueryProvider.notifier).request(e.sql),
-      builder: (context, states) => Container(
-        color: states.isHovered ? _accent.withValues(alpha: 0.08) : null,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-        child: Row(children: [
-          Container(
-            width: 6,
-            height: 6,
-            margin: const EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-                color: ok ? _ok : _err, shape: BoxShape.circle),
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  e.sql.replaceAll('\n', ' '),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      // Generated statements are dimmed rather than hidden:
-                      // they really ran, so they stay auditable, but they
-                      // shouldn't compete with what you typed.
-                      color: e.source.isGenerated ? _textMid : _textHi,
-                      fontSize: 12,
-                      fontFamily: 'monospace'),
+        builder: (context, states) => Container(
+          color: states.isHovered ? t.accent.withValues(alpha: 0.08) : null,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          child: Row(
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  color: ok ? t.success : t.danger,
+                  shape: BoxShape.circle,
                 ),
-                Row(children: [
-                  if (e.source.isGenerated) ...[
-                    _sourceTag(e.source),
-                    const SizedBox(width: 6),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      e.sql.replaceAll('\n', ' '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        // Generated statements are dimmed rather than hidden:
+                        // they really ran, so they stay auditable, but they
+                        // shouldn't compete with what you typed.
+                        color: e.source.isGenerated ? t.textMid : t.textHigh,
+                        fontSize: 12,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        if (e.source.isGenerated) ...[
+                          _sourceTag(t, e.source),
+                          const SizedBox(width: 6),
+                        ],
+                        Flexible(
+                          child: Text(
+                            meta,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: t.textLow, fontSize: 10.5),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
-                  Flexible(
-                    child: Text(meta,
-                        overflow: TextOverflow.ellipsis,
-                        style:
-                            const TextStyle(color: _textLo, fontSize: 10.5)),
-                  ),
-                ]),
-              ],
-            ),
+                ),
+              ),
+            ],
           ),
-        ]),
         ),
       ),
     );
   }
 
   Future<void> _deleteEntry(
-      BuildContext context, WidgetRef ref, HistoryEntry e) async {
+    BuildContext context,
+    WidgetRef ref,
+    HistoryEntry e,
+  ) async {
     final id = e.id;
     if (id == null) return;
     final yes = await confirm(
@@ -249,11 +259,11 @@ class HistoryPanel extends ConsumerWidget {
     final yes = await confirm(
       context,
       title: 'Clear all query history?',
-      message: 'Every recorded statement is removed, including the UPDATEs '
+      message:
+          'Every recorded statement is removed, including the UPDATEs '
           'generated by grid edits. This cannot be undone.',
       confirmLabel: 'Clear all',
     );
     if (yes) await ref.read(historyRepositoryProvider).clear();
   }
 }
-

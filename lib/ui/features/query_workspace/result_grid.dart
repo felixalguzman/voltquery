@@ -8,7 +8,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pluto_grid/pluto_grid.dart';
 import 'package:re_editor/re_editor.dart';
 import 'package:re_highlight/languages/sql.dart';
-import 'package:re_highlight/styles/atom-one-dark.dart';
 
 import '../../core/theme/volt_tokens.dart';
 
@@ -25,18 +24,6 @@ import 'grid_edit_buffer.dart';
 import 'grid_editability.dart';
 import 'worksheet_providers.dart';
 import 'worksheet_state.dart';
-
-// Palette lives in ui/core/theme (#7); these are local names for it.
-const _bg = VoltPalette.canvas;
-const _panel = VoltPalette.panel;
-const _hair = VoltPalette.hairline;
-const _accent = VoltPalette.accent;
-const _text = VoltPalette.textHigh;
-const _textMid = VoltPalette.textMid;
-const _textLo = VoltPalette.textLow;
-const _dirty = VoltPalette.warning;
-const _added = VoltPalette.success;
-const _removed = VoltPalette.danger;
 
 /// Which row of the *result* a grid row stands for — never where pluto happens
 /// to be showing it.
@@ -114,6 +101,7 @@ class ResultGrid extends ConsumerStatefulWidget {
 }
 
 class _ResultGridState extends ConsumerState<ResultGrid> {
+  VoltTokens get t => VoltTheme.of(context);
   GridEditability? get _edit => widget.rows.editability;
 
   /// pluto owns its row list after `onLoaded` — the widget's `rows` argument is
@@ -140,30 +128,30 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
   /// cell for now and render the value ourselves — swapping in custom/fluent
   /// cells is a UI change only, the domain already names the editor it wants.
   PlutoColumnType _plutoType(ColumnEditor? editor) => switch (editor?.kind) {
-        // pluto's number() defaults to format '#,###', which both drops the
-        // fractional part and inserts a thousands separator — so 1234.5 came
-        // back as "1,234" and no longer parsed as a number. These formats keep
-        // the value exact and ungrouped; applyFormatOnInit off so the *stored*
-        // value is never rewritten by display formatting.
-        ColumnEditorKind.integer => PlutoColumnType.number(
-            format: '#',
-            applyFormatOnInit: false,
-          ),
-        ColumnEditorKind.decimal => PlutoColumnType.number(
-            format: '#.##########',
-            applyFormatOnInit: false,
-          ),
-        // Dates stay *text* columns on purpose. pluto's date() validates the
-        // cell against its own format, so a value it can't parse (a DATETIME,
-        // or any non-`yyyy-MM-dd` shape) silently refuses to enter edit mode.
-        // Typing always works here, and [_dateCell] adds a real picker.
-        ColumnEditorKind.time => PlutoColumnType.time(),
-        ColumnEditorKind.enumeration when editor!.options.isNotEmpty =>
-          PlutoColumnType.select(editor.options),
-        // Booleans get a real toggle rendered by [_cell]; pluto has no boolean
-        // editor, and a text cell showing `true`/`0` was the worst of both.
-        _ => PlutoColumnType.text(),
-      };
+    // pluto's number() defaults to format '#,###', which both drops the
+    // fractional part and inserts a thousands separator — so 1234.5 came
+    // back as "1,234" and no longer parsed as a number. These formats keep
+    // the value exact and ungrouped; applyFormatOnInit off so the *stored*
+    // value is never rewritten by display formatting.
+    ColumnEditorKind.integer => PlutoColumnType.number(
+      format: '#',
+      applyFormatOnInit: false,
+    ),
+    ColumnEditorKind.decimal => PlutoColumnType.number(
+      format: '#.##########',
+      applyFormatOnInit: false,
+    ),
+    // Dates stay *text* columns on purpose. pluto's date() validates the
+    // cell against its own format, so a value it can't parse (a DATETIME,
+    // or any non-`yyyy-MM-dd` shape) silently refuses to enter edit mode.
+    // Typing always works here, and [_dateCell] adds a real picker.
+    ColumnEditorKind.time => PlutoColumnType.time(),
+    ColumnEditorKind.enumeration when editor!.options.isNotEmpty =>
+      PlutoColumnType.select(editor.options),
+    // Booleans get a real toggle rendered by [_cell]; pluto has no boolean
+    // editor, and a text cell showing `true`/`0` was the worst of both.
+    _ => PlutoColumnType.text(),
+  };
 
   void _onChanged(PlutoGridOnChangedEvent e, GridEditBuffer buf) {
     final colIndex = int.tryParse(e.column.field.substring(1));
@@ -197,12 +185,14 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
         case _PendingRef(:final id):
           notifier.setPendingValue(id, field.name, value);
         case _ResultRef(:final index):
-          notifier.stage(StagedEdit(
-            rowIndex: index,
-            column: field.name,
-            oldValue: widget.rows.rows[index].values[colIndex],
-            newValue: value,
-          ));
+          notifier.stage(
+            StagedEdit(
+              rowIndex: index,
+              column: field.name,
+              oldValue: widget.rows.rows[index].values[colIndex],
+              newValue: value,
+            ),
+          );
       }
     });
   }
@@ -242,9 +232,7 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
   Future<void> _review(GridEditBuffer buf) async {
     final e = _edit;
     if (e == null || buf.isEmpty) return;
-    final dialect = SqlDialect.of(
-      ref.read(currentConnectionProvider).engine,
-    );
+    final dialect = SqlDialect.of(ref.read(currentConnectionProvider).engine);
     final statements = buf.toSql(
       editability: e,
       dialect: dialect,
@@ -286,8 +274,10 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
       await displayInfoBar(
         context,
         builder: (context, close) => InfoBar(
-          title: Text('${result.applied} statement(s) applied · '
-              '${result.rowsAffected} row(s)'),
+          title: Text(
+            '${result.applied} statement(s) applied · '
+            '${result.rowsAffected} row(s)',
+          ),
           severity: InfoBarSeverity.success,
           onClose: close,
         ),
@@ -342,28 +332,33 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
       (c) => !c.readOnly,
       orElse: () => sm.columns.first,
     );
-    sm.setCurrentCell(fresh.last.cells[firstEditable.field], sm.rows.length - 1);
+    sm.setCurrentCell(
+      fresh.last.cells[firstEditable.field],
+      sm.rows.length - 1,
+    );
   }
 
   /// A new row renders as all-empty; its values come from the buffer via
   /// [_CellView], the same way a staged edit does.
   PlutoRow _pendingPlutoRow(PendingRow p) => PlutoRow(
-        key: ValueKey<_RowRef>(_PendingRef(p.id)),
-        cells: {
-          for (var i = 0; i < widget.rows.fields.length; i++)
-            _fieldKey(i): PlutoCell(value: ''),
-        },
-      );
+    key: ValueKey<_RowRef>(_PendingRef(p.id)),
+    cells: {
+      for (var i = 0; i < widget.rows.fields.length; i++)
+        _fieldKey(i): PlutoCell(value: ''),
+    },
+  );
 
   @override
   Widget build(BuildContext context) {
+    final t = VoltTheme.of(context);
     final buf = _editable
         ? ref.watch(gridEditsProvider(widget.gridId))
         : const GridEditBuffer();
     final r = widget.rows;
     // `select` so a change to any *other* setting doesn't rebuild the grid.
-    final nullDisplay =
-        ref.watch(settingsProvider.select((s) => s.nullDisplay));
+    final nullDisplay = ref.watch(
+      settingsProvider.select((s) => s.nullDisplay),
+    );
 
     // After the frame, not during it: pluto's state manager notifies listeners
     // when rows change, which is illegal mid-build.
@@ -393,7 +388,7 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
 
     // pluto_grid needs a Material ancestor (absent under FluentApp).
     return m.Material(
-      color: _panel,
+      color: t.panel,
       child: Column(
         children: [
           Expanded(
@@ -401,9 +396,7 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
               key: ValueKey(identityHashCode(r)),
               columns: columns,
               rows: rows,
-              mode: _editable
-                  ? PlutoGridMode.normal
-                  : PlutoGridMode.readOnly,
+              mode: _editable ? PlutoGridMode.normal : PlutoGridMode.readOnly,
               onChanged: (e) => _onChanged(e, buf),
               configuration: _config,
               onLoaded: (e) {
@@ -427,7 +420,11 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
   }
 
   PlutoColumn _column(
-      int i, String name, GridEditBuffer buf, String nullDisplay) {
+    int i,
+    String name,
+    GridEditBuffer buf,
+    String nullDisplay,
+  ) {
     final editor = _edit?.editorFor(name);
     final isPk = _edit?.isPrimaryKey(name) ?? false;
     // Booleans are edited by tapping the toggle in [_boolCell], so pluto's own
@@ -486,14 +483,13 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
           // result by the view position is what made sorting a column look
           // like it did nothing at all.
           : (ctx) => _StaticCell(
-                value: switch (_RowRef.of(ctx.row)) {
-                  _ResultRef(:final index)
-                      when index < widget.rows.rows.length =>
-                    widget.rows.rows[index].values[i],
-                  _ => null,
-                },
-                nullDisplay: nullDisplay,
-              ),
+              value: switch (_RowRef.of(ctx.row)) {
+                _ResultRef(:final index) when index < widget.rows.rows.length =>
+                  widget.rows.rows[index].values[i],
+                _ => null,
+              },
+              nullDisplay: nullDisplay,
+            ),
     );
   }
 
@@ -508,7 +504,9 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
       _invalid(column, problem);
       return;
     }
-    ref.read(gridEditsProvider(widget.gridId).notifier).stage(
+    ref
+        .read(gridEditsProvider(widget.gridId).notifier)
+        .stage(
           StagedEdit(
             rowIndex: rowIndex,
             column: column,
@@ -545,7 +543,9 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
         if (mounted) _toast('Copied $rowCount row(s)');
       } else {
         final saved = await _save(text, request.format);
-        if (mounted && saved != null) _toast('Wrote $rowCount row(s) to $saved');
+        if (mounted && saved != null) {
+          _toast('Wrote $rowCount row(s) to $saved');
+        }
       }
     } catch (e) {
       if (mounted) _toastError('Export failed', '$e');
@@ -593,23 +593,23 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
   }
 
   void _toast(String title) => displayInfoBar(
-        context,
-        builder: (context, close) => InfoBar(
-          title: Text(title),
-          severity: InfoBarSeverity.success,
-          onClose: close,
-        ),
-      );
+    context,
+    builder: (context, close) => InfoBar(
+      title: Text(title),
+      severity: InfoBarSeverity.success,
+      onClose: close,
+    ),
+  );
 
   void _toastError(String title, String detail) => displayInfoBar(
-        context,
-        builder: (context, close) => InfoBar(
-          title: Text(title),
-          content: Text(detail),
-          severity: InfoBarSeverity.error,
-          onClose: close,
-        ),
-      );
+    context,
+    builder: (context, close) => InfoBar(
+      title: Text(title),
+      content: Text(detail),
+      severity: InfoBarSeverity.error,
+      onClose: close,
+    ),
+  );
 
   /// The same, for a row that doesn't exist yet.
   void _setPending(int id, String column, Object? newValue) {
@@ -623,8 +623,9 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
         .setPendingValue(id, column, newValue);
   }
 
-  void _toggleDelete(int rowIndex) =>
-      ref.read(gridEditsProvider(widget.gridId).notifier).toggleDelete(rowIndex);
+  void _toggleDelete(int rowIndex) => ref
+      .read(gridEditsProvider(widget.gridId).notifier)
+      .toggleDelete(rowIndex);
 
   void _discardNewRow(int id) =>
       ref.read(gridEditsProvider(widget.gridId).notifier).removePendingRow(id);
@@ -656,90 +657,102 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
       height: 28,
       alignment: Alignment.centerLeft,
       padding: const EdgeInsets.only(left: 12, right: 6),
-      color: _bg,
+      color: t.canvas,
       // The results pane is user-resizable and gets genuinely narrow. Two rules
       // when it does: the counters yield before the actions (a button you
       // cannot reach is worse than a number you cannot read), and below
       // [_compactBarWidth] the actions drop their labels rather than being
       // pushed off the edge — which is what happened, since an overflowing
       // child is still laid out and simply never painted.
-      child: LayoutBuilder(builder: (context, c) {
-        final compact = c.maxWidth < _compactBarWidth;
-        return Row(
-          children: [
-            Expanded(
-              child: Row(
-                children: [
-                  Flexible(
-                    child: Text(
-                      '${r.rows.length} row(s) · ${r.durationMs} ms'
-                      '${r.capped ? ' · capped' : ''}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: _textMid, fontSize: 11),
-                    ),
-                  ),
-                  if (_editable && pending == 0) ...[
-                    const SizedBox(width: 10),
-                    const Icon(FluentIcons.edit, size: 10, color: _textLo),
-                    const SizedBox(width: 4),
+      child: LayoutBuilder(
+        builder: (context, c) {
+          final compact = c.maxWidth < _compactBarWidth;
+          return Row(
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
                     Flexible(
                       child: Text(
-                        'editable · ${_edit!.target.table}',
+                        '${r.rows.length} row(s) · ${r.durationMs} ms'
+                        '${r.capped ? ' · capped' : ''}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: _textLo, fontSize: 11),
+                        style: TextStyle(color: t.textMid, fontSize: 11),
                       ),
                     ),
-                  ],
-                  if (pending > 0) ...[
-                    const SizedBox(width: 10),
-                    Flexible(
-                      child: Text(
-                        _pendingSummary(buf),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: _dirty, fontSize: 11),
+                    if (_editable && pending == 0) ...[
+                      const SizedBox(width: 10),
+                      Icon(FluentIcons.edit, size: 10, color: t.textLow),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          'editable · ${_edit!.target.table}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: t.textLow, fontSize: 11),
+                        ),
                       ),
-                    ),
+                    ],
+                    if (pending > 0) ...[
+                      const SizedBox(width: 10),
+                      Flexible(
+                        child: Text(
+                          _pendingSummary(buf),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: t.warning, fontSize: 11),
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            // Always offered on an editable grid, not only once something is
-            // staged: adding the first row is exactly the case where there is
-            // nothing to right-click.
-            _barButton('Export', FluentIcons.download, _textMid, _export,
-                compact: compact),
-            const SizedBox(width: 4),
-            if (_editable) ...[
-              _barButton('Add Row', FluentIcons.add, _textMid, _addRow,
-                  compact: compact),
-              const SizedBox(width: 4),
-            ],
-            if (pending > 0) ...[
+              const SizedBox(width: 8),
+              // Always offered on an editable grid, not only once something is
+              // staged: adding the first row is exactly the case where there is
+              // nothing to right-click.
               _barButton(
-                'Discard',
-                FluentIcons.cancel,
-                _textMid,
-                () => ref
-                    .read(gridEditsProvider(widget.gridId).notifier)
-                    .clear(),
+                'Export',
+                FluentIcons.download,
+                t.textMid,
+                _export,
                 compact: compact,
               ),
               const SizedBox(width: 4),
-              _barButton(
-                'Review & Apply',
-                FluentIcons.check_mark,
-                _accent,
-                () => _review(buf),
-                compact: compact,
-              ),
+              if (_editable) ...[
+                _barButton(
+                  'Add Row',
+                  FluentIcons.add,
+                  t.textMid,
+                  _addRow,
+                  compact: compact,
+                ),
+                const SizedBox(width: 4),
+              ],
+              if (pending > 0) ...[
+                _barButton(
+                  'Discard',
+                  FluentIcons.cancel,
+                  t.textMid,
+                  () => ref
+                      .read(gridEditsProvider(widget.gridId).notifier)
+                      .clear(),
+                  compact: compact,
+                ),
+                const SizedBox(width: 4),
+                _barButton(
+                  'Review & Apply',
+                  FluentIcons.check_mark,
+                  t.accent,
+                  () => _review(buf),
+                  compact: compact,
+                ),
+              ],
             ],
-          ],
-        );
-      }),
+          );
+        },
+      ),
     );
   }
 
@@ -751,8 +764,9 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
   /// "5 pending changes" reads the same whether or not two of them drop rows.
   static String _pendingSummary(GridEditBuffer buf) {
     final parts = [
-      if (buf.edits.isNotEmpty) '${buf.edits.length} edit'
-          '${buf.edits.length == 1 ? '' : 's'}',
+      if (buf.edits.isNotEmpty)
+        '${buf.edits.length} edit'
+            '${buf.edits.length == 1 ? '' : 's'}',
       if (buf.inserts.isNotEmpty) '${buf.inserts.length} new',
       if (buf.deletes.isNotEmpty) '${buf.deletes.length} deleted',
     ];
@@ -773,7 +787,7 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
       builder: (context, states) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
-          color: states.isHovered ? VoltPalette.hover : null,
+          color: states.isHovered ? t.hover : null,
           borderRadius: BorderRadius.circular(3),
         ),
         child: Row(
@@ -799,28 +813,30 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
     );
   }
 
-  static const _config = PlutoGridConfiguration.dark(
+  /// An instance getter, not a `static const`: it paints with theme tokens, and
+  /// a static field has no [BuildContext] to read them from.
+  PlutoGridConfiguration get _config => PlutoGridConfiguration.dark(
     style: PlutoGridStyleConfig.dark(
       rowHeight: 28,
       columnHeight: 32,
       columnFilterHeight: 32,
       enableCellBorderHorizontal: false,
-      defaultCellPadding: EdgeInsets.symmetric(horizontal: 10),
-      defaultColumnTitlePadding: EdgeInsets.symmetric(horizontal: 10),
+      defaultCellPadding: const EdgeInsets.symmetric(horizontal: 10),
+      defaultColumnTitlePadding: const EdgeInsets.symmetric(horizontal: 10),
       cellTextStyle: TextStyle(
         fontFamily: 'monospace',
         fontSize: 12.5,
-        color: _text,
+        color: t.textHigh,
       ),
       columnTextStyle: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w600,
-        color: _textMid,
+        color: t.textMid,
       ),
-      gridBackgroundColor: _panel,
-      rowColor: _panel,
-      activatedColor: VoltPalette.selected,
-      borderColor: _hair,
+      gridBackgroundColor: t.panel,
+      rowColor: t.panel,
+      activatedColor: t.selected,
+      borderColor: t.hairline,
     ),
   );
 }
@@ -834,6 +850,7 @@ class _ReviewDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = VoltTheme.of(context);
     return ContentDialog(
       constraints: const BoxConstraints(maxWidth: 620, maxHeight: 520),
       title: Text(
@@ -845,19 +862,19 @@ class _ReviewDialog extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
+          Text(
             'One statement per edited row, run in order inside a single '
             'transaction — if any fails, none are applied. With manual-commit '
             'on they join your open transaction instead, and wait for Commit.',
-            style: TextStyle(color: _textMid, fontSize: 11.5),
+            style: TextStyle(color: t.textMid, fontSize: 11.5),
           ),
           const SizedBox(height: 10),
           Flexible(
             child: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: _bg,
-                border: Border.all(color: _hair),
+                color: t.canvas,
+                border: Border.all(color: t.hairline),
                 borderRadius: BorderRadius.circular(4),
               ),
               // Read-only CodeEditor rather than plain text: this is SQL the
@@ -870,10 +887,10 @@ class _ReviewDialog extends StatelessWidget {
                 ),
                 style: CodeEditorStyle(
                   fontSize: 12.5,
-                  backgroundColor: _bg,
+                  backgroundColor: t.canvas,
                   codeTheme: CodeHighlightTheme(
                     languages: {'sql': CodeHighlightThemeMode(mode: langSql)},
-                    theme: atomOneDarkTheme,
+                    theme: t.codeTheme,
                   ),
                 ),
               ),
@@ -905,11 +922,12 @@ class _StaticCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = VoltTheme.of(context);
     if (value == null) {
       return Text(
         nullDisplay,
-        style: const TextStyle(
-          color: _textLo,
+        style: TextStyle(
+          color: t.textLow,
           fontSize: 11.5,
           fontFamily: 'monospace',
           fontStyle: FontStyle.italic,
@@ -919,8 +937,8 @@ class _StaticCell extends StatelessWidget {
     return Text(
       '$value',
       overflow: TextOverflow.ellipsis,
-      style: const TextStyle(
-        color: _text,
+      style: TextStyle(
+        color: t.textHigh,
         fontSize: 12.5,
         fontFamily: 'monospace',
       ),
@@ -974,9 +992,9 @@ class _CellView extends ConsumerWidget {
   final GridEditability? editability;
 
   int? get _resultIndex => switch (rowRef) {
-        _ResultRef(:final index) => index,
-        _PendingRef() => null,
-      };
+    _ResultRef(:final index) => index,
+    _PendingRef() => null,
+  };
 
   Object? get _original {
     final i = _resultIndex;
@@ -986,12 +1004,13 @@ class _CellView extends ConsumerWidget {
 
   /// Route a value to whichever half of the buffer owns this row.
   void _put(Object? value) => switch (rowRef) {
-        _PendingRef(:final id) => onSetPending(id, column, value),
-        _ResultRef(:final index) => onStage(index, column, value),
-      };
+    _PendingRef(:final id) => onSetPending(id, column, value),
+    _ResultRef(:final index) => onStage(index, column, value),
+  };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = VoltTheme.of(context);
     if (rowRef case _PendingRef(:final id)) {
       return _pendingBody(context, ref, id);
     }
@@ -1009,14 +1028,13 @@ class _CellView extends ConsumerWidget {
     final value = staged != null ? staged.newValue : _original;
     final isDirty = staged != null;
 
-    if (deleted) return _deletedBody(value);
+    if (deleted) return _deletedBody(t, value);
 
     final Widget inner = switch (editor?.kind) {
       ColumnEditorKind.boolean => _boolBody(context, value, isDirty),
       ColumnEditorKind.date ||
-      ColumnEditorKind.dateTime =>
-        _dateBody(context, value, isDirty),
-      _ => _textBody(value, isDirty),
+      ColumnEditorKind.dateTime => _dateBody(context, value, isDirty),
+      _ => _textBody(t, value, isDirty),
     };
     final body = ContextMenuRegion(actions: _actions(value), child: inner);
 
@@ -1024,18 +1042,19 @@ class _CellView extends ConsumerWidget {
     // Hovering a changed cell shows what it was — the staged value replaced the
     // original on screen, so this is the only way back to it before applying.
     return Tooltip(
-      style: const TooltipThemeData(
+      style: TooltipThemeData(
         textStyle: TextStyle(
           fontSize: 13,
           fontFamily: 'monospace',
-          color: _text,
+          color: t.textHigh,
         ),
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       ),
-      message: '${_display(staged.oldValue)}  \u2192  ${_display(staged.newValue)}',
+      message:
+          '${_display(staged.oldValue)}  \u2192  ${_display(staged.newValue)}',
       child: Row(
         children: [
-          Container(width: 2, height: 16, color: _dirty),
+          Container(width: 2, height: 16, color: t.warning),
           const SizedBox(width: 6),
           Flexible(child: body),
         ],
@@ -1046,28 +1065,28 @@ class _CellView extends ConsumerWidget {
   /// A row staged for deletion still shows its data — struck through, so you
   /// can see *what* is about to go — and stops offering cell edits, which
   /// [GridEditBuffer.toggleDelete] discards anyway.
-  Widget _deletedBody(Object? value) => ContextMenuRegion(
-        actions: _actions(value, deleted: true),
-        child: Row(
-          children: [
-            Container(width: 2, height: 16, color: _removed),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                value == null ? nullDisplay : '$value',
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: _removed,
-                  fontSize: 12.5,
-                  fontFamily: 'monospace',
-                  decoration: TextDecoration.lineThrough,
-                  decorationColor: _removed,
-                ),
-              ),
+  Widget _deletedBody(VoltTokens t, Object? value) => ContextMenuRegion(
+    actions: _actions(value, deleted: true),
+    child: Row(
+      children: [
+        Container(width: 2, height: 16, color: t.danger),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            value == null ? nullDisplay : '$value',
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: t.danger,
+              fontSize: 12.5,
+              fontFamily: 'monospace',
+              decoration: TextDecoration.lineThrough,
+              decorationColor: t.danger,
             ),
-          ],
+          ),
         ),
-      );
+      ],
+    ),
+  );
 
   /// A cell of a row that doesn't exist yet.
   ///
@@ -1076,15 +1095,16 @@ class _CellView extends ConsumerWidget {
   /// different outcome from writing NULL into it, and on a nullable column with
   /// a default it's the difference between the default and nothing.
   Widget _pendingBody(BuildContext context, WidgetRef ref, int id) {
+    final t = VoltTheme.of(context);
     final (specified, value) = ref.watch(
       gridEditsProvider(gridId).select((b) => b.pendingCell(id, column)),
     );
 
     final Widget inner = !specified
-        ? const Text(
+        ? Text(
             'default',
             style: TextStyle(
-              color: _textLo,
+              color: t.textLow,
               fontSize: 11.5,
               fontFamily: 'monospace',
               fontStyle: FontStyle.italic,
@@ -1093,26 +1113,26 @@ class _CellView extends ConsumerWidget {
         : switch (editor?.kind) {
             ColumnEditorKind.boolean => _boolBody(context, value, false),
             ColumnEditorKind.date ||
-            ColumnEditorKind.dateTime =>
-              _dateBody(context, value, false),
-            _ => value == null
-                ? _nullLabel()
-                : Text(
-                    '$value',
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _added,
-                      fontSize: 12.5,
-                      fontFamily: 'monospace',
+            ColumnEditorKind.dateTime => _dateBody(context, value, false),
+            _ =>
+              value == null
+                  ? _nullLabel(t)
+                  : Text(
+                      '$value',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: t.success,
+                        fontSize: 12.5,
+                        fontFamily: 'monospace',
+                      ),
                     ),
-                  ),
           };
 
     return ContextMenuRegion(
       actions: _actions(value),
       child: Row(
         children: [
-          Container(width: 2, height: 16, color: _added),
+          Container(width: 2, height: 16, color: t.success),
           const SizedBox(width: 6),
           Flexible(child: inner),
         ],
@@ -1149,20 +1169,12 @@ class _CellView extends ConsumerWidget {
         () => _copy(_rowInsert(row)),
         icon: FluentIcons.code,
       ),
-      MenuAction(
-        'Export Results…',
-        onExport,
-        icon: FluentIcons.download,
-      ),
+      MenuAction('Export Results…', onExport, icon: FluentIcons.download),
       // Cell edits are pointless on a row that is on its way out — staging the
       // delete discarded them, and staging another would only re-add noise.
       if (editable && !deleted) ...[
         MenuAction.divider,
-        MenuAction(
-          'Set NULL',
-          () => _put(null),
-          icon: FluentIcons.circle_ring,
-        ),
+        MenuAction('Set NULL', () => _put(null), icon: FluentIcons.circle_ring),
         MenuAction(
           'Revert Cell',
           () => _put(_original),
@@ -1221,23 +1233,23 @@ class _CellView extends ConsumerWidget {
 
   String _display(Object? v) => v == null ? nullDisplay : '$v';
 
-  Widget _nullLabel() => Text(
-        nullDisplay,
-        style: const TextStyle(
-          color: _textLo,
-          fontSize: 11.5,
-          fontFamily: 'monospace',
-          fontStyle: FontStyle.italic,
-        ),
-      );
+  Widget _nullLabel(VoltTokens t) => Text(
+    nullDisplay,
+    style: TextStyle(
+      color: t.textLow,
+      fontSize: 11.5,
+      fontFamily: 'monospace',
+      fontStyle: FontStyle.italic,
+    ),
+  );
 
-  Widget _textBody(Object? value, bool isDirty) {
-    if (value == null) return _nullLabel();
+  Widget _textBody(VoltTokens t, Object? value, bool isDirty) {
+    if (value == null) return _nullLabel(t);
     return Text(
       '$value',
       overflow: TextOverflow.ellipsis,
       style: TextStyle(
-        color: isDirty ? _dirty : _text,
+        color: isDirty ? t.warning : t.textHigh,
         fontSize: 12.5,
         fontFamily: 'monospace',
       ),
@@ -1247,13 +1259,14 @@ class _CellView extends ConsumerWidget {
   /// A clickable toggle. pluto has no boolean editor, and a text cell showing
   /// `true` / `0` (engines disagree) was both ugly and error-prone.
   Widget _boolBody(BuildContext context, Object? value, bool isDirty) {
+    final t = VoltTheme.of(context);
     final on = _truthy(value);
     final isNull = value == null;
     final color = isNull
-        ? _textLo
+        ? t.textLow
         : isDirty
-            ? _dirty
-            : (on ? _accent : _textMid);
+        ? t.warning
+        : (on ? t.accent : t.textMid);
 
     final visual = Row(
       mainAxisSize: MainAxisSize.min,
@@ -1262,8 +1275,8 @@ class _CellView extends ConsumerWidget {
           isNull
               ? FluentIcons.checkbox_indeterminate
               : on
-                  ? FluentIcons.checkbox_composite
-                  : FluentIcons.checkbox,
+              ? FluentIcons.checkbox_composite
+              : FluentIcons.checkbox,
           size: 13,
           color: color,
         ),
@@ -1271,7 +1284,7 @@ class _CellView extends ConsumerWidget {
         Text(
           isNull ? nullDisplay : (on ? 'true' : 'false'),
           style: TextStyle(
-            color: isNull ? _textLo : (isDirty ? _dirty : _textMid),
+            color: isNull ? t.textLow : (isDirty ? t.warning : t.textMid),
             fontSize: 11.5,
             fontFamily: 'monospace',
             fontStyle: isNull ? FontStyle.italic : FontStyle.normal,
@@ -1320,16 +1333,17 @@ class _CellView extends ConsumerWidget {
   }
 
   static bool _truthy(Object? v) => switch (v) {
-        null => false,
-        bool b => b,
-        num n => n != 0,
-        _ => const {'true', 't', '1', 'yes', 'y'}.contains('$v'.toLowerCase()),
-      };
+    null => false,
+    bool b => b,
+    num n => n != 0,
+    _ => const {'true', 't', '1', 'yes', 'y'}.contains('$v'.toLowerCase()),
+  };
 
   /// The value as stored, plus a calendar button opening a real picker. The
   /// column is still text underneath, so typing an exact value keeps working.
   Widget _dateBody(BuildContext context, Object? value, bool isDirty) {
-    final label = _textBody(value, isDirty);
+    final t = VoltTheme.of(context);
+    final label = _textBody(t, value, isDirty);
     if (!editable) return label;
     return Row(
       children: [
@@ -1338,9 +1352,9 @@ class _CellView extends ConsumerWidget {
         GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () => _pickDate(context, value),
-          child: const MouseRegion(
+          child: MouseRegion(
             cursor: SystemMouseCursors.click,
-            child: Icon(FluentIcons.calendar, size: 11, color: _textLo),
+            child: Icon(FluentIcons.calendar, size: 11, color: t.textLow),
           ),
         ),
       ],
@@ -1363,10 +1377,10 @@ class _CellView extends ConsumerWidget {
   /// Values arrive as text on SQLite/MySQL and may already be a DateTime on
   /// Postgres.
   static DateTime? _parseDate(Object? v) => switch (v) {
-        null => null,
-        DateTime d => d,
-        _ => DateTime.tryParse('$v'.replaceFirst(' ', 'T')),
-      };
+    null => null,
+    DateTime d => d,
+    _ => DateTime.tryParse('$v'.replaceFirst(' ', 'T')),
+  };
 
   /// Engine-neutral `yyyy-MM-dd[ HH:mm:ss]`, which all three engines accept.
   static String _formatDate(DateTime d, {required bool withTime}) {
@@ -1390,6 +1404,7 @@ class _DatePickerDialog extends StatefulWidget {
 }
 
 class _DatePickerDialogState extends State<_DatePickerDialog> {
+  VoltTokens get t => VoltTheme.of(context);
   late DateTime _value = widget.initial;
 
   @override
@@ -1406,27 +1421,31 @@ class _DatePickerDialogState extends State<_DatePickerDialog> {
         children: [
           DatePicker(
             selected: _value,
-            onChanged: (d) => setState(() => _value = DateTime(
-                  d.year,
-                  d.month,
-                  d.day,
-                  _value.hour,
-                  _value.minute,
-                  _value.second,
-                )),
+            onChanged: (d) => setState(
+              () => _value = DateTime(
+                d.year,
+                d.month,
+                d.day,
+                _value.hour,
+                _value.minute,
+                _value.second,
+              ),
+            ),
           ),
           if (widget.withTime) ...[
             const SizedBox(height: 10),
             TimePicker(
               selected: _value,
-              onChanged: (t) => setState(() => _value = DateTime(
-                    _value.year,
-                    _value.month,
-                    _value.day,
-                    t.hour,
-                    t.minute,
-                    _value.second,
-                  )),
+              onChanged: (t) => setState(
+                () => _value = DateTime(
+                  _value.year,
+                  _value.month,
+                  _value.day,
+                  t.hour,
+                  t.minute,
+                  _value.second,
+                ),
+              ),
             ),
           ],
         ],
@@ -1447,8 +1466,18 @@ class _DatePickerDialogState extends State<_DatePickerDialog> {
 
 /// Shown instead of the grid when a result can't be written back — kept as a
 /// distinct widget so the reason can grow (no PK, join, aggregate…).
-const readOnlyGridHint = Tooltip(
-  message: 'Read-only: results are editable only for a single-table '
-      'SELECT on a table with a primary key.',
-  child: Icon(FluentIcons.lock, size: 10, color: _textLo),
-);
+class ReadOnlyGridHint extends StatelessWidget {
+  const ReadOnlyGridHint({super.key});
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message:
+        'Read-only: results are editable only for a single-table '
+        'SELECT on a table with a primary key.',
+    child: Icon(
+      FluentIcons.lock,
+      size: 10,
+      color: VoltTheme.of(context).textLow,
+    ),
+  );
+}

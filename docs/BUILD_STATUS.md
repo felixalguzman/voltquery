@@ -4,7 +4,7 @@ Snapshot of the implementation so a fresh session (or you) can pick up. The
 **spec** (what to build) lives in [`docs/README.md`](README.md) → CONTEXT.md,
 ADRs 0001–0009, `docs/design/*`. This file tracks **what's built** so far.
 
-## Done (84 PRs merged to `master`)
+## Done (85 PRs merged to `master`)
 
 Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/MariaDB**
 — all interchangeable behind the driver port (ADR-0003).
@@ -185,59 +185,27 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   only), *Security* (change master password, auto-lock, trusted SSH hosts).
 - **State**: Riverpod **codegen** (`@riverpod`, ADR-0004). Run
   `dart run build_runner build` after editing providers/drift tables.
-- **Theming** (`ui/core/theme/`, #7 step 1): the "Clean Dev-Tool" palette lives
-  in **one file**. There were **109** private `const _accent = Color(0xFF2FE6FF)`
-  declarations across 19 files, and four colours had already drifted — two reds,
-  two greens, *three* ambers — so "the error colour" meant one thing in the
-  history panel and another in the grid. `VoltPalette` holds the hexes as
-  compile-time constants (so no widget lost a `const`), `VoltTokens`/`VoltTheme`
-  expose the same palette through the tree for a future theme switch, and
-  `SqlTypeColors` / `engineBrand` sit beside them as the other colour
-  vocabularies. A test walks `lib/` and fails on any `Color(0x…)` outside
-  `ui/core/theme/`, which is the drift starting again.
-  **Deliberately not done:** migrating widgets from the file-local aliases to
-  `VoltTheme.of(context)`. That is ~400 call sites and every one loses `const`;
-  it is the prerequisite for Settings→Appearance and belongs in its own PR.
+- **Theming** (`ui/core/theme/`, #7 **done**): the palette lives in one file and
+  the app reads it **from the widget tree**, so it can change at runtime.
+  Settings → **Appearance** switches Dark/Light and applies immediately.
+  - Step 1 killed the duplication: **109** private `const _accent =
+    Color(0xFF2FE6FF)` across 19 files, with four colours already drifted (two
+    reds, two greens, *three* ambers). `VoltPalette` holds the hexes;
+    `SqlTypeColors` / `engineBrand` sit beside it as the other vocabularies. A
+    test fails on any `Color(0x…)` outside `ui/core/theme/`.
+  - Step 2 moved all 19 files to `VoltTheme.of(context)`. The mechanical part is
+    a rename; the parts that aren't: a `static const` holding colours (pluto's
+    grid config) has no context and became an instance getter; a constructor
+    with a token as a **default value** can't be const at all; and two files
+    already used `t` for a `TableInfo`, which the palette's name collided with.
+    `prefer_const_constructors` is now enabled so `dart fix --apply` restores
+    every `const` a token didn't actually cost — 400+ of them.
+  - **The light palette is not the dark one inverted.** An accent tuned to glow
+    on near-black is nearly invisible on white, and a hover that lightens has to
+    darken. Every value is restated, the SQL syntax theme follows
+    (`atom-one-light`), and tests assert WCAG-AA contrast for body text in
+    *both* palettes.
 
-- **Grid row writes** (#79): **Add Row** (status bar), **Duplicate Row** and
-  **Delete Row** (row context menu), all staged into the same buffer as cell
-  edits and reviewed as SQL before anything runs. New rows render green with
-  untouched cells reading `default` (the column is left out of the `INSERT`, so
-  a sequence or engine default still applies — not the same as NULL); deleted
-  rows render struck through in red and stay readable until Apply. Statements
-  are emitted **DELETE → UPDATE → INSERT**, the order that survives a unique
-  index. Applying anything structural re-runs the source query, since the rows
-  on screen no longer describe the table. A duplicate deliberately omits the
-  primary key.
-  - Row identity now travels on the `PlutoRow` key (`_RowRef`) rather than the
-    view index. pluto sorts in place and reports view positions, so indexing
-    `WorksheetRows.rows` by `ctx.rowIdx` meant **sorting a column changed
-    nothing on screen** — the cells kept painting result order. Writes were
-    self-consistent with that (no wrong-row UPDATE), but sort was inert on both
-    editable and read-only grids. Fixed for both, which is also what makes
-    row-delete safe to add.
-
-- **Export / copy results** (#83, `domain/export/`): **CSV · TSV · JSON · SQL
-  INSERT · Markdown**, to the clipboard or a file, from the grid's *Export*
-  button or its row menu. Each format answers a different question — TSV
-  because that is what a paste into a spreadsheet expects, `INSERT` for moving
-  rows to another database, Markdown for a PR.
-  - The **row cap is the whole design problem**. The grid materializes at most
-    `resultRowCap` rows, so an export of "what's on screen" would hand someone
-    500 rows of a 50,000-row table and say nothing. The dialog therefore offers
-    **Visible** vs **All rows** — the latter re-runs the statement and
-    *streams* it — defaults to All whenever the result is capped, and warns in
-    the two cases where it can't (capped with no known source statement).
-  - Serializers are split `header`/`row`/`footer` so one implementation serves
-    both a clipboard copy and a streamed file. Markdown is the exception and
-    buffers: it aligns columns, so it must see every row.
-  - Escaping is the risk surface and is where the tests are: RFC 4180 quoting
-    (delimiter, embedded quote, newline, **surrounding whitespace** — plenty of
-    parsers strip unquoted padding), pipes and newlines escaped out of Markdown
-    rows, `INSERT` literals through the same `DmlBuilder` the grid edits use.
-    **CSV cannot distinguish NULL from `''`** — pinned by a test so nobody
-    "fixes" it into a round trip the format can't support, while JSON and
-    `INSERT` keep a real null.
 - **Narrow-pane behaviour** (#81, found by driving the live app): both the
   worksheet toolbar and the grid status bar overflowed once their pane was
   dragged narrow, which paints the buttons past the edge — **▶ Run and Add Row
@@ -246,7 +214,7 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   home in the menu bar, and the status bar's actions go icon-only rather than
   disappear. Run is the last thing standing.
 
-**395 tests** green (`flutter test`, +16 more with live PG/MySQL); `flutter analyze` clean.
+**397 tests** green (`flutter test`, +16 more with live PG/MySQL); `flutter analyze` clean.
 
 ## Deferred / known gaps
 

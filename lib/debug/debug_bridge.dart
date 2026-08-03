@@ -53,22 +53,22 @@ void registerDebugExtensions(ProviderContainer container) {
 @visibleForTesting
 class CapturedError {
   CapturedError(FlutterErrorDetails details)
-      : summary = details.exceptionAsString(),
-        library = details.library ?? 'unknown',
-        // The overflow message names the pixel count but not the widget; the
-        // file:line lives in the information collector, which is where "which
-        // Row?" actually comes from.
-        location = _locationOf(details);
+    : summary = details.exceptionAsString(),
+      library = details.library ?? 'unknown',
+      // The overflow message names the pixel count but not the widget; the
+      // file:line lives in the information collector, which is where "which
+      // Row?" actually comes from.
+      location = _locationOf(details);
 
   final String summary;
   final String library;
   final String? location;
 
   Map<String, Object?> toJson() => {
-        'summary': summary,
-        'library': library,
-        if (location != null) 'location': location,
-      };
+    'summary': summary,
+    'library': library,
+    if (location != null) 'location': location,
+  };
 
   /// First `foo.dart:12:34` mentioned by the error's own diagnostics.
   ///
@@ -162,8 +162,9 @@ class _DebugBridge {
     for (final id in tabs.ids) {
       for (final (index, rows) in _resultsOf(id).indexed) {
         final gridId = gridIdFor(id, index, rows);
-        grids.add(_grid(gridId, container.read(gridEditsProvider(gridId)),
-            rows: rows));
+        grids.add(
+          _grid(gridId, container.read(gridEditsProvider(gridId)), rows: rows),
+        );
       }
     }
 
@@ -209,14 +210,14 @@ class _DebugBridge {
                     'editable': (o.result as WorksheetRows).editability != null,
                   },
                 WorksheetMessage(:final text) => {
-                    'kind': 'message',
-                    'text': text,
-                  },
+                  'kind': 'message',
+                  'text': text,
+                },
                 WorksheetFailure(:final error) => {
-                    'kind': 'failure',
-                    'error': error.message,
-                    'errorKind': error.kind.name,
-                  },
+                  'kind': 'failure',
+                  'error': error.message,
+                  'errorKind': error.kind.name,
+                },
                 _ => {'kind': 'other'},
               },
             },
@@ -248,7 +249,8 @@ class _DebugBridge {
       ],
       'deletes': buf.deletes.toList()..sort(),
       'inserts': [
-        for (final r in buf.inserts) {'id': r.id, 'values': _stringify(r.values)},
+        for (final r in buf.inserts)
+          {'id': r.id, 'values': _stringify(r.values)},
       ],
     };
 
@@ -270,9 +272,9 @@ class _DebugBridge {
     final state = container.read(worksheetProvider(worksheetId));
     return switch (state) {
       WorksheetScript(:final outcomes) => [
-          for (final o in outcomes)
-            if (o.result case final WorksheetRows r) r,
-        ],
+        for (final o in outcomes)
+          if (o.result case final WorksheetRows r) r,
+      ],
       WorksheetRows() => [state],
       _ => const <WorksheetRows>[],
     };
@@ -291,6 +293,6 @@ class _DebugBridge {
   }
 
   static Map<String, String> _stringify(Map<String, Object?> values) => {
-        for (final e in values.entries) e.key: '${e.value}',
-      };
+    for (final e in values.entries) e.key: '${e.value}',
+  };
 }

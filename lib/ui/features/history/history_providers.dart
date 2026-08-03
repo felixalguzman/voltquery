@@ -47,6 +47,6 @@ class HistoryFilter extends _$HistoryFilter {
 
   void set(String value) => state = FilterState(open: true, text: value);
 
-  void toggle() => state =
-      state.open ? const FilterState() : const FilterState(open: true);
+  void toggle() =>
+      state = state.open ? const FilterState() : const FilterState(open: true);
 }

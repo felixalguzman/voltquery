@@ -26,7 +26,8 @@ Stream<List<Connection>> savedConnections(Ref ref) =>
 Future<SecretStore> secretStore(Ref ref) async {
   final dir = await getApplicationSupportDirectory();
   return VaultSecretStore(
-      File(p.join(dir.path, 'VoltQuery', 'credentials.vault')));
+    File(p.join(dir.path, 'VoltQuery', 'credentials.vault')),
+  );
 }
 
 /// Reactive vault lock state (unlocked?), updated by unlock/lock actions so the

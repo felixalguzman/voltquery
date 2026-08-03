@@ -30,22 +30,22 @@ enum SslMode {
 
   /// Human label for the connection form.
   String get label => switch (this) {
-        SslMode.disable => 'Disabled',
-        SslMode.require => 'Required (no verification)',
-        SslMode.verifyFull => 'Verify full',
-      };
+    SslMode.disable => 'Disabled',
+    SslMode.require => 'Required (no verification)',
+    SslMode.verifyFull => 'Verify full',
+  };
 
   String get description => switch (this) {
-        SslMode.disable =>
-          'No encryption. MySQL 8 refuses to authenticate this way.',
-        SslMode.require =>
-          'Encrypted, certificate not checked. Fine for localhost.',
-        SslMode.verifyFull =>
-          'Encrypted and the certificate is verified. Use across a network.',
-      };
+    SslMode.disable =>
+      'No encryption. MySQL 8 refuses to authenticate this way.',
+    SslMode.require =>
+      'Encrypted, certificate not checked. Fine for localhost.',
+    SslMode.verifyFull =>
+      'Encrypted and the certificate is verified. Use across a network.',
+  };
 
   static SslMode byName(String? name) => SslMode.values.firstWhere(
-        (m) => m.name == name,
-        orElse: () => SslMode.require,
-      );
+    (m) => m.name == name,
+    orElse: () => SslMode.require,
+  );
 }

@@ -21,8 +21,8 @@ class SchemaFilter extends _$SchemaFilter {
 
   /// Closing clears: a hidden filter that is still narrowing the tree would be
   /// a panel silently lying about how many tables you have.
-  void toggle() => state =
-      state.open ? const FilterState() : const FilterState(open: true);
+  void toggle() =>
+      state = state.open ? const FilterState() : const FilterState(open: true);
 }
 
 /// The lazy schema tree's cache for the **active** connection (ADR-0008).
