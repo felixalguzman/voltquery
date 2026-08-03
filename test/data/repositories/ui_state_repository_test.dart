@@ -67,13 +67,18 @@ void main() {
     expect(settings.toJson(), const AppSettings().toJson());
   });
 
-  test('resetting settings also clears the saved layout', () async {
+  test('"Reset to defaults" clears the layout as well as the settings',
+      () async {
+    // They used to share a table, so one delete did both. They no longer do —
+    // UI state is per-machine ephemera and writing it must not notify the
+    // settings watchers that now drive the theme — so the reset says so.
     final db = LocalStore.memory();
     addTearDown(db.close);
     final ui = UiStateRepository(db);
     await ui.saveCollapsedSections({'schema'});
 
     await SettingsRepository(db).reset();
+    await ui.reset();
 
     expect(await ui.collapsedSections(), isEmpty);
   });

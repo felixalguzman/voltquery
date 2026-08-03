@@ -250,6 +250,49 @@ void main() {
     expect(find.text('Query 2'), findsOneWidget);
   });
 
+  testWidgets('an expanded table is still expanded after a reconnect',
+      (tester) async {
+    // The whole point: the tree is lazy, so without this every launch starts
+    // collapsed and you re-open the same four tables every morning.
+    final container = await _pumpApp(tester);
+
+    await tester.tap(find.byIcon(FluentIcons.chevron_right).at(1));
+    await tester.pumpAndSettle();
+    expect(find.text('email'), findsOneWidget);
+
+    // Persisted against the connection, not the widget.
+    final saved = await container
+        .read(uiStateRepositoryProvider)
+        .readTreeExpansion('demo');
+    expect(saved.paths, contains('customers'));
+
+    // Rebuild the sidebar from scratch — the same thing a reconnect does.
+    container.invalidate(schemaRepositoryProvider);
+    await tester.pumpAndSettle();
+
+    expect(find.text('email'), findsOneWidget,
+        reason: 'the expansion should have been restored');
+  });
+
+  testWidgets('collapsing forgets it again', (tester) async {
+    final container = await _pumpApp(tester);
+
+    await tester.tap(find.byIcon(FluentIcons.chevron_right).at(1));
+    await tester.pumpAndSettle();
+    // Scoped to the tree: the section headers and the Run dropdown use
+    // chevron_down too, so an unscoped `.first` collapses a whole panel.
+    await tester.tap(find.descendant(
+      of: find.byType(TreeView),
+      matching: find.byIcon(FluentIcons.chevron_down),
+    ).first);
+    await tester.pumpAndSettle();
+
+    final saved = await container
+        .read(uiStateRepositoryProvider)
+        .readTreeExpansion('demo');
+    expect(saved.paths, isNot(contains('customers')));
+  });
+
   testWidgets('the table preview LIMIT comes from settings', (tester) async {
     final container = await _pumpApp(tester);
 

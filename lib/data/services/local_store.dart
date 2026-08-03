@@ -76,10 +76,26 @@ class SettingsRows extends Table {
   Set<Column> get primaryKey => {key};
 }
 
+/// Per-machine UI state: which schema-tree nodes were open, keyed by
+/// connection.
+///
+/// A separate table from [SettingsRows] for two reasons. It isn't a setting —
+/// nobody chose it, and it has no business in an exported or shared connection.
+/// And [SettingsRepository.watch] drives the whole app (the theme lives there
+/// now), so writing tree state into it would rebuild everything on every
+/// expand and collapse.
+class UiStateRows extends Table {
+  TextColumn get key => text()();
+  TextColumn get value => text()();
+
+  @override
+  Set<Column> get primaryKey => {key};
+}
+
 /// The app's own **drift** store — `voltquery.db` in the app-support dir.
 /// Secret-free (ADR-0005). Uses drift here (fixed compile-time schema), not the
 /// raw `sqlite3` we use for arbitrary *user* databases (ADR-0003).
-@DriftDatabase(tables: [HistoryRows, ConnectionRows, SettingsRows])
+@DriftDatabase(tables: [HistoryRows, ConnectionRows, SettingsRows, UiStateRows])
 class LocalStore extends _$LocalStore {
   LocalStore() : super(_openFile());
 
@@ -87,12 +103,24 @@ class LocalStore extends _$LocalStore {
   LocalStore.memory() : super(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) => m.createAll(),
     onUpgrade: (m, from, to) async {
+      if (from < 7) {
+        await m.createTable(uiStateRows);
+        // Move the `ui.` rows out of settings_rows. They were only ever there
+        // because it was the table that existed; keeping them meant every
+        // splitter drag notified `SettingsRepository.watch`, which now drives
+        // the app's theme — so a resize rebuilt everything.
+        await customStatement(
+          "INSERT OR REPLACE INTO ui_state_rows (key, value) "
+          "SELECT substr(key, 4), value FROM settings_rows WHERE key LIKE 'ui.%'",
+        );
+        await customStatement("DELETE FROM settings_rows WHERE key LIKE 'ui.%'");
+      }
       if (from < 2) await m.createTable(connectionRows);
       if (from < 3) {
         await m.addColumn(connectionRows, connectionRows.sslMode);
