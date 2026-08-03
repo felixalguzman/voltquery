@@ -70,6 +70,14 @@ class _PendingRef extends _RowRef {
   int get hashCode => Object.hash('pending', id);
 }
 
+/// Key for one of the result grid's status-bar actions ("Add Row", "Discard",
+/// "Review & Apply").
+///
+/// A named function rather than scattered string literals: on a narrow pane
+/// those buttons are icon-only, so their label is not in the tree and a test —
+/// or Flutter Driver against the live app — has nothing else to select on.
+String gridActionKey(String label) => 'grid.action.$label';
+
 /// The result grid. Read-only unless the result maps 1:1 onto one table's rows
 /// ([WorksheetRows.editability]), in which case cells become editable and edits
 /// are **staged** — nothing reaches the database until the user reviews the
@@ -557,56 +565,92 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
       alignment: Alignment.centerLeft,
       padding: const EdgeInsets.only(left: 12, right: 6),
       color: _bg,
-      child: Row(
-        children: [
-          Text(
-            '${r.rows.length} row(s) · ${r.durationMs} ms'
-            '${r.capped ? ' · capped' : ''}',
-            style: const TextStyle(color: _textMid, fontSize: 11),
-          ),
-          if (_editable && pending == 0) ...[
-            const SizedBox(width: 10),
-            const Icon(FluentIcons.edit, size: 10, color: _textLo),
-            const SizedBox(width: 4),
-            Text(
-              'editable · ${_edit!.target.table}',
-              style: const TextStyle(color: _textLo, fontSize: 11),
+      // The results pane is user-resizable and gets genuinely narrow. Two rules
+      // when it does: the counters yield before the actions (a button you
+      // cannot reach is worse than a number you cannot read), and below
+      // [_compactBarWidth] the actions drop their labels rather than being
+      // pushed off the edge — which is what happened, since an overflowing
+      // child is still laid out and simply never painted.
+      child: LayoutBuilder(builder: (context, c) {
+        final compact = c.maxWidth < _compactBarWidth;
+        return Row(
+          children: [
+            Expanded(
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      '${r.rows.length} row(s) · ${r.durationMs} ms'
+                      '${r.capped ? ' · capped' : ''}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: _textMid, fontSize: 11),
+                    ),
+                  ),
+                  if (_editable && pending == 0) ...[
+                    const SizedBox(width: 10),
+                    const Icon(FluentIcons.edit, size: 10, color: _textLo),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        'editable · ${_edit!.target.table}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: _textLo, fontSize: 11),
+                      ),
+                    ),
+                  ],
+                  if (pending > 0) ...[
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(
+                        _pendingSummary(buf),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: _dirty, fontSize: 11),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
+            const SizedBox(width: 8),
+            // Always offered on an editable grid, not only once something is
+            // staged: adding the first row is exactly the case where there is
+            // nothing to right-click.
+            if (_editable) ...[
+              _barButton('Add Row', FluentIcons.add, _textMid, _addRow,
+                  compact: compact),
+              const SizedBox(width: 4),
+            ],
+            if (pending > 0) ...[
+              _barButton(
+                'Discard',
+                FluentIcons.cancel,
+                _textMid,
+                () => ref
+                    .read(gridEditsProvider(widget.gridId).notifier)
+                    .clear(),
+                compact: compact,
+              ),
+              const SizedBox(width: 4),
+              _barButton(
+                'Review & Apply',
+                FluentIcons.check_mark,
+                _accent,
+                () => _review(buf),
+                compact: compact,
+              ),
+            ],
           ],
-          const Spacer(),
-          // Always offered on an editable grid, not only once something is
-          // staged: adding the first row is exactly the case where there is
-          // nothing to right-click.
-          if (_editable) ...[
-            _barButton('Add Row', FluentIcons.add, _textMid, _addRow),
-            const SizedBox(width: 4),
-          ],
-          if (pending > 0) ...[
-            Text(
-              _pendingSummary(buf),
-              style: const TextStyle(color: _dirty, fontSize: 11),
-            ),
-            const SizedBox(width: 10),
-            _barButton(
-              'Discard',
-              FluentIcons.cancel,
-              _textMid,
-              () => ref
-                  .read(gridEditsProvider(widget.gridId).notifier)
-                  .clear(),
-            ),
-            const SizedBox(width: 4),
-            _barButton(
-              'Review & Apply',
-              FluentIcons.check_mark,
-              _accent,
-              () => _review(buf),
-            ),
-          ],
-        ],
-      ),
+        );
+      }),
     );
   }
+
+  /// Below this the status bar's buttons go icon-only. Sized off the widest
+  /// state (all three buttons plus a readable counter), not guessed.
+  static const _compactBarWidth = 420.0;
 
   /// "3 edits · 1 new · 2 deleted" — the kinds are worth separating, because
   /// "5 pending changes" reads the same whether or not two of them drop rows.
@@ -620,30 +664,45 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
     return '${parts.join(' · ')} pending';
   }
 
+  /// [compact] drops the label. The tooltip carries it instead, so a narrow
+  /// pane loses the word but never the action.
   Widget _barButton(
     String label,
     IconData icon,
     Color color,
-    VoidCallback onPressed,
-  ) =>
-      HoverButton(
-        onPressed: onPressed,
-        builder: (context, states) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: states.isHovered ? const Color(0x14FFFFFF) : null,
-            borderRadius: BorderRadius.circular(3),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 10, color: color),
+    VoidCallback onPressed, {
+    bool compact = false,
+  }) {
+    final button = HoverButton(
+      onPressed: onPressed,
+      builder: (context, states) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: states.isHovered ? const Color(0x14FFFFFF) : null,
+          borderRadius: BorderRadius.circular(3),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 10, color: color),
+            if (!compact) ...[
               const SizedBox(width: 5),
               Text(label, style: TextStyle(color: color, fontSize: 11)),
             ],
-          ),
+          ],
         ),
-      );
+      ),
+    );
+    // Always tooltipped, not only when compact: the label is 11px either way.
+    // Keyed so the button stays findable when [compact] has removed its text —
+    // that is what the driver and the widget tests select on. fluent's Tooltip
+    // is not material's, so `find.byTooltip` does not see it.
+    return Tooltip(
+      key: ValueKey(gridActionKey(label)),
+      message: label,
+      child: button,
+    );
+  }
 
   static const _config = PlutoGridConfiguration.dark(
     style: PlutoGridStyleConfig.dark(

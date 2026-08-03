@@ -64,4 +64,43 @@ void main() {
 
     expect(find.textContaining('4 row(s)'), findsOneWidget);
   });
+
+  testWidgets('a narrow editor pane keeps Run reachable', (tester) async {
+    // Found by driving the live app: with the sidebar dragged wide the toolbar
+    // overflowed by 83px and **Run was painted past the right edge**, where it
+    // cannot be clicked. An overflow does not throw in release — the child is
+    // still laid out, just never drawn — so the primary action simply vanished.
+    const width = 380.0;
+    tester.view.physicalSize = const Size(width, 700);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: _memoryStore,
+        child: const FluentApp(
+          debugShowCheckedModeBanner: false,
+          home: ScaffoldPage(
+            padding: EdgeInsets.zero,
+            content: WorksheetView(worksheetId: 'ws-narrow'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final run = find.text('▶ Run');
+    expect(run, findsOneWidget);
+    expect(tester.getBottomRight(run).dx, lessThanOrEqualTo(width + 0.5),
+        reason: 'Run is laid out past the right edge of a ${width}px pane');
+
+    // Secondary controls give way instead — they have another home in the menu
+    // bar, Run does not.
+    expect(find.text('Open…'), findsNothing);
+
+    // And it still works, which is the whole point.
+    await tester.tap(run);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('4 row(s)'), findsOneWidget);
+  });
 }

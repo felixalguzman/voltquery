@@ -271,52 +271,75 @@ class _WorksheetViewState extends ConsumerState<WorksheetView> {
         color: _panel,
         border: Border(bottom: BorderSide(color: _hair)),
       ),
-      child: Row(
-        children: [
-          const Icon(FluentIcons.database, size: 14, color: _accent),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              '$connName · ${ref.watch(currentConnectionProvider).engine.label}',
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: _textMid, fontSize: 12),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Button(onPressed: _openFile, child: const Text('Open…')),
-          const Spacer(),
-          ..._txControls(),
-          _continueOnErrorToggle(),
-          const SizedBox(width: 10),
-          if (ref.watch(worksheetProvider(widget.worksheetId))
-              is WorksheetRunning)
-            FilledButton(
-              onPressed:
-                  ref.read(worksheetProvider(widget.worksheetId).notifier).cancel,
-              child: const Text('■ Cancel'),
-            )
-          else
-            FilledButton(onPressed: _run, child: const Text('▶ Run')),
-          const SizedBox(width: 6),
-          DropDownButton(
-            title: const Icon(FluentIcons.chevron_down, size: 10),
-            items: [
-              MenuFlyoutItem(
-                leading: const Icon(FluentIcons.caret_right, size: 12),
-                text: const Text('Run at cursor   Ctrl+Enter'),
-                onPressed: _runAtCursor,
-              ),
-              MenuFlyoutItem(
-                leading: const Icon(FluentIcons.text_field, size: 12),
-                text: const Text('Run selection'),
-                onPressed: _runSelection,
-              ),
+      // The editor pane is user-resizable and this bar used to overflow the
+      // moment it got narrow — which does not throw in release, it just lays
+      // **Run** out past the right edge where it is never painted and cannot be
+      // clicked. Losing the primary action to a drag of the splitter is not an
+      // acceptable failure mode, so the identity text and the secondary
+      // controls give way first and Run is the last thing standing.
+      child: LayoutBuilder(builder: (context, c) {
+        final tight = c.maxWidth < _tightToolbarWidth;
+        final running =
+            ref.watch(worksheetProvider(widget.worksheetId)) is WorksheetRunning;
+        return Row(
+          children: [
+            if (!tight) ...[
+              const Icon(FluentIcons.database, size: 14, color: _accent),
+              const SizedBox(width: 6),
             ],
-          ),
-        ],
-      ),
+            Expanded(
+              child: Text(
+                '$connName · ${ref.watch(currentConnectionProvider).engine.label}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: _textMid, fontSize: 12),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Open… and the transaction controls are reachable from the File
+            // and Query menus; Run's only home is here.
+            if (!tight) ...[
+              Button(onPressed: _openFile, child: const Text('Open…')),
+              const SizedBox(width: 8),
+              ..._txControls(),
+              _continueOnErrorToggle(),
+              const SizedBox(width: 10),
+            ],
+            if (running)
+              FilledButton(
+                onPressed: ref
+                    .read(worksheetProvider(widget.worksheetId).notifier)
+                    .cancel,
+                child: const Text('■ Cancel'),
+              )
+            else
+              FilledButton(onPressed: _run, child: const Text('▶ Run')),
+            const SizedBox(width: 6),
+            DropDownButton(
+              title: const Icon(FluentIcons.chevron_down, size: 10),
+              items: [
+                MenuFlyoutItem(
+                  leading: const Icon(FluentIcons.caret_right, size: 12),
+                  text: const Text('Run at cursor   Ctrl+Enter'),
+                  onPressed: _runAtCursor,
+                ),
+                MenuFlyoutItem(
+                  leading: const Icon(FluentIcons.text_field, size: 12),
+                  text: const Text('Run selection'),
+                  onPressed: _runSelection,
+                ),
+              ],
+            ),
+          ],
+        );
+      }),
     );
   }
+
+  /// Below this the toolbar sheds everything that has another home in the menu
+  /// bar, keeping Run. Sized off the widest state (an open transaction shows
+  /// Commit and Rollback too), not guessed.
+  static const _tightToolbarWidth = 460.0;
 }
 
 /// re_editor's defaults bind **Ctrl+Enter to newline** (which swallowed our Run
