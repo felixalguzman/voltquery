@@ -4,14 +4,6 @@ import '../../core/theme/volt_tokens.dart';
 
 import '../../../domain/export/result_export.dart';
 
-// Palette lives in ui/core/theme (#7); these are local names for it.
-const _bg = VoltPalette.canvas;
-const _hair = VoltPalette.hairline;
-const _text = VoltPalette.textHigh;
-const _textMid = VoltPalette.textMid;
-const _textLo = VoltPalette.textLow;
-const _accent = VoltPalette.accent;
-const _warn = VoltPalette.warning;
 
 /// Which rows leave the app.
 enum ExportScope {
@@ -27,7 +19,7 @@ enum ExportSink { clipboard, file }
 
 /// Everything the caller needs to perform the export.
 class ExportRequest {
-  const ExportRequest({
+  ExportRequest({
     required this.format,
     required this.options,
     required this.scope,
@@ -72,6 +64,7 @@ class ExportDialog extends StatefulWidget {
 }
 
 class _ExportDialogState extends State<ExportDialog> {
+  VoltTokens get t => VoltTheme.of(context);
   late ExportFormat _format = ExportFormat.csv;
   late ExportOptions _options = widget.defaultOptions;
   // Default to the whole result when the visible slice is known to be partial:
@@ -96,6 +89,7 @@ class _ExportDialogState extends State<ExportDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final t = VoltTheme.of(context);
     return ContentDialog(
       constraints: const BoxConstraints(maxWidth: 480),
       title: const Text('Export results', style: TextStyle(fontSize: 16)),
@@ -157,8 +151,8 @@ class _ExportDialogState extends State<ExportDialog> {
             onChanged: (v) => setState(
               () => _options = _options.copyWith(includeHeader: v ?? true),
             ),
-            content: const Text('Include column names',
-                style: TextStyle(color: _text, fontSize: 12.5)),
+            content: Text('Include column names',
+                style: TextStyle(color: t.textHigh, fontSize: 12.5)),
           ),
           // JSON and INSERT both have a real null, so the substitution would be
           // a lie there; only the text formats need it.
@@ -169,16 +163,16 @@ class _ExportDialogState extends State<ExportDialog> {
             TextBox(
               controller: _nullController,
               placeholder: 'empty',
-              style: const TextStyle(color: _text, fontSize: 12.5),
+              style: TextStyle(color: t.textHigh, fontSize: 12.5),
               onChanged: (v) =>
                   _options = _options.copyWith(nullText: v),
             ),
-            const Padding(
-              padding: EdgeInsets.only(top: 4),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
               child: Text(
                 'CSV has no null, so this is also what an empty string looks '
                 'like.',
-                style: TextStyle(color: _textLo, fontSize: 11),
+                style: TextStyle(color: t.textLow, fontSize: 11),
               ),
             ),
           ],
@@ -208,8 +202,8 @@ class _ExportDialogState extends State<ExportDialog> {
         padding: const EdgeInsets.only(bottom: 5),
         child: Text(
           text.toUpperCase(),
-          style: const TextStyle(
-            color: _textLo,
+          style: TextStyle(
+            color: t.textLow,
             fontSize: 10,
             letterSpacing: 0.6,
             fontWeight: FontWeight.w600,
@@ -230,21 +224,21 @@ class _ExportDialogState extends State<ExportDialog> {
         builder: (context, states) => Container(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
           decoration: BoxDecoration(
-            color: states.isHovered ? VoltPalette.hoverSoft : null,
+            color: states.isHovered ? t.hoverSoft : null,
             borderRadius: BorderRadius.circular(3),
           ),
           child: Row(children: [
             Icon(
               selected ? FluentIcons.radio_btn_on : FluentIcons.radio_btn_off,
               size: 14,
-              color: selected ? _accent : _textLo,
+              color: selected ? t.accent : t.textLow,
             ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 label,
                 style: TextStyle(
-                  color: selected ? _text : _textMid,
+                  color: selected ? t.textHigh : t.textMid,
                   fontSize: 12.5,
                 ),
               ),
@@ -257,19 +251,19 @@ class _ExportDialogState extends State<ExportDialog> {
         margin: const EdgeInsets.only(top: 8),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
-          color: _bg,
-          border: Border.all(color: _hair),
+          color: t.canvas,
+          border: Border.all(color: t.hairline),
           borderRadius: BorderRadius.circular(3),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(FluentIcons.warning, size: 11, color: _warn),
+            Icon(FluentIcons.warning, size: 11, color: t.warning),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
                 text,
-                style: const TextStyle(color: _textMid, fontSize: 11.5),
+                style: TextStyle(color: t.textMid, fontSize: 11.5),
               ),
             ),
           ],

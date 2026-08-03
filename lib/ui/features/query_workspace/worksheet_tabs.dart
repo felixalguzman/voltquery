@@ -8,14 +8,6 @@ import '../../core/menu/context_menu.dart';
 import 'worksheet_providers.dart';
 import 'worksheet_view.dart';
 
-// Palette lives in ui/core/theme (#7); these are local names for it.
-const _bg = VoltPalette.canvas;
-const _panel = VoltPalette.panel;
-const _hair = VoltPalette.hairline;
-const _accent = VoltPalette.accent;
-const _textMid = VoltPalette.textMid;
-const _textLo = VoltPalette.textLow;
-
 /// The worksheet tab bar + bodies. Each tab is a Worksheet with its **own**
 /// live Session (ADR-0002/0004) — an [IndexedStack] keeps every tab mounted so
 /// its editor + result (and session) persist across switches; the tab is closed
@@ -26,6 +18,7 @@ class WorksheetTabBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = VoltTheme.of(context);
     final tabs = ref.watch(worksheetTabsProvider);
     final ctrl = ref.read(worksheetTabsProvider.notifier);
     final activeIndex = tabs.ids.indexOf(tabs.activeId);
@@ -33,7 +26,7 @@ class WorksheetTabBar extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _strip(tabs, ctrl),
+        _strip(t, tabs, ctrl),
         Expanded(
           child: IndexedStack(
             index: activeIndex < 0 ? 0 : activeIndex,
@@ -47,33 +40,40 @@ class WorksheetTabBar extends ConsumerWidget {
     );
   }
 
-  Widget _strip(WorksheetTabsState tabs, WorksheetTabs ctrl) {
+  Widget _strip(VoltTokens t, WorksheetTabsState tabs, WorksheetTabs ctrl) {
     return Container(
       height: 34,
-      decoration: const BoxDecoration(
-        color: _panel,
-        border: Border(bottom: BorderSide(color: _hair)),
+      decoration: BoxDecoration(
+        color: t.panel,
+        border: Border(bottom: BorderSide(color: t.hairline)),
       ),
-      child: Row(children: [
-        Expanded(
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: [
-              for (var i = 0; i < tabs.ids.length; i++)
-                _tab(tabs, ctrl, i),
-            ],
+      child: Row(
+        children: [
+          Expanded(
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                for (var i = 0; i < tabs.ids.length; i++)
+                  _tab(t, tabs, ctrl, i),
+              ],
+            ),
           ),
-        ),
-        IconButton(
-          icon: const Icon(FluentIcons.add, size: 12, color: _textMid),
-          onPressed: ctrl.add,
-        ),
-        const SizedBox(width: 4),
-      ]),
+          IconButton(
+            icon: Icon(FluentIcons.add, size: 12, color: t.textMid),
+            onPressed: ctrl.add,
+          ),
+          const SizedBox(width: 4),
+        ],
+      ),
     );
   }
 
-  Widget _tab(WorksheetTabsState tabs, WorksheetTabs ctrl, int i) {
+  Widget _tab(
+    VoltTokens t,
+    WorksheetTabsState tabs,
+    WorksheetTabs ctrl,
+    int i,
+  ) {
     final id = tabs.ids[i];
     final active = id == tabs.activeId;
     final only = tabs.ids.length == 1;
@@ -97,30 +97,41 @@ class WorksheetTabBar extends ConsumerWidget {
       ],
       child: GestureDetector(
         onTap: () => ctrl.select(id),
-      child: Container(
-        padding: const EdgeInsets.only(left: 12, right: 6),
-        decoration: BoxDecoration(
-          color: active ? _bg : _panel,
-          border: Border(
-            right: const BorderSide(color: _hair),
-            bottom: BorderSide(
-                color: active ? _accent : Colors.transparent, width: 2),
+        child: Container(
+          padding: const EdgeInsets.only(left: 12, right: 6),
+          decoration: BoxDecoration(
+            color: active ? t.canvas : t.panel,
+            border: Border(
+              right: BorderSide(color: t.hairline),
+              bottom: BorderSide(
+                color: active ? t.accent : Colors.transparent,
+                width: 2,
+              ),
+            ),
           ),
-        ),
-        child: Row(children: [
-          Text('Query ${i + 1}',
-              style: TextStyle(
-                  color: active ? VoltPalette.textHigh : _textLo,
-                  fontSize: 12)),
-          const SizedBox(width: 6),
-          if (tabs.ids.length > 1)
-            IconButton(
-              icon: const Icon(FluentIcons.chrome_close, size: 9, color: _textMid),
-              onPressed: () => ctrl.close(id),
-            )
-          else
-            const SizedBox(width: 8),
-        ]),
+          child: Row(
+            children: [
+              Text(
+                'Query ${i + 1}',
+                style: TextStyle(
+                  color: active ? t.textHigh : t.textLow,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(width: 6),
+              if (tabs.ids.length > 1)
+                IconButton(
+                  icon: Icon(
+                    FluentIcons.chrome_close,
+                    size: 9,
+                    color: t.textMid,
+                  ),
+                  onPressed: () => ctrl.close(id),
+                )
+              else
+                const SizedBox(width: 8),
+            ],
+          ),
         ),
       ),
     );
