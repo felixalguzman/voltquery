@@ -4,7 +4,7 @@ Snapshot of the implementation so a fresh session (or you) can pick up. The
 **spec** (what to build) lives in [`docs/README.md`](README.md) → CONTEXT.md,
 ADRs 0001–0009, `docs/design/*`. This file tracks **what's built** so far.
 
-## Done (82 PRs merged to `master`)
+## Done (83 PRs merged to `master`)
 
 Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/MariaDB**
 — all interchangeable behind the driver port (ADR-0003).
@@ -206,6 +206,27 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
     editable and read-only grids. Fixed for both, which is also what makes
     row-delete safe to add.
 
+- **Export / copy results** (#83, `domain/export/`): **CSV · TSV · JSON · SQL
+  INSERT · Markdown**, to the clipboard or a file, from the grid's *Export*
+  button or its row menu. Each format answers a different question — TSV
+  because that is what a paste into a spreadsheet expects, `INSERT` for moving
+  rows to another database, Markdown for a PR.
+  - The **row cap is the whole design problem**. The grid materializes at most
+    `resultRowCap` rows, so an export of "what's on screen" would hand someone
+    500 rows of a 50,000-row table and say nothing. The dialog therefore offers
+    **Visible** vs **All rows** — the latter re-runs the statement and
+    *streams* it — defaults to All whenever the result is capped, and warns in
+    the two cases where it can't (capped with no known source statement).
+  - Serializers are split `header`/`row`/`footer` so one implementation serves
+    both a clipboard copy and a streamed file. Markdown is the exception and
+    buffers: it aligns columns, so it must see every row.
+  - Escaping is the risk surface and is where the tests are: RFC 4180 quoting
+    (delimiter, embedded quote, newline, **surrounding whitespace** — plenty of
+    parsers strip unquoted padding), pipes and newlines escaped out of Markdown
+    rows, `INSERT` literals through the same `DmlBuilder` the grid edits use.
+    **CSV cannot distinguish NULL from `''`** — pinned by a test so nobody
+    "fixes" it into a round trip the format can't support, while JSON and
+    `INSERT` keep a real null.
 - **Narrow-pane behaviour** (#81, found by driving the live app): both the
   worksheet toolbar and the grid status bar overflowed once their pane was
   dragged narrow, which paints the buttons past the edge — **▶ Run and Add Row
@@ -214,7 +235,7 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   home in the menu bar, and the status bar's actions go icon-only rather than
   disappear. Run is the last thing standing.
 
-**355 tests** green (`flutter test`, +16 more with live PG/MySQL); `flutter analyze` clean.
+**391 tests** green (`flutter test`, +16 more with live PG/MySQL); `flutter analyze` clean.
 
 ## Deferred / known gaps
 
@@ -265,6 +286,7 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 3. **Grid write-path** — domain layer, typed editors, staged buffer and SQL
    review panel shipped in #63/#64, hardened in #66; row insert/delete/clone in
    #79. Remaining: a **JSON** editor, and multi-row select → delete in one go.
+   **Import** is the counterpart to #83's export and is not built.
 4. **Result grid engine** (#67) — pluto_grid is unmaintained; migrate to the
    active `trina_grid` fork, then measure. A custom `VoltGrid` on
    `two_dimensional_scrollables` is the agreed long-term destination but is

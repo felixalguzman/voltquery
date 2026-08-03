@@ -31,8 +31,10 @@ uri() {
     echo "or set VOLTQUERY_VMSERVICE=http://127.0.0.1:PORT/AUTH/" >&2
     exit 1
   fi
-  # The file holds e.g. http://127.0.0.1:41000/AbCdEf=/ — trailing slash off.
-  sed -e 's:/*$::' "$URI_FILE"
+  # Flutter writes the *WebSocket* URI: ws://127.0.0.1:41000/AbCdEf=/ws
+  # The service also answers plain RPCs over HTTP at the same authority, which
+  # is what curl wants — so drop the /ws suffix and swap the scheme.
+  sed -e 's:^ws:http:' -e 's:/ws$::' -e 's:/*$::' "$URI_FILE"
 }
 
 # The bridge is registered on the app's main isolate; ask the VM which that is

@@ -12,6 +12,8 @@ import '../../../domain/models/connection.dart';
 import '../../../domain/models/engine.dart';
 import '../../../domain/models/history_entry.dart';
 import '../../../domain/models/schema.dart';
+import '../../../domain/export/result_export.dart';
+import '../../../domain/export/result_export_service.dart';
 import '../../../domain/sql/sql_statement_splitter.dart';
 import '../connections/connection_providers.dart';
 import '../history/history_providers.dart';
@@ -687,6 +689,31 @@ class Worksheet extends _$Worksheet {
     state = WorksheetScript(outcomes, canceled: _cancelRequested);
     // Any successful DDL may have changed the catalog — drop the tree cache.
     if (ranDdl) ref.invalidate(schemaRepositoryProvider);
+  }
+
+  /// Streams the **full** result of [sql] into [sink], re-running it on this
+  /// worksheet's Session. Returns the number of rows written.
+  ///
+  /// Deliberately not the rows the grid is holding: those are capped at
+  /// `resultRowCap`, so exporting them would quietly hand over a fraction of a
+  /// large table. Not recorded in history — this runs the statement the user
+  /// already ran, and logging it again would double every export.
+  Future<int> exportResult({
+    required String sql,
+    required ExportFormat format,
+    required ExportOptions options,
+    required StringSink sink,
+  }) async {
+    final session = await ref.read(
+      worksheetSessionProvider(worksheetId).future,
+    );
+    return const ResultExportService().export(
+      session: session,
+      sql: sql,
+      format: format,
+      options: options,
+      sink: sink,
+    );
   }
 
   /// Run the grid's staged edits against this worksheet's Session, in order.

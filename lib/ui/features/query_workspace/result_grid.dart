@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:file_selector/file_selector.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart' as m;
@@ -11,9 +14,11 @@ import '../../../domain/models/column_editor.dart';
 import '../../../domain/drivers/result.dart';
 import '../../../domain/sql/dml_builder.dart';
 import '../../../domain/sql/editable_result.dart';
+import '../../../domain/export/result_export.dart';
 import '../../../domain/sql/sql_statement_splitter.dart';
 import '../../core/menu/context_menu.dart';
 import '../settings/settings_providers.dart';
+import 'export_dialog.dart';
 import 'grid_edit_buffer.dart';
 import 'grid_editability.dart';
 import 'worksheet_providers.dart';
@@ -467,6 +472,7 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
                 onToggleDelete: _toggleDelete,
                 onDuplicate: _duplicateRow,
                 onDiscardNew: _discardNewRow,
+                onExport: _export,
                 dialect: _dialect,
                 editability: _edit,
                 nullDisplay: nullDisplay,
@@ -509,6 +515,99 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
           ),
         );
   }
+
+  /// Ask what to export, then do it. Null result = cancelled.
+  Future<void> _export() async {
+    final sql = widget.sourceSql;
+    final request = await showDialog<ExportRequest>(
+      context: context,
+      builder: (context) => ExportDialog(
+        visibleRows: widget.rows.rows.length,
+        capped: widget.rows.capped,
+        // Re-running needs the statement; without it, only what's loaded can
+        // leave, and the dialog says so rather than pretending otherwise.
+        canExportAll: sql != null,
+        defaultOptions: ExportOptions(
+          dialect: _dialect,
+          table: _edit?.target.table ?? 'exported_rows',
+        ),
+      ),
+    );
+    if (request == null || !mounted) return;
+
+    try {
+      final (text, rowCount) = await _serialize(request, sql);
+      if (!mounted) return;
+      if (request.sink == ExportSink.clipboard) {
+        await Clipboard.setData(ClipboardData(text: text));
+        if (mounted) _toast('Copied $rowCount row(s)');
+      } else {
+        final saved = await _save(text, request.format);
+        if (mounted && saved != null) _toast('Wrote $rowCount row(s) to $saved');
+      }
+    } catch (e) {
+      if (mounted) _toastError('Export failed', '$e');
+    }
+  }
+
+  /// The exported text and how many rows it holds.
+  Future<(String, int)> _serialize(ExportRequest request, String? sql) async {
+    if (request.scope == ExportScope.visible || sql == null) {
+      final formatter = ResultFormatter.of(request.format, request.options);
+      return (
+        formatter.formatAll(widget.rows.fields, widget.rows.rows),
+        widget.rows.rows.length,
+      );
+    }
+    // Whole result: re-run and stream. Into a buffer for now — the file sink
+    // would avoid holding it at all, but `file_selector` hands back a path only
+    // after the dialog closes, and asking where to save *before* knowing the
+    // export succeeds is the worse trade.
+    final buffer = StringBuffer();
+    final count = await ref
+        .read(worksheetProvider(widget.worksheetId).notifier)
+        .exportResult(
+          sql: sql,
+          format: request.format,
+          options: request.options,
+          sink: buffer,
+        );
+    return (buffer.toString(), count);
+  }
+
+  /// Writes [text] to a file the user picks. Returns its name, or null if the
+  /// save dialog was dismissed.
+  Future<String?> _save(String text, ExportFormat format) async {
+    final table = _edit?.target.table ?? 'result';
+    final location = await getSaveLocation(
+      suggestedName: '$table.${format.extension}',
+      acceptedTypeGroups: [
+        XTypeGroup(label: format.label, extensions: [format.extension]),
+      ],
+    );
+    if (location == null) return null;
+    await File(location.path).writeAsString(text);
+    return location.path.split(Platform.pathSeparator).last;
+  }
+
+  void _toast(String title) => displayInfoBar(
+        context,
+        builder: (context, close) => InfoBar(
+          title: Text(title),
+          severity: InfoBarSeverity.success,
+          onClose: close,
+        ),
+      );
+
+  void _toastError(String title, String detail) => displayInfoBar(
+        context,
+        builder: (context, close) => InfoBar(
+          title: Text(title),
+          content: Text(detail),
+          severity: InfoBarSeverity.error,
+          onClose: close,
+        ),
+      );
 
   /// The same, for a row that doesn't exist yet.
   void _setPending(int id, String column, Object? newValue) {
@@ -609,6 +708,9 @@ class _ResultGridState extends ConsumerState<ResultGrid> {
             // Always offered on an editable grid, not only once something is
             // staged: adding the first row is exactly the case where there is
             // nothing to right-click.
+            _barButton('Export', FluentIcons.download, _textMid, _export,
+                compact: compact),
+            const SizedBox(width: 4),
             if (_editable) ...[
               _barButton('Add Row', FluentIcons.add, _textMid, _addRow,
                   compact: compact),
@@ -846,6 +948,7 @@ class _CellView extends ConsumerWidget {
     required this.onToggleDelete,
     required this.onDuplicate,
     required this.onDiscardNew,
+    required this.onExport,
     required this.dialect,
     required this.nullDisplay,
     this.editability,
@@ -863,6 +966,7 @@ class _CellView extends ConsumerWidget {
   final void Function(int rowIndex) onToggleDelete;
   final void Function(int rowIndex) onDuplicate;
   final void Function(int id) onDiscardNew;
+  final VoidCallback onExport;
   final SqlDialect dialect;
   final String nullDisplay;
   final GridEditability? editability;
@@ -1042,6 +1146,11 @@ class _CellView extends ConsumerWidget {
         'Copy Row as INSERT',
         () => _copy(_rowInsert(row)),
         icon: FluentIcons.code,
+      ),
+      MenuAction(
+        'Export Results…',
+        onExport,
+        icon: FluentIcons.download,
       ),
       // Cell edits are pointless on a row that is on its way out — staging the
       // delete discarded them, and staging another would only re-add noise.
