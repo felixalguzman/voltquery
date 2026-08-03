@@ -3,12 +3,6 @@ import 'package:flutter/services.dart';
 
 import '../../core/theme/volt_tokens.dart';
 
-// Palette lives in ui/core/theme (#7); these are local names for it.
-const _bg = VoltPalette.canvas;
-const _hair = VoltPalette.hairline;
-const _accent = VoltPalette.accent;
-const _text = VoltPalette.textHigh;
-const _textLo = VoltPalette.textLow;
 
 /// Substring match, case- and accent-insensitive as far as `toLowerCase` goes.
 ///
@@ -101,6 +95,7 @@ class FilterField extends StatefulWidget {
 }
 
 class _FilterFieldState extends State<FilterField> {
+  VoltTokens get t => VoltTheme.of(context);
   late final _controller = TextEditingController(text: widget.value);
   final _focus = FocusNode();
 
@@ -128,6 +123,7 @@ class _FilterFieldState extends State<FilterField> {
 
   @override
   Widget build(BuildContext context) {
+    final t = VoltTheme.of(context);
     final active = widget.value.isNotEmpty;
     return CallbackShortcuts(
       bindings: {
@@ -147,12 +143,12 @@ class _FilterFieldState extends State<FilterField> {
           autofocus: widget.autofocus,
           placeholder: widget.placeholder,
           onChanged: widget.onChanged,
-          style: const TextStyle(color: _text, fontSize: 11.5),
-          placeholderStyle: const TextStyle(color: _textLo, fontSize: 11.5),
+          style: TextStyle(color: t.textHigh, fontSize: 11.5),
+          placeholderStyle: TextStyle(color: t.textLow, fontSize: 11.5),
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
           decoration: WidgetStatePropertyAll(BoxDecoration(
-            color: _bg,
-            border: Border.all(color: active ? _accent : _hair),
+            color: t.canvas,
+            border: Border.all(color: active ? t.accent : t.hairline),
             borderRadius: BorderRadius.circular(3),
           )),
           // fluent draws a second, thicker underline on focus; the border
@@ -161,7 +157,7 @@ class _FilterFieldState extends State<FilterField> {
           prefix: Padding(
             padding: const EdgeInsets.only(left: 6),
             child: Icon(FluentIcons.filter,
-                size: 9, color: active ? _accent : _textLo),
+                size: 9, color: active ? t.accent : t.textLow),
           ),
           // A bare gesture target, not an IconButton: fluent's button carries
           // minimum-size constraints that overflow a 24px field.
@@ -174,13 +170,13 @@ class _FilterFieldState extends State<FilterField> {
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
                       if (widget.matchCount != null) ...[
                         Text('${widget.matchCount}',
-                            style: const TextStyle(
-                                color: _textLo,
+                            style: TextStyle(
+                                color: t.textLow,
                                 fontSize: 10,
                                 fontFamily: 'monospace')),
                         const SizedBox(width: 5),
                       ],
-                      const Icon(FluentIcons.clear, size: 8, color: _textLo),
+                      Icon(FluentIcons.clear, size: 8, color: t.textLow),
                     ]),
                   ),
                 )

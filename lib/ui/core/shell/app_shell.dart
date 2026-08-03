@@ -25,11 +25,6 @@ import '../widgets/section_header.dart';
 
 // Palette lives in ui/core/theme (#7); these are local names for it. Menu-panel chrome now lives
 // in ui/core/menu/app_menu.dart (shared with the tree context menus, #53).
-const _panel = VoltPalette.panel;
-const _hair = VoltPalette.hairline;
-const _accent = VoltPalette.accent;
-const _text = VoltPalette.textHigh;
-const _textLo = VoltPalette.textLow;
 
 /// Auto-hiding scrollbars for the panels — fluent's default (Linux/Windows) keeps
 /// a persistent vertical bar; `thumbVisibility: false` shows it only while
@@ -88,6 +83,7 @@ class _LayoutToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = VoltTheme.of(context);
     return Tooltip(
       message: tooltip,
       child: HoverButton(
@@ -97,10 +93,10 @@ class _LayoutToggle extends StatelessWidget {
           height: 22,
           margin: const EdgeInsets.symmetric(horizontal: 1),
           decoration: BoxDecoration(
-            color: states.isHovered ? VoltPalette.hover : null,
+            color: states.isHovered ? t.hover : null,
             borderRadius: BorderRadius.circular(3),
           ),
-          child: Icon(icon, size: 12, color: active ? _accent : _textLo),
+          child: Icon(icon, size: 12, color: active ? t.accent : t.textLow),
         ),
       ),
     );
@@ -120,6 +116,7 @@ class AppShell extends ConsumerStatefulWidget {
 }
 
 class _AppShellState extends ConsumerState<AppShell> {
+  VoltTokens get t => VoltTheme.of(context);
   final _panes = PaneController(
     entries: [
       PaneEntry(
@@ -301,7 +298,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       label: 'SQLite',
       extensions: ['db', 'sqlite', 'sqlite3'],
     );
-    final file = await openFile(acceptedTypeGroups: const [group]);
+    final file = await openFile(acceptedTypeGroups: [group]);
     if (file != null && mounted) {
       ref.read(currentConnectionProvider.notifier).openFile(file.path);
     }
@@ -309,6 +306,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    final t = VoltTheme.of(context);
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.enter, control: true): () =>
@@ -345,12 +343,12 @@ class _AppShellState extends ConsumerState<AppShell> {
           // zero-space example makes the same split between drawn and
           // hit-tested thickness.
           child: PaneTheme(
-            data: const PaneThemeData(
+            data: PaneThemeData(
               resizerThickness: 1,
               resizerHitTestThickness: 11,
-              resizerColor: _hair,
-              resizerHoverColor: _accent,
-              resizerFocusedColor: _accent,
+              resizerColor: t.hairline,
+              resizerHoverColor: t.accent,
+              resizerFocusedColor: t.accent,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -403,9 +401,9 @@ class _AppShellState extends ConsumerState<AppShell> {
   Widget _menuBar() {
     return Container(
       height: 30,
-      decoration: const BoxDecoration(
-        color: _panel,
-        border: Border(bottom: BorderSide(color: _hair)),
+      decoration: BoxDecoration(
+        color: t.panel,
+        border: Border(bottom: BorderSide(color: t.hairline)),
       ),
       alignment: Alignment.centerLeft,
       child: Row(children: [
@@ -446,7 +444,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         width: 1,
         height: 14,
         margin: const EdgeInsets.symmetric(horizontal: 5),
-        color: _hair,
+        color: t.hairline,
       ),
       for (final s in _Section.values)
         _LayoutToggle(
@@ -565,18 +563,20 @@ class _TopLabel extends StatefulWidget {
 }
 
 class _TopLabelState extends State<_TopLabel> {
+  VoltTokens get t => VoltTheme.of(context);
   bool _hover = false;
   @override
   Widget build(BuildContext context) {
+    final t = VoltTheme.of(context);
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: Container(
-        color: _hover ? VoltPalette.hover : null,
+        color: _hover ? t.hover : null,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         alignment: Alignment.center,
         child: Text(widget.title,
-            style: const TextStyle(color: _text, fontSize: 12.5)),
+            style: TextStyle(color: t.textHigh, fontSize: 12.5)),
       ),
     );
   }

@@ -7,11 +7,6 @@ import '../../core/theme/volt_tokens.dart';
 /// **context menus** (`schema_sidebar`, #53) — one dark surface + one row style
 /// so every menu in the app matches. base_menu stays behind these widgets.
 // TODO(theming #7): unify these tokens into ui/core/theme.
-const _panel = VoltPalette.panel;
-const _hair = VoltPalette.hairline;
-const _text = VoltPalette.textHigh;
-const _textMid = VoltPalette.textMid;
-const _accent = VoltPalette.accent;
 
 /// The dark, rounded, shadowed panel every dropdown/context menu floats on.
 class MenuSurface extends StatelessWidget {
@@ -20,16 +15,17 @@ class MenuSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = VoltTheme.of(context);
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: _panel,
-        border: Border.all(color: _hair),
+        color: t.panel,
+        border: Border.all(color: t.hairline),
         borderRadius: BorderRadius.circular(6),
-        boxShadow: const [
+        boxShadow: [
           BoxShadow(
-            color: VoltPalette.shadow,
+            color: t.shadow,
             blurRadius: 12,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -49,26 +45,27 @@ class MenuActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = VoltTheme.of(context);
     final focused = BaseMenuItem.isFocusHighlightShownOf(context);
     return Container(
-      color: focused ? _accent.withValues(alpha: 0.16) : null,
+      color: focused ? t.accent.withValues(alpha: 0.16) : null,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: Row(
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 13, color: _textMid),
+            Icon(icon, size: 13, color: t.textMid),
             const SizedBox(width: 10),
           ],
           Expanded(
             child: Text(
               label,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: _text, fontSize: 12.5),
+              style: TextStyle(color: t.textHigh, fontSize: 12.5),
             ),
           ),
           if (accel != null) ...[
             const SizedBox(width: 24),
-            Text(accel!, style: const TextStyle(color: _textMid, fontSize: 11)),
+            Text(accel!, style: TextStyle(color: t.textMid, fontSize: 11)),
           ],
         ],
       ),
@@ -80,8 +77,11 @@ class MenuActionRow extends StatelessWidget {
 class MenuDivider extends StatelessWidget {
   const MenuDivider({super.key});
   @override
-  Widget build(BuildContext context) => const Padding(
-    padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-    child: SizedBox(height: 1, child: ColoredBox(color: _hair)),
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+    child: SizedBox(
+      height: 1,
+      child: ColoredBox(color: VoltTheme.of(context).hairline),
+    ),
   );
 }

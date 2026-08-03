@@ -31,6 +31,10 @@ class VoltTokens {
     required this.violet,
     required this.hover,
     required this.hoverSoft,
+    required this.selected,
+    required this.panelAlt,
+    required this.chip,
+    required this.shadow,
   });
 
   /// The deepest surface — the window background, and the well that panels sit
@@ -82,6 +86,19 @@ class VoltTokens {
   /// A lighter [hover], for rows where the full strength is too loud.
   final Color hoverSoft;
 
+  /// A selected row's fill — distinct from [accentWash], which tints; this one
+  /// replaces the surface.
+  final Color selected;
+
+  /// A surface one step off [panel]: a sticky header, a nested strip.
+  final Color panelAlt;
+
+  /// A neutral chip or pill behind small text.
+  final Color chip;
+
+  /// Drop shadow under a floating surface (menus, flyouts).
+  final Color shadow;
+
   /// The shipped palette: "Clean Dev-Tool" — near-black surfaces, cyan accent.
   static const dark = VoltTokens(
     canvas: VoltPalette.canvas,
@@ -99,6 +116,10 @@ class VoltTokens {
     violet: VoltPalette.violet,
     hover: VoltPalette.hover,
     hoverSoft: VoltPalette.hoverSoft,
+    selected: VoltPalette.selected,
+    panelAlt: VoltPalette.panelAlt,
+    chip: VoltPalette.chip,
+    shadow: VoltPalette.shadow,
   );
 
   /// By value, so [VoltTheme.updateShouldNotify] doesn't rebuild the whole app
@@ -120,13 +141,17 @@ class VoltTokens {
       other.success == success &&
       other.violet == violet &&
       other.hover == hover &&
-      other.hoverSoft == hoverSoft;
+      other.hoverSoft == hoverSoft &&
+      other.selected == selected &&
+      other.panelAlt == panelAlt &&
+      other.chip == chip &&
+      other.shadow == shadow;
 
   @override
   int get hashCode => Object.hashAll([
         canvas, panel, hairline, accent, accentWash, accentTint,
         textHigh, textMid, textLow, danger, warning, success, violet,
-        hover, hoverSoft,
+        hover, hoverSoft, selected, panelAlt, chip, shadow,
       ]);
 
   VoltTokens copyWith({
@@ -145,6 +170,10 @@ class VoltTokens {
     Color? violet,
     Color? hover,
     Color? hoverSoft,
+    Color? selected,
+    Color? panelAlt,
+    Color? chip,
+    Color? shadow,
   }) =>
       VoltTokens(
         canvas: canvas ?? this.canvas,
@@ -162,6 +191,10 @@ class VoltTokens {
         violet: violet ?? this.violet,
         hover: hover ?? this.hover,
         hoverSoft: hoverSoft ?? this.hoverSoft,
+        selected: selected ?? this.selected,
+        panelAlt: panelAlt ?? this.panelAlt,
+        chip: chip ?? this.chip,
+        shadow: shadow ?? this.shadow,
       );
 }
 
