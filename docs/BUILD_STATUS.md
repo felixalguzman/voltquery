@@ -4,7 +4,7 @@ Snapshot of the implementation so a fresh session (or you) can pick up. The
 **spec** (what to build) lives in [`docs/README.md`](README.md) → CONTEXT.md,
 ADRs 0001–0009, `docs/design/*`. This file tracks **what's built** so far.
 
-## Done (86 PRs merged to `master`)
+## Done (87 PRs merged to `master`)
 
 Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/MariaDB**
 — all interchangeable behind the driver port (ADR-0003).
@@ -214,7 +214,7 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
   home in the menu bar, and the status bar's actions go icon-only rather than
   disappear. Run is the last thing standing.
 
-**413 tests** green (`flutter test`, +16 more with live PG/MySQL); `flutter analyze` clean.
+**423 tests** green (`flutter test`, +16 more with live PG/MySQL); `flutter analyze` clean.
 
 ## Deferred / known gaps
 
@@ -264,7 +264,8 @@ Multi-engine SQL manager, working live for **SQLite · PostgreSQL · MySQL/Maria
 2. Background isolate for the SQLite driver — unblocks true Cancel + timeouts.
 3. **Grid write-path** — domain layer, typed editors, staged buffer and SQL
    review panel shipped in #63/#64, hardened in #66; row insert/delete/clone in
-   #79. Remaining: a **JSON** editor, and multi-row select → delete in one go.
+   #79, undo-last-apply in #87. Remaining: a **JSON** editor, and multi-row
+   select → delete in one go.
    **Import** is the counterpart to #83's export and is not built.
 4. **Result grid engine** (#67) — pluto_grid is unmaintained; migrate to the
    active `trina_grid` fork, then measure. A custom `VoltGrid` on

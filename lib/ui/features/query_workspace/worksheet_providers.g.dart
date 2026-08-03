@@ -643,6 +643,154 @@ final class WorksheetRunnerProvider
 
 String _$worksheetRunnerHash() => r'b5c89e54403b1a8b238c73a2a480b3c642743def';
 
+/// The inverse of the last batch applied from a worksheet's grid, or null.
+///
+/// Keyed by **worksheet**, not grid: applying anything structural re-runs the
+/// query, which mints a new `gridId` — so a grid-keyed undo would be discarded
+/// by the very action that created it.
+///
+/// One deep. A stack would imply the older entries are still valid, and they
+/// aren't: each was built from row values that the next apply may have changed.
+
+@ProviderFor(LastApply)
+final lastApplyProvider = LastApplyFamily._();
+
+/// The inverse of the last batch applied from a worksheet's grid, or null.
+///
+/// Keyed by **worksheet**, not grid: applying anything structural re-runs the
+/// query, which mints a new `gridId` — so a grid-keyed undo would be discarded
+/// by the very action that created it.
+///
+/// One deep. A stack would imply the older entries are still valid, and they
+/// aren't: each was built from row values that the next apply may have changed.
+final class LastApplyProvider extends $NotifierProvider<LastApply, GridUndo?> {
+  /// The inverse of the last batch applied from a worksheet's grid, or null.
+  ///
+  /// Keyed by **worksheet**, not grid: applying anything structural re-runs the
+  /// query, which mints a new `gridId` — so a grid-keyed undo would be discarded
+  /// by the very action that created it.
+  ///
+  /// One deep. A stack would imply the older entries are still valid, and they
+  /// aren't: each was built from row values that the next apply may have changed.
+  LastApplyProvider._({
+    required LastApplyFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'lastApplyProvider',
+         isAutoDispose: false,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$lastApplyHash();
+
+  @override
+  String toString() {
+    return r'lastApplyProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  LastApply create() => LastApply();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(GridUndo? value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<GridUndo?>(value),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is LastApplyProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$lastApplyHash() => r'725cb1e9364d82f7d9d33605d1920615d60d722b';
+
+/// The inverse of the last batch applied from a worksheet's grid, or null.
+///
+/// Keyed by **worksheet**, not grid: applying anything structural re-runs the
+/// query, which mints a new `gridId` — so a grid-keyed undo would be discarded
+/// by the very action that created it.
+///
+/// One deep. A stack would imply the older entries are still valid, and they
+/// aren't: each was built from row values that the next apply may have changed.
+
+final class LastApplyFamily extends $Family
+    with
+        $ClassFamilyOverride<
+          LastApply,
+          GridUndo?,
+          GridUndo?,
+          GridUndo?,
+          String
+        > {
+  LastApplyFamily._()
+    : super(
+        retry: null,
+        name: r'lastApplyProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: false,
+      );
+
+  /// The inverse of the last batch applied from a worksheet's grid, or null.
+  ///
+  /// Keyed by **worksheet**, not grid: applying anything structural re-runs the
+  /// query, which mints a new `gridId` — so a grid-keyed undo would be discarded
+  /// by the very action that created it.
+  ///
+  /// One deep. A stack would imply the older entries are still valid, and they
+  /// aren't: each was built from row values that the next apply may have changed.
+
+  LastApplyProvider call(String worksheetId) =>
+      LastApplyProvider._(argument: worksheetId, from: this);
+
+  @override
+  String toString() => r'lastApplyProvider';
+}
+
+/// The inverse of the last batch applied from a worksheet's grid, or null.
+///
+/// Keyed by **worksheet**, not grid: applying anything structural re-runs the
+/// query, which mints a new `gridId` — so a grid-keyed undo would be discarded
+/// by the very action that created it.
+///
+/// One deep. A stack would imply the older entries are still valid, and they
+/// aren't: each was built from row values that the next apply may have changed.
+
+abstract class _$LastApply extends $Notifier<GridUndo?> {
+  late final _$args = ref.$arg as String;
+  String get worksheetId => _$args;
+
+  GridUndo? build(String worksheetId);
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<GridUndo?, GridUndo?>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<GridUndo?, GridUndo?>,
+              GridUndo?,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, () => build(_$args));
+  }
+}
+
 /// Pending cell edits for one result grid, keyed `<worksheetId>:<resultIndex>`
 /// so each result sub-tab stages independently.
 ///

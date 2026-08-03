@@ -20,6 +20,7 @@ import '../history/history_providers.dart';
 import '../schema_browser/schema_providers.dart';
 import '../settings/settings_providers.dart';
 import 'grid_edit_buffer.dart';
+import 'grid_undo.dart';
 import 'grid_editability.dart';
 import 'worksheet_runner.dart';
 import 'worksheet_state.dart';
@@ -453,6 +454,23 @@ class WorksheetOrigins extends _$WorksheetOrigins {
 WorksheetRunner worksheetRunner(Ref ref) {
   final s = ref.watch(settingsProvider);
   return WorksheetRunner(rowCap: s.resultRowCap, batchSize: s.resultFetchBatch);
+}
+
+/// The inverse of the last batch applied from a worksheet's grid, or null.
+///
+/// Keyed by **worksheet**, not grid: applying anything structural re-runs the
+/// query, which mints a new `gridId` — so a grid-keyed undo would be discarded
+/// by the very action that created it.
+///
+/// One deep. A stack would imply the older entries are still valid, and they
+/// aren't: each was built from row values that the next apply may have changed.
+@Riverpod(keepAlive: true)
+class LastApply extends _$LastApply {
+  @override
+  GridUndo? build(String worksheetId) => null;
+
+  void record(GridUndo undo) => state = undo;
+  void clear() => state = null;
 }
 
 /// Pending cell edits for one result grid, keyed `<worksheetId>:<resultIndex>`
