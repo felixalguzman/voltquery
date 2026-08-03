@@ -1,3 +1,4 @@
+import '../../../domain/drivers/result.dart';
 import '../../../domain/models/column_editor.dart';
 import '../../../domain/models/engine.dart';
 import '../../../domain/models/schema.dart';
@@ -39,6 +40,31 @@ class GridEditability {
   /// staged UPDATE addresses the row *by* that value.
   bool isPrimaryKey(String fieldName) =>
       primaryKey.any((k) => k.toLowerCase() == fieldName.toLowerCase());
+}
+
+/// A result row's primary-key values **as they were read**, or null when the
+/// row can't be addressed — the PK wasn't selected (`SELECT name FROM t`), or
+/// the index is out of range.
+///
+/// Never the staged values: an UPDATE addressing a row by a value that isn't in
+/// the table yet matches nothing. Shared rather than private to the grid so the
+/// debug bridge reports the same statements the grid would actually run.
+Map<String, Object?>? primaryKeyValues(
+  GridEditability editability,
+  List<ResultField> fields,
+  List<ResultRow> rows,
+  int rowIndex,
+) {
+  if (rowIndex < 0 || rowIndex >= rows.length) return null;
+  final keys = <String, Object?>{};
+  for (final pkName in editability.primaryKey) {
+    final col = fields.indexWhere(
+      (f) => f.name.toLowerCase() == pkName.toLowerCase(),
+    );
+    if (col < 0) return null;
+    keys[pkName] = rows[rowIndex].values[col];
+  }
+  return keys;
 }
 
 /// Resolves [GridEditability] for one result, pairing the SQL analysis with the

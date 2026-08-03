@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# Talk to a running VoltQuery from the shell, via the debug bridge
+# (lib/debug/debug_bridge.dart).
+#
+# Start the app so it writes its VM service URI where this script can find it:
+#
+#   flutter run -d linux -t test_driver/app.dart \
+#     --vmservice-out-file=.dart_tool/vmservice.txt
+#
+# Then:
+#
+#   tool/vq snapshot                    # connection, tabs, staged grid edits + their SQL
+#   tool/vq errors                      # Flutter errors so far (overflows never throw)
+#   tool/vq errors --clear              # ...and reset, so the next check is about your change
+#   tool/vq run "SELECT * FROM orders"  # run in the active worksheet
+#   tool/vq run "SELECT 1" ws-1         # ...or a specific one
+#
+# Debug builds only — the bridge is not registered otherwise.
+set -euo pipefail
+
+URI_FILE="${VOLTQUERY_VMSERVICE_FILE:-.dart_tool/vmservice.txt}"
+
+uri() {
+  if [[ -n "${VOLTQUERY_VMSERVICE:-}" ]]; then
+    echo "${VOLTQUERY_VMSERVICE%/}"
+    return
+  fi
+  if [[ ! -f "$URI_FILE" ]]; then
+    echo "No VM service URI. Start the app with:" >&2
+    echo "  flutter run -d linux -t test_driver/app.dart --vmservice-out-file=$URI_FILE" >&2
+    echo "or set VOLTQUERY_VMSERVICE=http://127.0.0.1:PORT/AUTH/" >&2
+    exit 1
+  fi
+  # The file holds e.g. http://127.0.0.1:41000/AbCdEf=/ — trailing slash off.
+  sed -e 's:/*$::' "$URI_FILE"
+}
+
+# The bridge is registered on the app's main isolate; ask the VM which that is
+# rather than hard-coding an id that changes every launch.
+isolate() {
+  curl -sf "$1/getVM" |
+    python3 -c 'import sys,json; print(json.load(sys.stdin)["result"]["isolates"][0]["id"])'
+}
+
+pretty() {
+  python3 -c '
+import sys, json
+body = json.load(sys.stdin)
+# Unwrap the JSON-RPC envelope; a bridge-side failure comes back as {"error": ...}.
+print(json.dumps(body.get("result", body), indent=2))
+'
+}
+
+main() {
+  local base method
+  base="$(uri)"
+  local iso
+  iso="$(isolate "$base")"
+
+  case "${1:-snapshot}" in
+    snapshot) method="snapshot" ;;
+    errors)
+      method="errors"
+      if [[ "${2:-}" == "--clear" ]]; then
+        curl -sf -G "$base/ext.voltquery.errors" \
+          --data-urlencode "isolateId=$iso" \
+          --data-urlencode "clear=true" | pretty
+        return
+      fi
+      ;;
+    run)
+      [[ $# -ge 2 ]] || { echo "usage: vq run <sql> [worksheetId]" >&2; exit 2; }
+      curl -sf -G "$base/ext.voltquery.runSql" \
+        --data-urlencode "isolateId=$iso" \
+        --data-urlencode "sql=$2" \
+        ${3:+--data-urlencode "worksheetId=$3"} | pretty
+      return
+      ;;
+    -h | --help | help)
+      sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+      return
+      ;;
+    *) echo "unknown command: $1 (try: snapshot, errors, run)" >&2; exit 2 ;;
+  esac
+
+  curl -sf -G "$base/ext.voltquery.$method" \
+    --data-urlencode "isolateId=$iso" | pretty
+}
+
+main "$@"

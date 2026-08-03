@@ -15,7 +15,13 @@ import 'ui/features/settings/vault_auto_lock.dart';
 /// Architecture: `docs/design/architecture.md`. This first slice wires the
 /// query workspace (re_editor → SQLite driver → pluto_grid) against a seeded
 /// in-memory demo database. Shell, theming, and the rest land slice-by-slice.
-Future<void> main() async {
+/// [onContainerReady] is handed the app's [ProviderContainer] just before the
+/// first frame. Nothing in the shipped app passes it — it exists so a debug
+/// entrypoint (`test_driver/app.dart`) can attach the VM-service bridge to the
+/// *real* app state rather than standing up a second container beside it.
+Future<void> main({
+  void Function(ProviderContainer container)? onContainerReady,
+}) async {
   WidgetsFlutterBinding.ensureInitialized();
   // Clear demo temp DBs from earlier runs so the demo starts pristine (its path
   // is a fresh temp file per launch — see demoConnection).
@@ -40,8 +46,15 @@ Future<void> main() async {
     } catch (_) {}
   }
 
-  runApp(ProviderScope(
+  // Built here rather than by `ProviderScope` so it can be handed out before
+  // the first frame. It lives for the process, so there is nothing to dispose.
+  final container = ProviderContainer(
     overrides: [localStoreProvider.overrideWithValue(store)],
+  );
+  onContainerReady?.call(container);
+
+  runApp(UncontrolledProviderScope(
+    container: container,
     child: const VoltQueryApp(),
   ));
 }

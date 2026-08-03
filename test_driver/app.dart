@@ -1,7 +1,9 @@
 import 'package:flutter_driver/driver_extension.dart';
+import 'package:voltquery/debug/debug_bridge.dart';
 import 'package:voltquery/main.dart' as app;
 
-/// The app, with the Flutter Driver extension switched on.
+/// The app, with the Flutter Driver extension and the VoltQuery debug bridge
+/// switched on.
 ///
 /// A separate entrypoint rather than a flag in `main.dart`: the extension opens
 /// a control channel into the running isolate, and that has no business being
@@ -16,5 +18,7 @@ import 'package:voltquery/main.dart' as app;
 /// ```
 void main() {
   enableFlutterDriverExtension();
-  app.main();
+  // The bridge gets the app's own container, so `ext.voltquery.snapshot`
+  // reports the state the user is looking at rather than a parallel copy.
+  app.main(onContainerReady: registerDebugExtensions);
 }
