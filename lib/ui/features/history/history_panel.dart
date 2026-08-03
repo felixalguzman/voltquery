@@ -2,6 +2,8 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/volt_tokens.dart';
+
 import '../../core/menu/confirm.dart';
 import '../../core/menu/context_menu.dart';
 import '../../core/widgets/filter_field.dart';
@@ -11,15 +13,15 @@ import '../../../domain/models/history_entry.dart';
 import '../query_workspace/worksheet_providers.dart';
 import 'history_providers.dart';
 
-// TODO(theming #7): unify tokens into ui/core/theme.
-const _panel = Color(0xFF16181D);
-const _hair = Color(0xFF262A31);
-const _accent = Color(0xFF2FE6FF);
-const _textHi = Color(0xFFE6E8EC);
-const _textMid = Color(0xFF9BA1AD);
-const _textLo = Color(0xFF5A6069);
-const _ok = Color(0xFF6FE39A);
-const _err = Color(0xFFFF6B6B);
+// Palette lives in ui/core/theme (#7); these are local names for it.
+const _panel = VoltPalette.panel;
+const _hair = VoltPalette.hairline;
+const _accent = VoltPalette.accent;
+const _textHi = VoltPalette.textHigh;
+const _textMid = VoltPalette.textMid;
+const _textLo = VoltPalette.textLow;
+const _ok = VoltPalette.success;
+const _err = VoltPalette.danger;
 
 /// Recent query history (persisted, ADR-0005). Click an entry to reload its SQL
 /// into the active worksheet.

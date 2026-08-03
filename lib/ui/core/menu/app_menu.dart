@@ -1,15 +1,17 @@
 import 'package:base_menu/base_menu.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 
+import '../../core/theme/volt_tokens.dart';
+
 /// Shared chrome for both the **menu bar** dropdowns (`app_shell`) and the tree
 /// **context menus** (`schema_sidebar`, #53) — one dark surface + one row style
 /// so every menu in the app matches. base_menu stays behind these widgets.
 // TODO(theming #7): unify these tokens into ui/core/theme.
-const _panel = Color(0xFF16181D);
-const _hair = Color(0xFF262A31);
-const _text = Color(0xFFE6E8EC);
-const _textMid = Color(0xFF9BA1AD);
-const _accent = Color(0xFF2FE6FF);
+const _panel = VoltPalette.panel;
+const _hair = VoltPalette.hairline;
+const _text = VoltPalette.textHigh;
+const _textMid = VoltPalette.textMid;
+const _accent = VoltPalette.accent;
 
 /// The dark, rounded, shadowed panel every dropdown/context menu floats on.
 class MenuSurface extends StatelessWidget {
@@ -25,7 +27,7 @@ class MenuSurface extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x66000000),
+            color: VoltPalette.shadow,
             blurRadius: 12,
             offset: Offset(0, 4),
           ),

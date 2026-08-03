@@ -3,8 +3,10 @@ import 'package:file_selector/file_selector.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:simple_icons/simple_icons.dart';
 import 'package:uuid/uuid.dart';
+
+import '../../core/theme/volt_tokens.dart';
+import '../../core/theme/engine_brand.dart';
 
 import '../../../data/services/secret_store.dart';
 import '../../../domain/models/connection.dart';
@@ -19,20 +21,13 @@ import '../../core/menu/context_menu.dart';
 import '../../core/widgets/section_header.dart';
 import 'server_form.dart';
 
-// TODO(theming #7): unify tokens into ui/core/theme.
-const _panel = Color(0xFF16181D);
-const _accent = Color(0xFF2FE6FF);
-const _accentDim = Color(0x1F2FE6FF);
-const _textHi = Color(0xFFE6E8EC);
-const _textMid = Color(0xFF9BA1AD);
+// Palette lives in ui/core/theme (#7); these are local names for it.
+const _panel = VoltPalette.panel;
+const _accent = VoltPalette.accent;
+const _accentDim = VoltPalette.accentWash;
+const _textHi = VoltPalette.textHigh;
+const _textMid = VoltPalette.textMid;
 
-/// Engine → brand glyph (simple_icons) + brand colour. One source for the
-/// connections list rows and the new-connection dialog.
-(IconData, Color) engineBrand(Engine engine) => switch (engine) {
-      Engine.sqlite => (SimpleIcons.sqlite, Color(0xFF56B6E0)),
-      Engine.postgres => (SimpleIcons.postgresql, Color(0xFF6699E6)),
-      Engine.mysql => (SimpleIcons.mariadb, Color(0xFF00A9CE)),
-    };
 
 /// Saved connections + the built-in demo. Click to switch (rebuilds the
 /// sessions); "+" adds a SQLite file; hover a saved one to delete. Wires the
@@ -316,7 +311,7 @@ class ConnectionsPanel extends ConsumerWidget {
       child: HoverButton(
         onPressed: () => _select(context, ref, c),
         builder: (context, states) => Container(
-        color: active ? _accentDim : (states.isHovered ? const Color(0x14FFFFFF) : null),
+        color: active ? _accentDim : (states.isHovered ? VoltPalette.hover : null),
         padding: EdgeInsets.only(left: c.options.colorTag == null ? 12 : 8,
             right: 6),
         height: 30,

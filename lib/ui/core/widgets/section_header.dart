@@ -1,8 +1,10 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
-// TODO(theming #7): unify tokens into ui/core/theme.
-const _hair = Color(0xFF262A31);
-const _textMid = Color(0xFF9BA1AD);
+import '../../core/theme/volt_tokens.dart';
+
+// Palette lives in ui/core/theme (#7); these are local names for it.
+const _hair = VoltPalette.hairline;
+const _textMid = VoltPalette.textMid;
 
 /// Height of a sidebar section header. A collapsed section shrinks to exactly
 /// this, so the title stays clickable — collapsing must never make a panel

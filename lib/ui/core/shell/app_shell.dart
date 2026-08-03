@@ -8,6 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:panes/panes.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../../core/theme/volt_tokens.dart';
+
 import '../../features/connections/connections_panel.dart';
 import '../../features/connections/host_key_dialog.dart';
 import '../../features/history/history_panel.dart';
@@ -21,13 +23,13 @@ import '../../features/settings/settings_providers.dart';
 import '../menu/app_menu.dart';
 import '../widgets/section_header.dart';
 
-// TODO(theming #7): unify tokens into ui/core/theme. Menu-panel chrome now lives
+// Palette lives in ui/core/theme (#7); these are local names for it. Menu-panel chrome now lives
 // in ui/core/menu/app_menu.dart (shared with the tree context menus, #53).
-const _panel = Color(0xFF16181D);
-const _hair = Color(0xFF262A31);
-const _accent = Color(0xFF2FE6FF);
-const _text = Color(0xFFE6E8EC);
-const _textLo = Color(0xFF5A6069);
+const _panel = VoltPalette.panel;
+const _hair = VoltPalette.hairline;
+const _accent = VoltPalette.accent;
+const _text = VoltPalette.textHigh;
+const _textLo = VoltPalette.textLow;
 
 /// Auto-hiding scrollbars for the panels — fluent's default (Linux/Windows) keeps
 /// a persistent vertical bar; `thumbVisibility: false` shows it only while
@@ -95,7 +97,7 @@ class _LayoutToggle extends StatelessWidget {
           height: 22,
           margin: const EdgeInsets.symmetric(horizontal: 1),
           decoration: BoxDecoration(
-            color: states.isHovered ? const Color(0x14FFFFFF) : null,
+            color: states.isHovered ? VoltPalette.hover : null,
             borderRadius: BorderRadius.circular(3),
           ),
           child: Icon(icon, size: 12, color: active ? _accent : _textLo),
@@ -570,7 +572,7 @@ class _TopLabelState extends State<_TopLabel> {
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: Container(
-        color: _hover ? const Color(0x14FFFFFF) : null,
+        color: _hover ? VoltPalette.hover : null,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         alignment: Alignment.center,
         child: Text(widget.title,

@@ -2,6 +2,8 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../core/theme/volt_tokens.dart';
+
 import '../../../data/drivers/driver_factory.dart';
 import '../../../domain/drivers/driver_error.dart';
 import '../../../domain/drivers/driver_error_help.dart';
@@ -327,7 +329,7 @@ class _ServerDialogState extends State<_ServerDialog> {
             SizedBox(width: 8),
             Text(
               'Testing…',
-              style: TextStyle(color: Color(0xFF9BA1AD), fontSize: 12),
+              style: TextStyle(color: VoltPalette.textMid, fontSize: 12),
             ),
           ],
         );
@@ -336,7 +338,7 @@ class _ServerDialogState extends State<_ServerDialog> {
           '✔ $_testMsg',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: Color(0xFF6FE39A), fontSize: 12),
+          style: const TextStyle(color: VoltPalette.success, fontSize: 12),
         );
       case _Test.error:
         // The driver's own text explains the failure to whoever wrote the
@@ -356,13 +358,13 @@ class _ServerDialogState extends State<_ServerDialog> {
                 const Padding(
                   padding: EdgeInsets.only(top: 1, right: 6),
                   child: Icon(FluentIcons.error_badge,
-                      size: 12, color: Color(0xFFFF6B6B)),
+                      size: 12, color: VoltPalette.danger),
                 ),
                 Expanded(
                   child: Text(
                     help.headline,
                     style: const TextStyle(
-                        color: Color(0xFFFF6B6B), fontSize: 12),
+                        color: VoltPalette.danger, fontSize: 12),
                   ),
                 ),
               ],
@@ -373,7 +375,7 @@ class _ServerDialogState extends State<_ServerDialog> {
                 child: Text(
                   hint,
                   style: const TextStyle(
-                      color: Color(0xFF9BA1AD), fontSize: 11),
+                      color: VoltPalette.textMid, fontSize: 11),
                 ),
               ),
             Padding(
@@ -394,7 +396,7 @@ class _ServerDialogState extends State<_ServerDialog> {
                     builder: (context, states) => Text(
                       _showRaw ? 'Hide details' : 'Details',
                       style: const TextStyle(
-                          color: Color(0xFF2FE6FF), fontSize: 11),
+                          color: VoltPalette.accent, fontSize: 11),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -402,7 +404,7 @@ class _ServerDialogState extends State<_ServerDialog> {
                     message: 'Copy error',
                     child: IconButton(
                       icon: const Icon(FluentIcons.copy,
-                          size: 12, color: Color(0xFF9BA1AD)),
+                          size: 12, color: VoltPalette.textMid),
                       onPressed: () =>
                           Clipboard.setData(ClipboardData(text: _testMsg)),
                     ),
@@ -419,7 +421,7 @@ class _ServerDialogState extends State<_ServerDialog> {
                     child: SelectableText(
                       _testMsg,
                       style: const TextStyle(
-                          color: Color(0xFF5A6069),
+                          color: VoltPalette.textLow,
                           fontSize: 10.5,
                           fontFamily: 'monospace'),
                     ),
@@ -445,12 +447,12 @@ class _ServerDialogState extends State<_ServerDialog> {
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: _tab == i
-                        ? const Color(0x222FE6FF)
-                        : (states.isHovered ? const Color(0x14FFFFFF) : null),
+                        ? VoltPalette.accentWash
+                        : (states.isHovered ? VoltPalette.hover : null),
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(
                       color: _tab == i
-                          ? const Color(0xFF2FE6FF)
+                          ? VoltPalette.accent
                           : Colors.transparent,
                     ),
                   ),
@@ -459,8 +461,8 @@ class _ServerDialogState extends State<_ServerDialog> {
                     style: TextStyle(
                       fontSize: 12,
                       color: _tab == i
-                          ? const Color(0xFF2FE6FF)
-                          : const Color(0xFF9BA1AD),
+                          ? VoltPalette.accent
+                          : VoltPalette.textMid,
                     ),
                   ),
                 ),
@@ -518,7 +520,7 @@ class _ServerDialogState extends State<_ServerDialog> {
             child: Text(
               'Stops VoltQuery generating DML for this connection. A UI guard, '
               'not a server-side permission.',
-              style: TextStyle(color: Color(0xFF5A6069), fontSize: 10.5),
+              style: TextStyle(color: VoltPalette.textLow, fontSize: 10.5),
             ),
           ),
         ],
@@ -543,7 +545,7 @@ class _ServerDialogState extends State<_ServerDialog> {
           child: Text(
             'The database host and port above are resolved on the far side of '
             'the tunnel — "localhost" means localhost as the bastion sees it.',
-            style: TextStyle(color: Color(0xFF5A6069), fontSize: 10.5),
+            style: TextStyle(color: VoltPalette.textLow, fontSize: 10.5),
           ),
         ),
         if (ssh.enabled) ...[
@@ -565,7 +567,7 @@ class _ServerDialogState extends State<_ServerDialog> {
           InfoLabel(
             label: 'Authentication',
             labelStyle:
-                const TextStyle(fontSize: 12, color: Color(0xFF9BA1AD)),
+                const TextStyle(fontSize: 12, color: VoltPalette.textMid),
             child: ComboBox<SshAuthMode>(
               value: ssh.authMode,
               isExpanded: true,
@@ -604,7 +606,7 @@ class _ServerDialogState extends State<_ServerDialog> {
       padding: const EdgeInsets.only(bottom: 10),
       child: InfoLabel(
         label: label,
-        labelStyle: const TextStyle(fontSize: 12, color: Color(0xFF9BA1AD)),
+        labelStyle: const TextStyle(fontSize: 12, color: VoltPalette.textMid),
         child: TextBox(
           controller: c,
           obscureText: obscure,
@@ -628,7 +630,7 @@ class _ServerDialogState extends State<_ServerDialog> {
           InfoLabel(
             label: 'Connect timeout (seconds)',
             labelStyle:
-                const TextStyle(fontSize: 12, color: Color(0xFF9BA1AD)),
+                const TextStyle(fontSize: 12, color: VoltPalette.textMid),
             child: NumberBox<int>(
               value: _options.connectTimeoutSeconds,
               min: 1,
@@ -642,7 +644,7 @@ class _ServerDialogState extends State<_ServerDialog> {
           const Text(
             'Driver properties (engine-specific pass-through) are stored with '
             'the connection; an editor for them comes with the SSH slice.',
-            style: TextStyle(color: Color(0xFF5A6069), fontSize: 10.5),
+            style: TextStyle(color: VoltPalette.textLow, fontSize: 10.5),
           ),
         ],
       );
@@ -662,7 +664,7 @@ class _ServerDialogState extends State<_ServerDialog> {
       padding: const EdgeInsets.only(bottom: 10),
       child: InfoLabel(
         label: 'Colour tag',
-        labelStyle: const TextStyle(fontSize: 12, color: Color(0xFF9BA1AD)),
+        labelStyle: const TextStyle(fontSize: 12, color: VoltPalette.textMid),
         child: Row(
           children: [
             for (final c in swatches)
@@ -688,14 +690,14 @@ class _ServerDialogState extends State<_ServerDialog> {
                       shape: BoxShape.circle,
                       border: Border.all(
                         color: _options.colorTag == c
-                            ? const Color(0xFFE6E8EC)
-                            : const Color(0xFF3A4049),
+                            ? VoltPalette.textHigh
+                            : VoltPalette.chip,
                         width: _options.colorTag == c ? 2 : 1,
                       ),
                     ),
                     child: c == null
                         ? const Icon(FluentIcons.clear,
-                            size: 9, color: Color(0xFF5A6069))
+                            size: 9, color: VoltPalette.textLow)
                         : null,
                   ),
                 ),
@@ -711,7 +713,7 @@ class _ServerDialogState extends State<_ServerDialog> {
       padding: const EdgeInsets.only(bottom: 10),
       child: InfoLabel(
         label: 'TLS',
-        labelStyle: const TextStyle(fontSize: 12, color: Color(0xFF9BA1AD)),
+        labelStyle: const TextStyle(fontSize: 12, color: VoltPalette.textMid),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -733,7 +735,7 @@ class _ServerDialogState extends State<_ServerDialog> {
               _canVerify
                   ? _ssl.description
                   : '${_ssl.description}  MySQL cannot verify certificates.',
-              style: const TextStyle(color: Color(0xFF5A6069), fontSize: 10.5),
+              style: const TextStyle(color: VoltPalette.textLow, fontSize: 10.5),
             ),
             // Only meaningful when the certificate is actually checked.
             if (_ssl == SslMode.verifyFull) ...[
